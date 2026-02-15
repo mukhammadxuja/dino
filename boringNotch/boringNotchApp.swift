@@ -197,7 +197,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func positionLockScreenPlayerWindow(_ window: NSWindow, on screen: NSScreen) {
         let screenFrame = screen.frame
         let x = screenFrame.origin.x + (screenFrame.width - lockScreenPlayerSize.width) / 2
-        let y = screenFrame.origin.y + 120
+        let y = screenFrame.origin.y + 130
         window.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
@@ -723,6 +723,8 @@ private struct LockScreenPasscodePlayerView: View {
     @ObservedObject private var musicManager = MusicManager.shared
     @Default(.coloredSpectrogram) private var coloredSpectrogram
     @Default(.lockScreenPlayerBackgroundStyle) private var lockScreenPlayerBackgroundStyle
+    @Default(.enableLyrics) private var enableLyrics
+    @Default(.musicControlSlots) private var slotConfig
     @State private var sliderValue: Double = 0
     @State private var dragging = false
     @State private var lastDragged: Date = .distantPast
@@ -756,7 +758,7 @@ private struct LockScreenPasscodePlayerView: View {
         ZStack {
             Color.clear
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 7) {
                 topRow
                 sliderBlock
                 controlsRow
@@ -867,15 +869,17 @@ private struct LockScreenPasscodePlayerView: View {
                         frameWidth: textWidth
                     )
                     .fontWeight(.medium)
-                    MarqueeText(
-                        .constant(lyricLineText),
-                        font: .subheadline,
-                        nsFont: .subheadline,
-                        textColor: musicManager.isFetchingLyrics ? .gray.opacity(0.7) : .gray,
-                        frameWidth: textWidth
-                    )
-                    .lineLimit(1)
-                    .opacity(musicManager.isPlaying ? 1 : 0)
+                    if enableLyrics {
+                        MarqueeText(
+                            .constant(lyricLineText),
+                            font: .subheadline,
+                            nsFont: .subheadline,
+                            textColor: musicManager.isFetchingLyrics ? .gray.opacity(0.7) : .gray,
+                            frameWidth: textWidth
+                        )
+                        .lineLimit(1)
+                        .opacity(musicManager.isPlaying ? 1 : 0)
+                    }
                 }
 
                 Spacer(minLength: 8)
@@ -899,7 +903,7 @@ private struct LockScreenPasscodePlayerView: View {
 
     private var sliderBlock: some View {
         TimelineView(.animation(minimumInterval: musicManager.playbackRate > 0 ? 0.1 : nil)) { timeline in
-            VStack(spacing: 5) {
+            VStack(spacing: 3) {
                 CustomSlider(
                     value: $sliderValue,
                     range: 0...max(duration, 0.01),
@@ -929,20 +933,65 @@ private struct LockScreenPasscodePlayerView: View {
     }
 
     private var controlsRow: some View {
-        HStack(spacing: 16) {
+        let slots = activeSlots
+        return HStack(spacing: 12) {
+            ForEach(Array(slots.enumerated()), id: \.offset) { _, slot in
+                slotView(for: slot)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private var activeSlots: [MusicControlButton] {
+        let limit = MusicControlButton.maxSlotCount
+        let trimmed = Array(slotConfig.prefix(limit))
+        if trimmed.count >= limit {
+            return trimmed
+        }
+        return trimmed + Array(repeating: .none, count: limit - trimmed.count)
+    }
+
+    @ViewBuilder
+    private func slotView(for slot: MusicControlButton) -> some View {
+        switch slot {
+        case .shuffle:
             playerButton(icon: "shuffle", active: musicManager.isShuffled) { MusicManager.shared.toggleShuffle() }
+        case .previous:
             playerButton(icon: "backward.fill") { MusicManager.shared.previousTrack() }
+        case .playPause:
             playerButton(icon: musicManager.isPlaying ? "pause.fill" : "play.fill", size: 50, iconSize: 26) {
                 MusicManager.shared.togglePlay()
             }
+        case .next:
             playerButton(icon: "forward.fill") { MusicManager.shared.nextTrack() }
+        case .repeatMode:
+            playerButton(icon: repeatIcon, active: musicManager.repeatMode != .off) { MusicManager.shared.toggleRepeat() }
+        case .favorite:
             playerButton(icon: musicManager.isFavoriteTrack ? "heart.fill" : "heart", active: musicManager.isFavoriteTrack) {
                 MusicManager.shared.toggleFavoriteTrack()
             }
             .disabled(!musicManager.canFavoriteTrack)
             .opacity(musicManager.canFavoriteTrack ? 1 : 0.45)
+        case .goBackward:
+            playerButton(icon: "gobackward.15") { MusicManager.shared.skip(seconds: -15) }
+        case .goForward:
+            playerButton(icon: "goforward.15") { MusicManager.shared.skip(seconds: 15) }
+        case .volume:
+            Color.clear.frame(width: 34, height: 34)
+        case .none:
+            Color.clear.frame(width: 34, height: 34)
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private var repeatIcon: String {
+        switch musicManager.repeatMode {
+        case .off:
+            return "repeat"
+        case .all:
+            return "repeat"
+        case .one:
+            return "repeat.1"
+        }
     }
 
     private func playerButton(
