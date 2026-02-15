@@ -1025,7 +1025,6 @@ struct Shelf: View {
 
 struct PomodoroSettings: View {
     @Default(.pomodoroEnabled) private var pomodoroEnabled
-    @Default(.pomodoroShowMenuBarIcon) private var pomodoroShowMenuBarIcon
     @Default(.pomodoroFocusMinutes) private var pomodoroFocusMinutes
     @Default(.pomodoroShortBreakMinutes) private var pomodoroShortBreakMinutes
     @Default(.pomodoroLongBreakMinutes) private var pomodoroLongBreakMinutes
@@ -1040,13 +1039,10 @@ struct PomodoroSettings: View {
                 Defaults.Toggle(key: .pomodoroEnabled) {
                     Text("Enable Pomodoro")
                 }
-                Defaults.Toggle(key: .pomodoroShowMenuBarIcon) {
-                    Text("Show menu bar icon")
-                }
             } header: {
                 Text("Pomodoro Features")
             } footer: {
-                Text("Enable Pomodoro widgets in notch and optionally show a dedicated menu bar icon.")
+                Text("Enable Pomodoro widgets in the notch.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

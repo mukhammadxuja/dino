@@ -46,23 +46,13 @@ struct ContentView: View {
 
     private let extendedHoverPadding: CGFloat = 30
     private let zeroHeightHoverPadding: CGFloat = 10
-    private let homeCollapsedOpenWidth: CGFloat = 220
-    private let homeExpandedOpenWidth: CGFloat = 525
-    private let pomodoroReplaceWidthExpansion: CGFloat = 30
+    private let homeBaseOpenWidth: CGFloat = 600
+    private let pomodoroReplaceWidthExpansion: CGFloat = 0
 
     private var topCornerRadius: CGFloat {
        ((vm.notchState == .open) && Defaults[.cornerRadiusScaling])
                 ? cornerRadiusInsets.opened.top
                 : cornerRadiusInsets.closed.top
-    }
-
-    private var shouldExpandHomeNotchWidth: Bool {
-        guard coordinator.currentView == .home else { return false }
-
-        let shouldShowCamera = showMirror && webcamManager.cameraAvailable && vm.isCameraExpanded
-        let shouldShowPomodoroSection = pomodoroEnabled
-
-        return shouldShowCamera || shouldShowPomodoroSection
     }
 
     private var currentNotchShape: NotchShape {
@@ -101,7 +91,7 @@ struct ContentView: View {
     private var desiredOpenNotchWidth: CGFloat {
         switch coordinator.currentView {
         case .home:
-            return shouldExpandHomeNotchWidth ? homeExpandedOpenWidth : homeCollapsedOpenWidth
+            return homeBaseOpenWidth
         case .shelf:
             return openNotchSize.width
         case .calendar:
@@ -198,12 +188,16 @@ struct ContentView: View {
                         alignment: .top
                     )
                     .conditionalModifier(true) { view in
-                        let openAnimation = Animation.spring(response: 0.42, dampingFraction: 0.8, blendDuration: 0)
-                        let closeAnimation = Animation.spring(response: 0.45, dampingFraction: 1.0, blendDuration: 0)
+                        let openAnimation = Animation.interactiveSpring(response: 0.4, dampingFraction: 0.82, blendDuration: 0)
+                        let closeAnimation = Animation.interactiveSpring(response: 0.42, dampingFraction: 0.84, blendDuration: 0)
                         
                         return view
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
                             .animation(.smooth, value: gestureProgress)
+                            .animation(animationSpring, value: pomodoroEnabled)
+                            .animation(animationSpring, value: pomodoroClosedNotchDisplayMode)
+                            .animation(animationSpring, value: shouldReplaceMusicClosedVisual)
+                            .animation(animationSpring, value: shouldShowPomodoroSneakPeekStrip)
                     }
                     .contentShape(Rectangle())
                     .onHover { hovering in

@@ -709,22 +709,35 @@ struct NotchHomeView: View {
     }
 
     private var mainContent: some View {
-        HStack(alignment: .top, spacing: 15) {
-            MusicPlayerView(albumArtNamespace: albumArtNamespace)
+        GeometryReader { geo in
+            let hasSecondaryPanel = shouldShowCamera || shouldShowPomodoro
+            let spacing: CGFloat = hasSecondaryPanel ? 12 : 0
+            let sidePanelWidth: CGFloat = hasSecondaryPanel
+                ? 186
+                : 0
+            let musicWidth = max(0, geo.size.width - sidePanelWidth - spacing)
 
-            if shouldShowCamera {
-                CameraPreviewView(webcamManager: webcamManager)
-                    .scaledToFit()
-                    .opacity(vm.notchState == .closed ? 0 : 1)
-                    .blur(radius: vm.notchState == .closed ? 20 : 0)
-                    .animation(.interactiveSpring(response: 0.32, dampingFraction: 0.76, blendDuration: 0), value: shouldShowCamera)
-            } else if shouldShowPomodoro {
-                PomodoroHomeSection(pomodoroManager: pomodoroManager)
-                    .scaledToFit()
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+            HStack(alignment: .top, spacing: spacing) {
+                MusicPlayerView(albumArtNamespace: albumArtNamespace)
+                    .frame(width: musicWidth, alignment: .leading)
+
+                if shouldShowCamera {
+                    CameraPreviewView(webcamManager: webcamManager)
+                        .scaledToFit()
+                        .frame(width: sidePanelWidth, alignment: .center)
+                        .opacity(vm.notchState == .closed ? 0 : 1)
+                        .blur(radius: vm.notchState == .closed ? 20 : 0)
+                } else if shouldShowPomodoro {
+                    PomodoroHomeSection(pomodoroManager: pomodoroManager)
+                        .scaledToFit()
+                        .frame(width: sidePanelWidth, alignment: .center)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .center)
+            .animation(.interactiveSpring(response: 0.34, dampingFraction: 0.8, blendDuration: 0), value: shouldShowCamera)
+            .animation(.interactiveSpring(response: 0.34, dampingFraction: 0.8, blendDuration: 0), value: shouldShowPomodoro)
         }
-        .frame(maxWidth: .infinity, alignment: .center)
         .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .top)), removal: .opacity))
         .blur(radius: vm.notchState == .closed ? 30 : 0)
     }
