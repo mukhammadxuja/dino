@@ -80,6 +80,39 @@ struct ContentView: View {
         return chinWidth
     }
 
+    private var desiredOpenNotchWidth: CGFloat {
+        switch coordinator.currentView {
+        case .home:
+            return 525
+        case .shelf:
+            return openNotchSize.width
+        case .calendar:
+            return 560
+        }
+    }
+
+    private var calendarTabContentWidth: CGFloat {
+        max(420, desiredOpenNotchWidth - 70)
+    }
+
+    private func updateOpenNotchWidth(animated: Bool = true) {
+        guard vm.notchState == .open else { return }
+        let targetWidth = desiredOpenNotchWidth
+        guard abs(vm.notchSize.width - targetWidth) > 0.5 else { return }
+
+        let applyChange = {
+            vm.notchSize = .init(width: targetWidth, height: openNotchSize.height)
+        }
+
+        if animated {
+            withAnimation(.smooth) {
+                applyChange()
+            }
+        } else {
+            applyChange()
+        }
+    }
+
     var body: some View {
         // Calculate scale based on gesture progress only
         let gestureScale: CGFloat = {
@@ -118,7 +151,11 @@ struct ContentView: View {
                     )
                 
                 mainLayout
-                    .frame(height: vm.notchState == .open ? vm.notchSize.height : nil)
+                    .frame(
+                        width: vm.notchState == .open ? vm.notchSize.width : nil,
+                        height: vm.notchState == .open ? vm.notchSize.height : nil,
+                        alignment: .top
+                    )
                     .conditionalModifier(true) { view in
                         let openAnimation = Animation.spring(response: 0.42, dampingFraction: 0.8, blendDuration: 0)
                         let closeAnimation = Animation.spring(response: 0.45, dampingFraction: 1.0, blendDuration: 0)
@@ -161,11 +198,18 @@ struct ContentView: View {
                         }
                     }
                     .onChange(of: vm.notchState) { _, newState in
+                        if newState == .open {
+                            updateOpenNotchWidth()
+                        }
+
                         if newState == .closed && isHovering {
                             withAnimation {
                                 isHovering = false
                             }
                         }
+                    }
+                    .onChange(of: coordinator.currentView) { _, _ in
+                        updateOpenNotchWidth()
                     }
                     .onChange(of: vm.isBatteryPopoverActive) {
                         if !vm.isBatteryPopoverActive && !isHovering && vm.notchState == .open && !SharingStateManager.shared.preventNotchClose {
@@ -347,8 +391,15 @@ struct ContentView: View {
                         NotchHomeView(albumArtNamespace: albumArtNamespace)
                     case .shelf:
                         ShelfView()
+                    case .calendar:
+                        VStack(alignment: .leading, spacing: 0) {
+                            CalendarView()
+                                .frame(width: calendarTabContentWidth, alignment: .topLeading)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .transition(
                     .scale(scale: 0.8, anchor: .top)
                     .combined(with: .opacity)
@@ -503,6 +554,7 @@ struct ContentView: View {
     private func doOpen() {
         withAnimation(animationSpring) {
             vm.open()
+            vm.notchSize = .init(width: desiredOpenNotchWidth, height: openNotchSize.height)
         }
     }
 
