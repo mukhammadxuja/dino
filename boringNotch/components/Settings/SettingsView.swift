@@ -1312,7 +1312,9 @@ struct Appearance: View {
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @Default(.mirrorShape) var mirrorShape
     @Default(.sliderColor) var sliderColor
+    @Default(.showOnLockScreen) var showOnLockScreen
     @Default(.useMusicVisualizer) var useMusicVisualizer
+    @Default(.lockScreenPlayerBackgroundStyle) var lockScreenPlayerBackgroundStyle
     @Default(.customVisualizers) var customVisualizers
     @Default(.selectedVisualizer) var selectedVisualizer
 
@@ -1546,6 +1548,36 @@ struct Appearance: View {
                     Text("Additional features")
                 }
             }
+
+            Section {
+                Defaults.Toggle(key: .lockScreenPlayerEnabled) {
+                    Text("Enable lock screen player")
+                }
+
+                Picker("Lock screen player background", selection: $lockScreenPlayerBackgroundStyle) {
+                    Text("Glass/Blur")
+                        .tag(LockScreenPlayerBackgroundStyle.glassBlur)
+                    Text("Liquid glass")
+                        .tag(LockScreenPlayerBackgroundStyle.liquidGlass)
+                    Text("Solid")
+                        .tag(LockScreenPlayerBackgroundStyle.solid)
+                }
+                .disabled(!Defaults[.lockScreenPlayerEnabled])
+
+                Defaults.Toggle(key: .lockScreenSoundEnabled) {
+                    Text("Lock screen sound")
+                }
+
+                Defaults.Toggle(key: .showOnLockScreen) {
+                    Text("Show notch on lock screen")
+                }
+            } header: {
+                Text("Lock screen")
+            } footer: {
+                Text("Lock screen player appears above the passcode area while your Mac is locked.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("Appearance")
@@ -1564,7 +1596,6 @@ struct Advanced: View {
     @Default(.useCustomAccentColor) var useCustomAccentColor
     @Default(.customAccentColorData) var customAccentColorData
     @Default(.extendHoverArea) var extendHoverArea
-    @Default(.showOnLockScreen) var showOnLockScreen
     @Default(.hideFromScreenRecording) var hideFromScreenRecording
     
     @State private var customAccentColor: Color = .accentColor
@@ -1769,9 +1800,6 @@ struct Advanced: View {
                 }
                 Defaults.Toggle(key: .hideTitleBar) {
                     Text("Hide title bar")
-                }
-                Defaults.Toggle(key: .showOnLockScreen) {
-                    Text("Show notch on lock screen")
                 }
                 Defaults.Toggle(key: .hideFromScreenRecording) {
                     Text("Hide from screen recording")

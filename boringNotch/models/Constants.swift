@@ -96,6 +96,12 @@ enum HideNotchOption: String, Defaults.Serializable {
     case never
 }
 
+enum LockScreenPlayerBackgroundStyle: String, CaseIterable, Defaults.Serializable {
+    case glassBlur
+    case liquidGlass
+    case solid
+}
+
 enum PomodoroClosedNotchDisplayMode: String, CaseIterable, Identifiable, Defaults.Serializable {
     case off
     // Legacy values kept for compatibility with already-saved defaults
@@ -182,6 +188,12 @@ extension Defaults.Keys {
     static let notchHeight = Key<CGFloat>("notchHeight", default: 32)
     //static let openLastTabByDefault = Key<Bool>("openLastTabByDefault", default: false)
     static let showOnLockScreen = Key<Bool>("showOnLockScreen", default: false)
+    static let lockScreenPlayerEnabled = Key<Bool>("lockScreenPlayerEnabled", default: true)
+    static let lockScreenSoundEnabled = Key<Bool>("lockScreenSoundEnabled", default: true)
+    static let lockScreenPlayerBackgroundStyle = Key<LockScreenPlayerBackgroundStyle>(
+        "lockScreenPlayerBackgroundStyle",
+        default: .glassBlur
+    )
     static let hideFromScreenRecording = Key<Bool>("hideFromScreenRecording", default: false)
     
     // MARK: Appearance

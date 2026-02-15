@@ -15,6 +15,11 @@ class AudioPlayer {
     private static var currentlyPlayingKey: String?
 
     func play(fileName: String, fileExtension: String, subdirectory: String? = nil) {
+        _ = playIfAvailable(fileName: fileName, fileExtension: fileExtension, subdirectory: subdirectory)
+    }
+
+    @discardableResult
+    func playIfAvailable(fileName: String, fileExtension: String, subdirectory: String? = nil) -> Bool {
         let key = [subdirectory, "\(fileName).\(fileExtension)"]
             .compactMap { $0 }
             .joined(separator: "/")
@@ -33,7 +38,7 @@ class AudioPlayer {
             existing.currentTime = 0
             existing.play()
             Self.currentlyPlayingKey = key
-            return
+            return true
         }
 
         let url = Bundle.main.url(forResource: fileName, withExtension: fileExtension, subdirectory: subdirectory)
@@ -44,7 +49,7 @@ class AudioPlayer {
 
         guard let url else {
             print("⚠️ [AudioPlayer] Resource not found: \(key)")
-            return
+            return false
         }
 
         do {
@@ -54,9 +59,10 @@ class AudioPlayer {
             Self.players[key] = player
             player.play()
             Self.currentlyPlayingKey = key
+            return true
         } catch {
             print("⚠️ [AudioPlayer] Failed to play \(url.lastPathComponent): \(error.localizedDescription)")
-            return
+            return false
         }
     }
 
