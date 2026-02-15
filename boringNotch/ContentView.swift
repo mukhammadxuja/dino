@@ -46,7 +46,7 @@ struct ContentView: View {
 
     private let extendedHoverPadding: CGFloat = 30
     private let zeroHeightHoverPadding: CGFloat = 10
-    private let homeBaseOpenWidth: CGFloat = 600
+    private let homeBaseOpenWidth: CGFloat = 560
     private let pomodoroReplaceWidthExpansion: CGFloat = 0
 
     private var topCornerRadius: CGFloat {
@@ -163,7 +163,8 @@ struct ContentView: View {
                         ? (cornerRadiusInsets.opened.top) : (cornerRadiusInsets.opened.bottom)
                         : cornerRadiusInsets.closed.bottom
                     )
-                    .padding([.horizontal, .bottom], vm.notchState == .open ? 12 : 0)
+                    .padding(.horizontal, vm.notchState == .open ? 12 : 0)
+                    .padding(.bottom, vm.notchState == .open ? 12 : 0)
                     .background(.black)
                     .clipShape(currentNotchShape)
                     .overlay(alignment: .top) {

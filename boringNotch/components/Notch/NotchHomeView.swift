@@ -713,28 +713,32 @@ struct NotchHomeView: View {
             let hasSecondaryPanel = shouldShowCamera || shouldShowPomodoro
             let spacing: CGFloat = hasSecondaryPanel ? 12 : 0
             let sidePanelWidth: CGFloat = hasSecondaryPanel
-                ? 186
+                ? 160
                 : 0
             let musicWidth = max(0, geo.size.width - sidePanelWidth - spacing)
 
-            HStack(alignment: .top, spacing: spacing) {
+            HStack(alignment: .top, spacing: 0) {
                 MusicPlayerView(albumArtNamespace: albumArtNamespace)
                     .frame(width: musicWidth, alignment: .leading)
+
+                if hasSecondaryPanel {
+                    Spacer(minLength: spacing)
+                }
 
                 if shouldShowCamera {
                     CameraPreviewView(webcamManager: webcamManager)
                         .scaledToFit()
-                        .frame(width: sidePanelWidth, alignment: .center)
+                        .frame(width: sidePanelWidth, alignment: .trailing)
                         .opacity(vm.notchState == .closed ? 0 : 1)
                         .blur(radius: vm.notchState == .closed ? 20 : 0)
                 } else if shouldShowPomodoro {
                     PomodoroHomeSection(pomodoroManager: pomodoroManager)
                         .scaledToFit()
-                        .frame(width: sidePanelWidth, alignment: .center)
+                        .frame(width: sidePanelWidth, alignment: .trailing)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .center)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .animation(.interactiveSpring(response: 0.34, dampingFraction: 0.8, blendDuration: 0), value: shouldShowCamera)
             .animation(.interactiveSpring(response: 0.34, dampingFraction: 0.8, blendDuration: 0), value: shouldShowPomodoro)
         }
