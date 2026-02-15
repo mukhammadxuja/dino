@@ -93,7 +93,7 @@ struct ContentView: View {
         case .home:
             return homeBaseOpenWidth
         case .shelf:
-            return openNotchSize.width
+            return 560
         case .calendar:
             return 560
         }

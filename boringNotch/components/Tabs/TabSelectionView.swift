@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Defaults
 
 struct TabModel: Identifiable {
     let id = UUID()
@@ -14,7 +15,7 @@ struct TabModel: Identifiable {
     let view: NotchViews
 }
 
-let tabs = [
+private let baseTabs: [TabModel] = [
     TabModel(label: "Home", icon: "house.fill", view: .home),
     TabModel(label: "Shelf", icon: "tray.fill", view: .shelf),
     TabModel(label: "Calendar", icon: "calendar", view: .calendar)
@@ -23,6 +24,15 @@ let tabs = [
 struct TabSelectionView: View {
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @Namespace var animation
+    @Default(.showCalendar) private var showCalendar
+
+    private var tabs: [TabModel] {
+        if showCalendar {
+            return baseTabs
+        }
+        return baseTabs.filter { $0.view != .calendar }
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             ForEach(tabs) { tab in
@@ -48,6 +58,13 @@ struct TabSelectionView: View {
             }
         }
         .clipShape(Capsule())
+        .onChange(of: showCalendar) { _, newValue in
+            if !newValue, coordinator.currentView == .calendar {
+                withAnimation(.smooth) {
+                    coordinator.currentView = .home
+                }
+            }
+        }
     }
 }
 
