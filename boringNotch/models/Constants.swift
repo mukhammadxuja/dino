@@ -36,6 +36,28 @@ enum HideNotchOption: String, Defaults.Serializable {
     case never
 }
 
+enum PomodoroClosedNotchDisplayMode: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case off
+    case countOnly = "count_only"
+    case controlsAndCount = "controls+count"
+    case replaceMusicVisual = "replace_music_visual"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .off:
+            return "Off"
+        case .countOnly:
+            return "Show count only"
+        case .controlsAndCount:
+            return "Show controls + repeat count"
+        case .replaceMusicVisual:
+            return "Replace music visualization with countdown"
+        }
+    }
+}
+
 // Define notification names at file scope
 extension Notification.Name {
     static let mediaControllerChanged = Notification.Name("mediaControllerChanged")
@@ -107,6 +129,7 @@ extension Defaults.Keys {
     static let showNotHumanFace = Key<Bool>("showNotHumanFace", default: false)
     static let tileShowLabels = Key<Bool>("tileShowLabels", default: false)
     static let showCalendar = Key<Bool>("showCalendar", default: false)
+    static let pomodoroEnabled = Key<Bool>("pomodoroEnabled", default: false)
     static let hideCompletedReminders = Key<Bool>("hideCompletedReminders", default: true)
     static let sliderColor = Key<SliderColorEnum>(
         "sliderUseAlbumArtColor",
@@ -176,6 +199,20 @@ extension Defaults.Keys {
     static let hideAllDayEvents = Key<Bool>("hideAllDayEvents", default: false)
     static let showFullEventTitles = Key<Bool>("showFullEventTitles", default: false)
     static let autoScrollToNextEvent = Key<Bool>("autoScrollToNextEvent", default: true)
+
+    // MARK: Pomodoro
+    static let pomodoroShowMenuBarIcon = Key<Bool>("pomodoroShowMenuBarIcon", default: true)
+    static let pomodoroFocusMinutes = Key<Int>("pomodoroFocusMinutes", default: 25)
+    static let pomodoroShortBreakMinutes = Key<Int>("pomodoroShortBreakMinutes", default: 5)
+    static let pomodoroLongBreakMinutes = Key<Int>("pomodoroLongBreakMinutes", default: 15)
+    static let pomodoroAutoStartBreaks = Key<Bool>("pomodoroAutoStartBreaks", default: false)
+    static let pomodoroAutoStartFocus = Key<Bool>("pomodoroAutoStartFocus", default: false)
+    static let pomodoroCycleBeforeLongBreak = Key<Int>("pomodoroCycleBeforeLongBreak", default: 4)
+    static let pomodoroClosedNotchDisplayMode = Key<PomodoroClosedNotchDisplayMode>(
+        "pomodoroClosedNotchDisplayMode",
+        default: .off
+    )
+    static let pomodoroPersistedSession = Key<Data?>("pomodoroPersistedSession", default: nil)
     
     // MARK: Fullscreen Media Detection
     static let hideNotchOption = Key<HideNotchOption>("hideNotchOption", default: .nowPlayingOnly)

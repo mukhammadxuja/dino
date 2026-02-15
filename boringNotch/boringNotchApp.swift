@@ -16,6 +16,8 @@ import SwiftUI
 struct DynamicNotchApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Default(.menubarIcon) var showMenuBarIcon
+    @Default(.pomodoroEnabled) var pomodoroEnabled
+    @Default(.pomodoroShowMenuBarIcon) var pomodoroShowMenuBarIcon
     @Environment(\.openWindow) var openWindow
 
     let updaterController: SPUStandardUpdaterController
@@ -29,7 +31,11 @@ struct DynamicNotchApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("boring.notch", systemImage: "sparkle", isInserted: $showMenuBarIcon) {
+        MenuBarExtra(
+            "boring.notch",
+            systemImage: "sparkle",
+            isInserted: .constant(showMenuBarIcon || (pomodoroEnabled && pomodoroShowMenuBarIcon))
+        ) {
             Button("Settings") {
                 SettingsWindowController.shared.showWindow()
             }

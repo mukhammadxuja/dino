@@ -51,6 +51,9 @@ struct SettingsView: View {
                 NavigationLink(value: "Shelf") {
                     Label("Shelf", systemImage: "books.vertical")
                 }
+                NavigationLink(value: "Pomodoro") {
+                    Label("Pomodoro", systemImage: "timer")
+                }
                 NavigationLink(value: "Shortcuts") {
                     Label("Shortcuts", systemImage: "keyboard")
                 }
@@ -85,6 +88,8 @@ struct SettingsView: View {
                     Charge()
                 case "Shelf":
                     Shelf()
+                case "Pomodoro":
+                    PomodoroSettings()
                 case "Shortcuts":
                     Shortcuts()
                 case "Extensions":
@@ -1015,6 +1020,104 @@ struct Shelf: View {
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("Shelf")
+    }
+}
+
+struct PomodoroSettings: View {
+    @Default(.pomodoroEnabled) private var pomodoroEnabled
+    @Default(.pomodoroShowMenuBarIcon) private var pomodoroShowMenuBarIcon
+    @Default(.pomodoroFocusMinutes) private var pomodoroFocusMinutes
+    @Default(.pomodoroShortBreakMinutes) private var pomodoroShortBreakMinutes
+    @Default(.pomodoroLongBreakMinutes) private var pomodoroLongBreakMinutes
+    @Default(.pomodoroAutoStartBreaks) private var pomodoroAutoStartBreaks
+    @Default(.pomodoroAutoStartFocus) private var pomodoroAutoStartFocus
+    @Default(.pomodoroCycleBeforeLongBreak) private var pomodoroCycleBeforeLongBreak
+    @Default(.pomodoroClosedNotchDisplayMode) private var pomodoroClosedNotchDisplayMode
+
+    var body: some View {
+        Form {
+            Section {
+                Defaults.Toggle(key: .pomodoroEnabled) {
+                    Text("Enable Pomodoro")
+                }
+                Defaults.Toggle(key: .pomodoroShowMenuBarIcon) {
+                    Text("Show menu bar icon")
+                }
+            } header: {
+                Text("Pomodoro Features")
+            } footer: {
+                Text("Enable Pomodoro widgets in notch and optionally show a dedicated menu bar icon.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Stepper(value: clampedBinding(for: $pomodoroFocusMinutes, in: 5...120), step: 1) {
+                    HStack {
+                        Text("Focus")
+                        Spacer()
+                        Text("\(pomodoroFocusMinutes) min")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Stepper(value: clampedBinding(for: $pomodoroShortBreakMinutes, in: 1...30), step: 1) {
+                    HStack {
+                        Text("Short break")
+                        Spacer()
+                        Text("\(pomodoroShortBreakMinutes) min")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Stepper(value: clampedBinding(for: $pomodoroLongBreakMinutes, in: 5...60), step: 1) {
+                    HStack {
+                        Text("Long break")
+                        Spacer()
+                        Text("\(pomodoroLongBreakMinutes) min")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Stepper(value: clampedBinding(for: $pomodoroCycleBeforeLongBreak, in: 2...10), step: 1) {
+                    HStack {
+                        Text("Cycles before long break")
+                        Spacer()
+                        Text("\(pomodoroCycleBeforeLongBreak)")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Defaults.Toggle(key: .pomodoroAutoStartBreaks) {
+                    Text("Auto-start breaks")
+                }
+                Defaults.Toggle(key: .pomodoroAutoStartFocus) {
+                    Text("Auto-start next focus")
+                }
+            } header: {
+                Text("Session")
+            }
+
+            Section {
+                Picker("Closed notch behavior", selection: $pomodoroClosedNotchDisplayMode) {
+                    ForEach(PomodoroClosedNotchDisplayMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
+            } header: {
+                Text("Closed Notch")
+            } footer: {
+                Text("Choose whether countdown replaces music visualization or appears in sneak peek with repeat count and play/pause controls.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accentColor(.effectiveAccent)
+        .navigationTitle("Pomodoro")
+    }
+
+    private func clampedBinding(for value: Binding<Int>, in range: ClosedRange<Int>) -> Binding<Int> {
+        Binding(
+            get: { min(max(value.wrappedValue, range.lowerBound), range.upperBound) },
+            set: { value.wrappedValue = min(max($0, range.lowerBound), range.upperBound) }
+        )
     }
 }
 

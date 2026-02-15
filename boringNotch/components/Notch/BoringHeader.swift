@@ -13,6 +13,8 @@ struct BoringHeader: View {
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @StateObject var tvm = ShelfStateViewModel.shared
+    private let sideInset: CGFloat = 8
+
     var body: some View {
         HStack(spacing: 0) {
             HStack {
@@ -36,7 +38,7 @@ struct BoringHeader: View {
                     }
             }
 
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 if vm.notchState == .open {
                     if isHUDType(coordinator.sneakPeek.type) && coordinator.sneakPeek.show && Defaults[.showOpenNotchHUD] {
                         OpenNotchHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon)
@@ -85,6 +87,7 @@ struct BoringHeader: View {
                                 timeToFullCharge: batteryModel.timeToFullCharge,
                                 isForNotification: false
                             )
+                            .frame(width: Defaults[.showBatteryPercentage] ? nil : 30, height: 30)
                         }
                     }
                 }
@@ -95,6 +98,7 @@ struct BoringHeader: View {
             .blur(radius: vm.notchState == .closed ? 20 : 0)
             .zIndex(2)
         }
+        .padding(.horizontal, sideInset)
         .foregroundColor(.gray)
         .environmentObject(vm)
     }

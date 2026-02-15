@@ -10,6 +10,270 @@ import Combine
 import Defaults
 import SwiftUI
 
+@MainActor
+final class PomodoroManager: ObservableObject {
+    enum Phase: String, Codable {
+        case focus
+        case shortBreak
+        case longBreak
+
+        var title: String {
+            switch self {
+            case .focus:
+                return "Focus"
+            case .shortBreak:
+                return "Short Break"
+            case .longBreak:
+                return "Long Break"
+            }
+        }
+    }
+
+    enum State: String, Codable {
+        case idle
+        case running
+        case paused
+    }
+
+    struct PersistedSession: Codable {
+        let phase: Phase
+        let state: State
+        let pausedRemaining: TimeInterval
+        let phaseEndDate: Date?
+        let completedFocusSessions: Int
+    }
+
+    static let shared = PomodoroManager()
+
+    @Published private(set) var phase: Phase = .focus
+    @Published private(set) var state: State = .idle
+    @Published private(set) var remainingTime: TimeInterval = 0
+    @Published private(set) var completedFocusSessions: Int = 0
+
+    private var pausedRemaining: TimeInterval = 0
+    private var phaseEndDate: Date?
+    private var tickCancellable: AnyCancellable?
+
+    private init() {
+        restorePersistedSession()
+
+        if state == .idle {
+            remainingTime = duration(for: .focus)
+            pausedRemaining = remainingTime
+        }
+    }
+
+    var isRunning: Bool { state == .running }
+    var hasActiveSession: Bool { state == .running || state == .paused }
+    var phaseTitle: String { phase.title }
+
+    var cycleText: String {
+        let cycleLimit = max(1, Defaults[.pomodoroCycleBeforeLongBreak])
+        let current = (completedFocusSessions % cycleLimit) + 1
+        return "(\(current)/\(cycleLimit))"
+    }
+
+    var formattedRemainingTime: String {
+        Self.format(time: remainingTime)
+    }
+
+    var progress: Double {
+        let total = max(1, duration(for: phase))
+        return min(max((total - remainingTime) / total, 0), 1)
+    }
+
+    func start() {
+        phase = .focus
+        begin(phase: .focus, startImmediately: true)
+    }
+
+    func togglePlayPause() {
+        switch state {
+        case .idle:
+            start()
+        case .running:
+            pause()
+        case .paused:
+            resume()
+        }
+    }
+
+    func pause() {
+        guard state == .running else { return }
+        pausedRemaining = currentRemaining()
+        remainingTime = pausedRemaining
+        phaseEndDate = nil
+        state = .paused
+        stopTicker()
+        persistSession()
+    }
+
+    func resume() {
+        guard state == .paused else { return }
+        state = .running
+        phaseEndDate = Date().addingTimeInterval(pausedRemaining)
+        startTicker()
+        persistSession()
+    }
+
+    func reset() {
+        state = .idle
+        phase = .focus
+        completedFocusSessions = 0
+        phaseEndDate = nil
+        pausedRemaining = duration(for: .focus)
+        remainingTime = pausedRemaining
+        stopTicker()
+        persistSession()
+    }
+
+    func skip() {
+        completeCurrentPhase()
+    }
+
+    private func begin(phase: Phase, startImmediately: Bool) {
+        self.phase = phase
+        let phaseDuration = duration(for: phase)
+        remainingTime = phaseDuration
+        pausedRemaining = phaseDuration
+
+        if startImmediately {
+            state = .running
+            phaseEndDate = Date().addingTimeInterval(phaseDuration)
+            startTicker()
+        } else {
+            state = .paused
+            phaseEndDate = nil
+            stopTicker()
+        }
+
+        persistSession()
+    }
+
+    private func duration(for phase: Phase) -> TimeInterval {
+        switch phase {
+        case .focus:
+            return TimeInterval(max(1, Defaults[.pomodoroFocusMinutes]) * 60)
+        case .shortBreak:
+            return TimeInterval(max(1, Defaults[.pomodoroShortBreakMinutes]) * 60)
+        case .longBreak:
+            return TimeInterval(max(1, Defaults[.pomodoroLongBreakMinutes]) * 60)
+        }
+    }
+
+    private func currentRemaining() -> TimeInterval {
+        guard let end = phaseEndDate else {
+            return pausedRemaining
+        }
+        return max(0, end.timeIntervalSinceNow)
+    }
+
+    private func startTicker() {
+        stopTicker()
+        tickCancellable = Timer.publish(every: 1, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.handleTick()
+            }
+    }
+
+    private func stopTicker() {
+        tickCancellable?.cancel()
+        tickCancellable = nil
+    }
+
+    private func handleTick() {
+        guard state == .running else { return }
+        let current = currentRemaining()
+        remainingTime = current
+
+        if current <= 0 {
+            completeCurrentPhase()
+            return
+        }
+
+        persistSession()
+    }
+
+    private func completeCurrentPhase() {
+        if phase == .focus {
+            completedFocusSessions += 1
+            let cycleLimit = max(1, Defaults[.pomodoroCycleBeforeLongBreak])
+            let shouldRunLongBreak = completedFocusSessions % cycleLimit == 0
+            begin(
+                phase: shouldRunLongBreak ? .longBreak : .shortBreak,
+                startImmediately: Defaults[.pomodoroAutoStartBreaks]
+            )
+            return
+        }
+
+        begin(
+            phase: .focus,
+            startImmediately: Defaults[.pomodoroAutoStartFocus]
+        )
+    }
+
+    private func persistSession() {
+        let session = PersistedSession(
+            phase: phase,
+            state: state,
+            pausedRemaining: max(0, pausedRemaining),
+            phaseEndDate: phaseEndDate,
+            completedFocusSessions: completedFocusSessions
+        )
+
+        Defaults[.pomodoroPersistedSession] = try? JSONEncoder().encode(session)
+    }
+
+    private func restorePersistedSession() {
+        guard let data = Defaults[.pomodoroPersistedSession],
+              let session = try? JSONDecoder().decode(PersistedSession.self, from: data) else {
+            return
+        }
+
+        phase = session.phase
+        completedFocusSessions = session.completedFocusSessions
+
+        switch session.state {
+        case .idle:
+            state = .idle
+            pausedRemaining = max(0, session.pausedRemaining)
+            remainingTime = pausedRemaining
+            phaseEndDate = nil
+        case .paused:
+            state = .paused
+            pausedRemaining = max(0, session.pausedRemaining)
+            remainingTime = pausedRemaining
+            phaseEndDate = nil
+        case .running:
+            state = .running
+            phaseEndDate = session.phaseEndDate
+            let remaining = currentRemaining()
+            remainingTime = remaining
+            pausedRemaining = remaining
+
+            if remaining <= 0 {
+                completeCurrentPhase()
+            } else {
+                startTicker()
+            }
+        }
+    }
+
+    private static func format(time: TimeInterval) -> String {
+        let totalSeconds = max(0, Int(time.rounded(.down)))
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+}
+
 // MARK: - Music Player Components
 
 struct MusicPlayerView: View {
@@ -423,6 +687,7 @@ struct NotchHomeView: View {
     @ObservedObject var webcamManager = WebcamManager.shared
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var coordinator = BoringViewCoordinator.shared
+    @ObservedObject var pomodoroManager = PomodoroManager.shared
     let albumArtNamespace: Namespace.ID
 
     var body: some View {
@@ -439,6 +704,10 @@ struct NotchHomeView: View {
         Defaults[.showMirror] && webcamManager.cameraAvailable && vm.isCameraExpanded
     }
 
+    private var shouldShowPomodoro: Bool {
+        Defaults[.pomodoroEnabled] && vm.notchState == .open
+    }
+
     private var mainContent: some View {
         HStack(alignment: .top, spacing: 15) {
             MusicPlayerView(albumArtNamespace: albumArtNamespace)
@@ -449,11 +718,101 @@ struct NotchHomeView: View {
                     .opacity(vm.notchState == .closed ? 0 : 1)
                     .blur(radius: vm.notchState == .closed ? 20 : 0)
                     .animation(.interactiveSpring(response: 0.32, dampingFraction: 0.76, blendDuration: 0), value: shouldShowCamera)
+            } else if shouldShowPomodoro {
+                PomodoroHomeSection(pomodoroManager: pomodoroManager)
+                    .scaledToFit()
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .top)), removal: .opacity))
         .blur(radius: vm.notchState == .closed ? 30 : 0)
+    }
+}
+
+private struct PomodoroHomeSection: View {
+    @ObservedObject var pomodoroManager: PomodoroManager
+
+    var body: some View {
+        GeometryReader { geo in
+            let size = min(geo.size.width, geo.size.height)
+            VStack(spacing: 12) {
+                HStack(spacing: 6) {
+                    Image(systemName: "flame.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.effectiveAccent)
+                    Text("\(pomodoroManager.phaseTitle) \(pomodoroManager.cycleText)")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(1)
+                }
+
+                Text(pomodoroManager.formattedRemainingTime)
+                    .font(.system(size: size * 0.32, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.effectiveAccent)
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+
+                Capsule()
+                    .fill(Color.white.opacity(0.12))
+                    .frame(height: 2)
+                    .overlay(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.effectiveAccent)
+                            .frame(width: max(4, (size - 32) * pomodoroManager.progress), height: 2)
+                    }
+                    .padding(.horizontal, 16)
+
+                HStack(spacing: 18) {
+                    Button {
+                        pomodoroManager.reset()
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        pomodoroManager.togglePlayPause()
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color.effectiveAccentBackground)
+                            Image(systemName: pomodoroManager.isRunning ? "pause.fill" : "play.fill")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color.effectiveAccent)
+                        }
+                        .frame(width: 34, height: 34)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        pomodoroManager.skip()
+                    } label: {
+                        Image(systemName: "forward.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.black.opacity(0.45))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.11), lineWidth: 1)
+                    )
+            )
+        }
+        .aspectRatio(1, contentMode: .fit)
     }
 }
 

@@ -20,6 +20,7 @@ struct ContentView: View {
 
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @ObservedObject var musicManager = MusicManager.shared
+    @ObservedObject var pomodoroManager = PomodoroManager.shared
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var brightnessManager = BrightnessManager.shared
     @ObservedObject var volumeManager = VolumeManager.shared
@@ -34,6 +35,9 @@ struct ContentView: View {
     @Namespace var albumArtNamespace
 
     @Default(.useMusicVisualizer) var useMusicVisualizer
+    @Default(.pomodoroEnabled) var pomodoroEnabled
+    @Default(.pomodoroClosedNotchDisplayMode) var pomodoroClosedNotchDisplayMode
+    @Default(.showMirror) var showMirror
 
     @Default(.showNotHumanFace) var showNotHumanFace
 
@@ -42,11 +46,23 @@ struct ContentView: View {
 
     private let extendedHoverPadding: CGFloat = 30
     private let zeroHeightHoverPadding: CGFloat = 10
+    private let homeCollapsedOpenWidth: CGFloat = 220
+    private let homeExpandedOpenWidth: CGFloat = 525
+    private let pomodoroReplaceWidthExpansion: CGFloat = 30
 
     private var topCornerRadius: CGFloat {
        ((vm.notchState == .open) && Defaults[.cornerRadiusScaling])
                 ? cornerRadiusInsets.opened.top
                 : cornerRadiusInsets.closed.top
+    }
+
+    private var shouldExpandHomeNotchWidth: Bool {
+        guard coordinator.currentView == .home else { return false }
+
+        let shouldShowCamera = showMirror && webcamManager.cameraAvailable && vm.isCameraExpanded
+        let shouldShowPomodoroSection = pomodoroEnabled
+
+        return shouldShowCamera || shouldShowPomodoroSection
     }
 
     private var currentNotchShape: NotchShape {
@@ -65,6 +81,8 @@ struct ContentView: View {
             && vm.notchState == .closed && Defaults[.showPowerStatusNotifications]
         {
             chinWidth = 640
+        } else if shouldReplaceMusicClosedVisual {
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20 + pomodoroReplaceWidthExpansion)
         } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music)
             && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle)
             && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed
@@ -83,7 +101,7 @@ struct ContentView: View {
     private var desiredOpenNotchWidth: CGFloat {
         switch coordinator.currentView {
         case .home:
-            return 525
+            return shouldExpandHomeNotchWidth ? homeExpandedOpenWidth : homeCollapsedOpenWidth
         case .shelf:
             return openNotchSize.width
         case .calendar:
@@ -91,8 +109,38 @@ struct ContentView: View {
         }
     }
 
+    private var pomodoroReplaceMiddleWidth: CGFloat {
+        vm.closedNotchSize.width + -cornerRadiusInsets.closed.top + pomodoroReplaceWidthExpansion
+    }
+
     private var calendarTabContentWidth: CGFloat {
         max(420, desiredOpenNotchWidth - 70)
+    }
+
+    private var shouldShowPomodoroClosedContent: Bool {
+        vm.notchState == .closed
+            && pomodoroEnabled
+            && pomodoroManager.hasActiveSession
+            && !vm.hideOnClosed
+    }
+
+    private var shouldReplaceMusicClosedVisual: Bool {
+        shouldShowPomodoroClosedContent && pomodoroClosedNotchDisplayMode == .replaceMusicVisual
+    }
+
+    private var shouldShowPomodoroSneakPeekStrip: Bool {
+        guard shouldShowPomodoroClosedContent else { return false }
+        guard !coordinator.sneakPeek.show else { return false }
+        return pomodoroClosedNotchDisplayMode == .countOnly
+            || pomodoroClosedNotchDisplayMode == .controlsAndCount
+    }
+
+    private var pomodoroClosedShowsControls: Bool {
+        pomodoroClosedNotchDisplayMode == .controlsAndCount
+    }
+
+    private var pomodoroClosedShowsRepeatCount: Bool {
+        pomodoroClosedNotchDisplayMode == .controlsAndCount
     }
 
     private func updateOpenNotchWidth(animated: Bool = true) {
@@ -209,6 +257,18 @@ struct ContentView: View {
                         }
                     }
                     .onChange(of: coordinator.currentView) { _, _ in
+                        updateOpenNotchWidth()
+                    }
+                    .onChange(of: pomodoroEnabled) { _, _ in
+                        updateOpenNotchWidth()
+                    }
+                    .onChange(of: showMirror) { _, _ in
+                        updateOpenNotchWidth()
+                    }
+                    .onChange(of: vm.isCameraExpanded) { _, _ in
+                        updateOpenNotchWidth()
+                    }
+                    .onChange(of: webcamManager.cameraAvailable) { _, _ in
                         updateOpenNotchWidth()
                     }
                     .onChange(of: vm.isBatteryPopoverActive) {
@@ -329,6 +389,12 @@ struct ContentView: View {
                       } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && vm.notchState == .closed {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
                               .transition(.opacity)
+                      } else if shouldReplaceMusicClosedVisual {
+                          PomodoroClosedNotchView(
+                              showControls: false,
+                              showRepeatCount: false,
+                              compact: false
+                          )
                       } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                           MusicLiveActivity()
                               .frame(alignment: .center)
@@ -377,9 +443,19 @@ struct ContentView: View {
                               }
                           }
                       }
+
+                      if shouldShowPomodoroSneakPeekStrip {
+                          PomodoroClosedNotchView(
+                              showControls: pomodoroClosedShowsControls,
+                              showRepeatCount: pomodoroClosedShowsRepeatCount,
+                              compact: true
+                          )
+                          .padding(.bottom, 10)
+                          .padding(.horizontal, 8)
+                      }
                   }
               }
-              .conditionalModifier((coordinator.sneakPeek.show && (coordinator.sneakPeek.type == .music) && vm.notchState == .closed && !vm.hideOnClosed && Defaults[.sneakPeekStyles] == .standard) || (coordinator.sneakPeek.show && (coordinator.sneakPeek.type != .music) && (vm.notchState == .closed))) { view in
+              .conditionalModifier((coordinator.sneakPeek.show && (coordinator.sneakPeek.type == .music) && vm.notchState == .closed && !vm.hideOnClosed && Defaults[.sneakPeekStyles] == .standard) || (coordinator.sneakPeek.show && (coordinator.sneakPeek.type != .music) && (vm.notchState == .closed)) || shouldShowPomodoroSneakPeekStrip) { view in
                   view
                       .fixedSize()
               }
@@ -533,6 +609,93 @@ struct ContentView: View {
             height: vm.effectiveClosedNotchHeight,
             alignment: .center
         )
+    }
+
+    @ViewBuilder
+    func PomodoroClosedNotchView(
+        showControls: Bool,
+        showRepeatCount: Bool,
+        compact: Bool
+    ) -> some View {
+        if compact {
+            HStack(spacing: 8) {
+                Image(systemName: "timer")
+                    .font(.caption)
+                    .foregroundStyle(Color.effectiveAccent)
+
+                Text(pomodoroManager.formattedRemainingTime)
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+
+                if showRepeatCount {
+                    Text(pomodoroManager.cycleText)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.75))
+                        .lineLimit(1)
+                }
+
+                if showControls {
+                    Button {
+                        pomodoroManager.togglePlayPause()
+                    } label: {
+                        Image(systemName: pomodoroManager.isRunning ? "pause.fill" : "play.fill")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.effectiveAccent)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            HStack(spacing: 0) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: MusicPlayerImageSizes.cornerRadiusInset.closed)
+                        .fill(Color.effectiveAccentBackground)
+                    Image(systemName: "timer")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.effectiveAccent)
+                }
+                .frame(
+                    width: max(0, vm.effectiveClosedNotchHeight - 12),
+                    height: max(0, vm.effectiveClosedNotchHeight - 12)
+                )
+
+                Rectangle()
+                    .fill(.black)
+                    .overlay(
+                        HStack(spacing: 10) {
+                            Text(pomodoroManager.formattedRemainingTime)
+                                .font(.callout.weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.82)
+                            if showRepeatCount {
+                                Text(pomodoroManager.cycleText)
+                                    .font(.caption2)
+                                    .foregroundStyle(.gray)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                    )
+                    .frame(width: pomodoroReplaceMiddleWidth)
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: MusicPlayerImageSizes.cornerRadiusInset.closed)
+                        .fill(Color.effectiveAccentBackground)
+                    Text("\(Int((1 - pomodoroManager.progress) * 100))")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.effectiveAccent)
+                }
+                .frame(
+                    width: max(0, vm.effectiveClosedNotchHeight - 12),
+                    height: max(0, vm.effectiveClosedNotchHeight - 12)
+                )
+            }
+            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
+        }
     }
 
     @ViewBuilder
