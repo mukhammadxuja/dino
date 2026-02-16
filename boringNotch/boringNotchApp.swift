@@ -30,7 +30,7 @@ struct DynamicNotchApp: App {
 
     var body: some Scene {
         MenuBarExtra(
-            "boring.notch",
+            "dino",
             systemImage: "sparkle",
             isInserted: .constant(showMenuBarIcon)
         ) {
@@ -40,7 +40,7 @@ struct DynamicNotchApp: App {
             .keyboardShortcut(KeyEquivalent(","), modifiers: .command)
             CheckForUpdatesView(updater: updaterController.updater)
             Divider()
-            Button("Restart Boring Notch") {
+            Button("Restart Dino") {
                 ApplicationRelauncher.restart()
             }
             Button("Quit", role: .destructive) {
