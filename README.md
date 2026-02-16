@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="http://theboring.name"><img src="https://framerusercontent.com/images/RFK4vs0kn8pRMuOO58JeyoemXA.png?scale-down-to=256" alt="Dino" width="150"></a>
+  <a href="https://github.com/mukhammadxuja/dino"><img src="https://github.com/mukhammadxuja/dino/blob/main/boringNotch/Assets.xcassets/AppIcon.appiconset/512x512.png?raw=true" alt="Dino" width="150"></a>
   <br>
   Dino
   <br>
@@ -89,10 +89,11 @@ brew install --cask mukhammadxuja/halo-notch/dino --no-quarantine
 - [x] Shelf functionality with AirDrop 📚
 - [x] Notch sizing customization, finetuning on different display sizes 🖥️
 - [x] System HUD replacements (volume, brightness, backlight) 🎚️💡⌨️
+- [x] Pomodoro Timer integration 🍅
+- [x] Lock Screen Widgets 🔒
 - [ ] Bluetooth Live Activity (connect/disconnect for bluetooth devices)
 - [ ] Weather integration ⛅️
 - [ ] Customizable Layout options 🛠️
-- [ ] Lock Screen Widgets 🔒
 - [ ] Extension system 🧩
 - [ ] Notifications (under consideration) 🔔
   <!-- - [ ] Clipboard history manager 📌 `Extension` -->
@@ -139,19 +140,23 @@ We’re all about good vibes and awesome contributions! Read [CONTRIBUTING.md](C
 
 ## Star History
 
-<a href="https://www.star-history.com/#TheBoredTeam/boring.notch&Timeline">
+<a href="https://www.star-history.com/#mukhammadxuja/dino&Timeline">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=TheBoredTeam/boring.notch&type=Timeline&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=TheBoredTeam/boring.notch&type=Timeline" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=TheBoredTeam/boring.notch&type=Timeline" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=mukhammadxuja/dino&type=Timeline&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=mukhammadxuja/dino&type=Timeline" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=mukhammadxuja/dino&type=Timeline" />
  </picture>
 </a>
 
 ## Support us on Ko-fi!
 
-<!-- <a href="https://www.buymeacoffee.com/jfxh67wvfxq" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-red.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a> -->
+This project is a fork of the original Boring Notch. You can support the original creator:
 
-<a href="https://www.ko-fi.com/alexander5015" target="_blank"><img src="https://github.com/user-attachments/assets//a76175ef-7e93-475a-8b67-4922ba5964c2" alt="Support us on Ko-fi" style="height: 70px !important;width: 346px !important;" ></a>
+<a href="https://www.ko-fi.com/alexander5015" target="_blank"><img src="https://github.com/user-attachments/assets//a76175ef-7e93-475a-8b67-4922ba5964c2" alt="Support original creator on Ko-fi" style="height: 70px !important;width: 346px !important;" ></a>
+
+And you can also support my work on this fork:
+
+<a href="https://www.ko-fi.com/mukhammadxuja" target="_blank"><img src="https://srv-cdn.himpfen.io/badges/kofi/kofi-flat.svg" alt="Support me on Ko-fi" style="height: 60px !important;width: 217px !important;" ></a>
 
 ## 🎉 Acknowledgments
 
