@@ -123,7 +123,6 @@ struct ContentView: View {
 
     private var shouldShowPomodoroInlineClosedVisual: Bool {
         guard shouldShowPomodoroClosedContent else { return false }
-        guard shouldShowMusicClosedVisual else { return false }
         guard !isShowingInlineMusicPlaybackPeek else { return false }
         guard !(coordinator.sneakPeek.show && coordinator.sneakPeek.type == .music) else { return false }
         switch pomodoroClosedNotchDisplayMode {
