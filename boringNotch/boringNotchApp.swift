@@ -110,6 +110,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     func onScreenUnlocked(_ notification: Notification) {
         isScreenLocked = false
+        playLockScreenSoundIfNeeded()
         if !Defaults[.showOnLockScreen] {
             adjustWindowPosition(changeAlpha: true)
         } else {
@@ -554,9 +555,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         lastLockScreenSoundPlayedAt = now
 
         let name = "lockscreen-sound"
+        let vol = Defaults[.lockScreenSoundVolume]
         let extensions = ["m4a", "mp3", "wav", "aiff"]
         for ext in extensions {
-            if lockScreenSoundPlayer.playIfAvailable(fileName: name, fileExtension: ext) {
+            if lockScreenSoundPlayer.playIfAvailable(fileName: name, fileExtension: ext, volume: vol) {
                 break
             }
         }

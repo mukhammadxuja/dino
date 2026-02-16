@@ -291,8 +291,9 @@ struct GeneralSettings: View {
             }
                 .disabled(!openNotchOnHover)
             if enableGestures {
-                Toggle("Change media with horizontal gestures", isOn: .constant(false))
-                    .disabled(true)
+                Defaults.Toggle(key: .changeMediaWithGesture) {
+                    Text("Change media with horizontal gestures")
+                }
                 Defaults.Toggle(key: .closeGestureEnabled) {
                     Text("Close gesture")
                 }
@@ -1565,7 +1566,24 @@ struct Appearance: View {
                 .disabled(!Defaults[.lockScreenPlayerEnabled])
 
                 Defaults.Toggle(key: .lockScreenSoundEnabled) {
-                    Text("Lock screen sound")
+                    Text("Lock/unlock screen sound")
+                }
+
+                if Defaults[.lockScreenSoundEnabled] {
+                    HStack {
+                        Image(systemName: "speaker.fill")
+                            .foregroundStyle(.secondary)
+                        Slider(
+                            value: Binding(
+                                get: { Double(Defaults[.lockScreenSoundVolume]) },
+                                set: { Defaults[.lockScreenSoundVolume] = Float($0) }
+                            ),
+                            in: 0.0...1.0,
+                            step: 0.05
+                        )
+                        Image(systemName: "speaker.wave.3.fill")
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Defaults.Toggle(key: .showOnLockScreen) {

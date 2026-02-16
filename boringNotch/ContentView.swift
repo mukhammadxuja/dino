@@ -32,6 +32,15 @@ struct ContentView: View {
 
     @State private var haptics: Bool = false
 
+    // Horizontal gesture states for media control
+    @State private var mediaGestureDirection: MediaGestureDirection = .none
+    @State private var mediaGestureIconVisible: Bool = false
+    @State private var mediaGestureTask: Task<Void, Never>?
+    
+    // Hover states for closed notch music areas
+    @State private var isCoverHovering: Bool = false
+    @State private var isVisualizerHovering: Bool = false
+
     @Namespace var albumArtNamespace
 
     @Default(.useMusicVisualizer) var useMusicVisualizer
@@ -224,6 +233,15 @@ struct ContentView: View {
                         view
                             .panGesture(direction: .up) { translation, phase in
                                 handleUpGesture(translation: translation, phase: phase)
+                            }
+                    }
+                    .conditionalModifier(Defaults[.changeMediaWithGesture] && Defaults[.enableGestures]) { view in
+                        view
+                            .panGesture(direction: .right) { translation, phase in
+                                handleHorizontalMediaGesture(translation: translation, phase: phase, direction: .right)
+                            }
+                            .panGesture(direction: .left) { translation, phase in
+                                handleHorizontalMediaGesture(translation: translation, phase: phase, direction: .left)
                             }
                     }
                     .onReceive(NotificationCenter.default.publisher(for: .sharingDidFinish)) { _ in
@@ -495,19 +513,54 @@ struct ContentView: View {
 
     @ViewBuilder
     func MusicLiveActivity() -> some View {
+        let coverSize = max(0, vm.effectiveClosedNotchHeight - 12)
+        let showGesturePrev = mediaGestureDirection == .right && mediaGestureIconVisible && musicManager.isPlaying
+        let showGestureNext = mediaGestureDirection == .left && mediaGestureIconVisible && musicManager.isPlaying
+
         HStack {
-            Image(nsImage: musicManager.albumArt)
-                .resizable()
-                .clipped()
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: MusicPlayerImageSizes.cornerRadiusInset.closed)
-                )
-                .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
-                .frame(
-                    width: max(0, vm.effectiveClosedNotchHeight - 12),
-                    height: max(0, vm.effectiveClosedNotchHeight - 12)
-                )
+            // MARK: Left side - Album art with gesture prev icon & hover sneak peek
+            ZStack {
+                Image(nsImage: musicManager.albumArt)
+                    .resizable()
+                    .clipped()
+                    .clipShape(
+                        RoundedRectangle(
+                            cornerRadius: MusicPlayerImageSizes.cornerRadiusInset.closed)
+                    )
+                    .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
+                    .opacity(showGesturePrev ? 0 : 1)
+                    .animation(.easeOut(duration: 0.2), value: showGesturePrev)
+
+                // Gesture: swipe right → prev icon replaces cover
+                if showGesturePrev {
+                    Image(systemName: "backward.fill")
+                        .font(.system(size: coverSize * 0.45, weight: .bold))
+                        .foregroundStyle(.white)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .frame(width: coverSize, height: coverSize)
+            .onHover { hovering in
+                isCoverHovering = hovering
+                if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
+                    // Show sneak peek from bottom (standard style)
+                    coordinator.toggleSneakPeek(
+                        status: true,
+                        type: .music,
+                        duration: 0
+                    )
+                } else if !hovering {
+                    // Dismiss sneak peek after a short delay
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(600))
+                        await MainActor.run {
+                            if !isCoverHovering {
+                                coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
+                            }
+                        }
+                    }
+                }
+            }
 
             Rectangle()
                 .fill(.black)
@@ -556,23 +609,51 @@ struct ContentView: View {
                             + -cornerRadiusInsets.closed.top
                 )
 
-            HStack {
-                if useMusicVisualizer {
-                    Rectangle()
-                        .fill(
-                            Defaults[.coloredSpectrogram]
-                                ? Color(nsColor: musicManager.avgColor).gradient
-                                : Color.gray.gradient
-                        )
-                        .frame(width: 50, alignment: .center)
-                        .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
-                        .mask {
-                            AudioSpectrumView(isPlaying: $musicManager.isPlaying)
-                                .frame(width: 16, height: 12)
-                        }
-                } else {
-                    LottieAnimationContainer()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // MARK: Right side - Visualizer with gesture next icon & hover play/pause
+            ZStack {
+                // Normal visualizer content
+                HStack {
+                    if useMusicVisualizer {
+                        Rectangle()
+                            .fill(
+                                Defaults[.coloredSpectrogram]
+                                    ? Color(nsColor: musicManager.avgColor).gradient
+                                    : Color.gray.gradient
+                            )
+                            .frame(width: 50, alignment: .center)
+                            .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
+                            .mask {
+                                AudioSpectrumView(isPlaying: $musicManager.isPlaying)
+                                    .frame(width: 16, height: 12)
+                            }
+                    } else {
+                        LottieAnimationContainer()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .opacity(showGestureNext || isVisualizerHovering ? 0 : 1)
+                .animation(.easeOut(duration: 0.2), value: showGestureNext)
+                .animation(.easeOut(duration: 0.2), value: isVisualizerHovering)
+
+                // Gesture: swipe left → next icon replaces visualizer
+                if showGestureNext {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: coverSize * 0.45, weight: .bold))
+                        .foregroundStyle(.white)
+                        .transition(.scale.combined(with: .opacity))
+                }
+
+                // Hover: play/pause icon replaces visualizer
+                if isVisualizerHovering && !showGestureNext && musicManager.isPlaying {
+                    Button {
+                        MusicManager.shared.togglePlay()
+                    } label: {
+                        Image(systemName: musicManager.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: coverSize * 0.45, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.opacity.animation(.easeInOut(duration: 0.2)))
                 }
             }
             .frame(
@@ -587,6 +668,11 @@ struct ContentView: View {
                 ),
                 alignment: .center
             )
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isVisualizerHovering = hovering && musicManager.isPlaying && vm.notchState == .closed
+                }
+            }
         }
         .frame(
             height: vm.effectiveClosedNotchHeight,
@@ -763,6 +849,68 @@ struct ContentView: View {
 
             if Defaults[.enableHaptics] {
                 haptics.toggle()
+            }
+        }
+    }
+
+    // MARK: - Horizontal Media Gesture
+
+    private func handleHorizontalMediaGesture(translation: CGFloat, phase: NSEvent.Phase, direction: PanDirection) {
+        // Only works when music is playing and notch is closed
+        guard vm.notchState == .closed,
+              musicManager.isPlaying,
+              !musicManager.isPlayerIdle else { return }
+
+        let gestureDirection: MediaGestureDirection = direction == .right ? .right : .left
+
+        if phase == .ended {
+            // Trigger the track change if threshold met
+            if translation > Defaults[.gestureSensitivity] * 0.5 {
+                if gestureDirection == .right {
+                    MusicManager.shared.previousTrack()
+                } else {
+                    MusicManager.shared.nextTrack()
+                }
+                if Defaults[.enableHaptics] {
+                    haptics.toggle()
+                }
+            }
+
+            // Reset gesture state after a delay for smooth icon disappearance
+            mediaGestureTask?.cancel()
+            mediaGestureTask = Task {
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        mediaGestureIconVisible = false
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    mediaGestureDirection = .none
+                }
+            }
+            return
+        }
+
+        // Show the direction icon
+        if mediaGestureDirection != gestureDirection {
+            mediaGestureDirection = gestureDirection
+            // Brief delay before showing icon for smooth appearance
+            mediaGestureTask?.cancel()
+            withAnimation(.easeOut(duration: 0.15)) {
+                mediaGestureIconVisible = false
+            }
+            mediaGestureTask = Task {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        mediaGestureIconVisible = true
+                    }
+                }
             }
         }
     }

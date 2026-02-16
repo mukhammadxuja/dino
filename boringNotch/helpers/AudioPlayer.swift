@@ -14,12 +14,12 @@ class AudioPlayer {
     private static var tempURLsByKey: [String: URL] = [:]
     private static var currentlyPlayingKey: String?
 
-    func play(fileName: String, fileExtension: String, subdirectory: String? = nil) {
-        _ = playIfAvailable(fileName: fileName, fileExtension: fileExtension, subdirectory: subdirectory)
+    func play(fileName: String, fileExtension: String, subdirectory: String? = nil, volume: Float = 1.0) {
+        _ = playIfAvailable(fileName: fileName, fileExtension: fileExtension, subdirectory: subdirectory, volume: volume)
     }
 
     @discardableResult
-    func playIfAvailable(fileName: String, fileExtension: String, subdirectory: String? = nil) -> Bool {
+    func playIfAvailable(fileName: String, fileExtension: String, subdirectory: String? = nil, volume: Float = 1.0) -> Bool {
         let key = [subdirectory, "\(fileName).\(fileExtension)"]
             .compactMap { $0 }
             .joined(separator: "/")
@@ -36,6 +36,7 @@ class AudioPlayer {
                 existing.stop()
             }
             existing.currentTime = 0
+            existing.volume = volume
             existing.play()
             Self.currentlyPlayingKey = key
             return true
@@ -55,6 +56,7 @@ class AudioPlayer {
         do {
             let player = try AVAudioPlayer(contentsOf: url)
             player.numberOfLoops = 0
+            player.volume = volume
             player.prepareToPlay()
             Self.players[key] = player
             player.play()

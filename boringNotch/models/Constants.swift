@@ -132,6 +132,12 @@ enum PomodoroClosedNotchDisplayMode: String, CaseIterable, Identifiable, Default
     }
 }
 
+enum MediaGestureDirection {
+    case none
+    case left   // swipe left → next track
+    case right  // swipe right → previous track
+}
+
 // Define notification names at file scope
 extension Notification.Name {
     static let mediaControllerChanged = Notification.Name("mediaControllerChanged")
@@ -190,6 +196,7 @@ extension Defaults.Keys {
     static let showOnLockScreen = Key<Bool>("showOnLockScreen", default: false)
     static let lockScreenPlayerEnabled = Key<Bool>("lockScreenPlayerEnabled", default: true)
     static let lockScreenSoundEnabled = Key<Bool>("lockScreenSoundEnabled", default: true)
+    static let lockScreenSoundVolume = Key<Float>("lockScreenSoundVolume", default: 0.5)
     static let lockScreenPlayerBackgroundStyle = Key<LockScreenPlayerBackgroundStyle>(
         "lockScreenPlayerBackgroundStyle",
         default: .glassBlur
@@ -223,6 +230,7 @@ extension Defaults.Keys {
     // MARK: Gestures
     static let enableGestures = Key<Bool>("enableGestures", default: true)
     static let closeGestureEnabled = Key<Bool>("closeGestureEnabled", default: true)
+    static let changeMediaWithGesture = Key<Bool>("changeMediaWithGesture", default: true)
     static let gestureSensitivity = Key<CGFloat>("gestureSensitivity", default: 200.0)
     
     // MARK: Media playback
