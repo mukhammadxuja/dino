@@ -41,6 +41,7 @@ final class PomodoroManager: ObservableObject {
     @Published private(set) var state: State = .idle
     @Published private(set) var remainingTime: TimeInterval = 0
     @Published private(set) var completedFocusSessions: Int = 0
+    @Published private(set) var strictModeBypassedForCurrentBreak: Bool = false
 
     private var pausedRemaining: TimeInterval = 0
     private var phaseEndDate: Date?
@@ -72,6 +73,22 @@ final class PomodoroManager: ObservableObject {
 
     var formattedRemainingTime: String {
         Self.format(time: remainingTime)
+    }
+
+    var isBreakPhase: Bool {
+        phase == .shortBreak || phase == .longBreak
+    }
+
+    var shouldEnforceStrictMode: Bool {
+        Defaults[.pomodoroEnabled]
+            && Defaults[.pomodoroStrictModeEnabled]
+            && hasActiveSession
+            && isBreakPhase
+            && !strictModeBypassedForCurrentBreak
+    }
+
+    var isWaitingToStartBreak: Bool {
+        isBreakPhase && state == .paused
     }
 
     var progress: Double {
@@ -118,6 +135,7 @@ final class PomodoroManager: ObservableObject {
         state = .idle
         phase = .focus
         completedFocusSessions = 0
+        strictModeBypassedForCurrentBreak = false
         phaseEndDate = nil
         pausedRemaining = duration(for: .focus)
         remainingTime = pausedRemaining
@@ -131,8 +149,49 @@ final class PomodoroManager: ObservableObject {
         completeCurrentPhase()
     }
 
+    func startCurrentBreakIfNeeded() {
+        guard isWaitingToStartBreak else { return }
+        resume()
+    }
+
+    func startNextBreakNow() {
+        guard phase == .focus else { return }
+        playEndSoundIfEnabled()
+        completeCurrentPhase()
+    }
+
+    func extendCurrentFocus(byMinutes minutes: Int) {
+        guard phase == .focus else { return }
+
+        let delta = TimeInterval(max(1, minutes) * 60)
+
+        if state == .running {
+            if let phaseEndDate {
+                self.phaseEndDate = phaseEndDate.addingTimeInterval(delta)
+            } else {
+                phaseEndDate = Date().addingTimeInterval(max(0, remainingTime) + delta)
+            }
+            let updatedRemaining = currentRemaining()
+            remainingTime = updatedRemaining
+            pausedRemaining = updatedRemaining
+        } else {
+            pausedRemaining += delta
+            remainingTime = pausedRemaining
+        }
+
+        persistSession()
+    }
+
+    func bypassStrictModeForCurrentBreak() {
+        guard isBreakPhase else { return }
+        strictModeBypassedForCurrentBreak = true
+    }
+
     private func begin(phase: Phase, startImmediately: Bool) {
         self.phase = phase
+        if phase == .focus {
+            strictModeBypassedForCurrentBreak = false
+        }
         let phaseDuration = duration(for: phase)
         remainingTime = phaseDuration
         pausedRemaining = phaseDuration

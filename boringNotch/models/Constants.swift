@@ -298,6 +298,9 @@ extension Defaults.Keys {
     static let pomodoroAutoStartBreaks = Key<Bool>("pomodoroAutoStartBreaks", default: false)
     static let pomodoroAutoStartFocus = Key<Bool>("pomodoroAutoStartFocus", default: false)
     static let pomodoroCycleBeforeLongBreak = Key<Int>("pomodoroCycleBeforeLongBreak", default: 4)
+    static let pomodoroStrictModeEnabled = Key<Bool>("pomodoroStrictModeEnabled", default: false)
+    static let pomodoroStrictModeWallpaperPath = Key<String?>("pomodoroStrictModeWallpaperPath", default: nil)
+    static let pomodoroStrictModeEyeExercisesEnabled = Key<Bool>("pomodoroStrictModeEyeExercisesEnabled", default: false)
     static let pomodoroClosedNotchDisplayMode = Key<PomodoroClosedNotchDisplayMode>(
         "pomodoroClosedNotchDisplayMode",
         default: .off

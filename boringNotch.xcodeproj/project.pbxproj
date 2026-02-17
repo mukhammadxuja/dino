@@ -11,6 +11,7 @@
 		110029272E84FD4C00035A57 /* TemporaryFileStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */; };
 		1100292A2E8691B400035A57 /* FileShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029292E8691B400035A57 /* FileShareView.swift */; };
 		1100292E2E86940F00035A57 /* QuickShareService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100292D2E86940F00035A57 /* QuickShareService.swift */; };
+		A1B2C3D82F0A1B2C3D4E5F6A /* StrictModeOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D92F0A1B2C3D4E5F6A /* StrictModeOverlayView.swift */; };
 		A1B2C3D52F0A1B2C3D4E5F6A /* PomodoroManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D62F0A1B2C3D4E5F6A /* PomodoroManager.swift */; };
 		1113ABC52E80E27000EC13B2 /* ShelfItemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1113ABC32E80E27000EC13B2 /* ShelfItemView.swift */; };
 		1113ABC62E80E27000EC13B2 /* ShelfPersistenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1113ABBE2E80E27000EC13B2 /* ShelfPersistenceService.swift */; };
@@ -247,6 +248,7 @@
 		14288E0B2C6F8EC000B9F80C /* AppIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIcons.swift; sourceTree = "<group>"; };
 		1443E7F22C609DCE0027C1FC /* matters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = matters.swift; sourceTree = "<group>"; };
 		1443E7F42C609E650027C1FC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3D92F0A1B2C3D4E5F6A /* StrictModeOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pomodoro/StrictModeOverlayView.swift; sourceTree = "<group>"; };
 		A1B2C3D62F0A1B2C3D4E5F6A /* PomodoroManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PomodoroManager.swift; sourceTree = "<group>"; };
 		147163972C5D35B70068B555 /* MusicVisualizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicVisualizer.swift; sourceTree = "<group>"; };
 		147163992C5D35FF0068B555 /* MusicManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicManager.swift; sourceTree = "<group>"; };
@@ -498,6 +500,7 @@
 				B186542F2C6F455E000B926A /* Notch */,
 				9A0887332C7AFF7E00C160EA /* Tabs */,
 				B186542E2C6F453B000B926A /* Music */,
+				A1B2C3D92F0A1B2C3D4E5F6A /* StrictModeOverlayView.swift */,
 				14D570BF2C5EA5870011E668 /* AnimatedFace.swift */,
 				14288DE72C6E01C800B9F80C /* ProgressIndicator.swift */,
 				14D570C12C5EAFBF0011E668 /* EmptyState.swift */,
@@ -909,6 +912,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				115C12EC2ED3D003009754CA /* OpenNotchHUD.swift in Sources */,
+				A1B2C3D82F0A1B2C3D4E5F6A /* StrictModeOverlayView.swift in Sources */,
 				14C08BB92C8DE4B1000F8AA0 /* BoringCalendar.swift in Sources */,
 				5955950D2E900ED800C66711 /* ApplicationRelauncher.swift in Sources */,
 				1100292A2E8691B400035A57 /* FileShareView.swift in Sources */,

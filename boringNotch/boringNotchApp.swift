@@ -11,6 +11,7 @@ import Defaults
 import KeyboardShortcuts
 import Sparkle
 import SwiftUI
+import UserNotifications
 
 @main
 struct DynamicNotchApp: App {
@@ -51,7 +52,7 @@ struct DynamicNotchApp: App {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     var statusItem: NSStatusItem?
     var windows: [String: NSWindow] = [:] // UUID -> NSWindow
     var viewModels: [String: BoringViewModel] = [:] // UUID -> BoringViewModel
@@ -70,9 +71,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowScreenDidChangeObserver: Any?
     private var dragDetectors: [String: DragDetector] = [:] // UUID -> DragDetector
     private var lockScreenPlayerWindows: [String: NSWindow] = [:] // UUID -> NSWindow
+    private var strictModeWindows: [String: NSWindow] = [:] // UUID -> NSWindow
+    private var strictModeObservers: Set<AnyCancellable> = []
+    private var pomodoroNotificationObservers: Set<AnyCancellable> = []
+    private var strictModeEscGlobalMonitor: Any?
+    private var strictModeEscLocalMonitor: Any?
+    private var lastStrictModeEscPressAt: Date?
+    private var didNotifyAlmostBreakForCurrentFocus = false
     private let lockScreenPlayerSize = NSSize(width: 355, height: 176)
     private let lockScreenSoundPlayer = AudioPlayer()
     private var lastLockScreenSoundPlayedAt: Date = .distantPast
+    private let strictModeEscDoublePressInterval: TimeInterval = 0.65
+    private let pomodoroAlmostTimeNotificationID = "pomodoro.almostTime"
+    private let pomodoroAlmostTimeCategoryID = "pomodoro.almostTime.category"
+    private let pomodoroActionStartNextBreakNow = "pomodoro.action.startNextBreakNow"
+    private let pomodoroActionAddOneMinute = "pomodoro.action.addOneMinute"
+    private let pomodoroActionAddFiveMinutes = "pomodoro.action.addFiveMinutes"
+    private let pomodoroActionSkipBreak = "pomodoro.action.skipBreak"
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
@@ -91,6 +106,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         MusicManager.shared.destroy()
         cleanupDragDetectors()
         cleanupLockScreenPlayerWindows()
+        cleanupStrictModeWindows()
+        strictModeObservers.removeAll()
+        pomodoroNotificationObservers.removeAll()
+        cleanupStrictModeEscMonitors()
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [pomodoroAlmostTimeNotificationID])
         cleanupWindows()
         XPCHelperClient.shared.stopMonitoringAccessibilityAuthorization()
     }
@@ -246,6 +266,279 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.close()
         }
         lockScreenPlayerWindows.removeAll()
+    }
+
+    @MainActor
+    private func createStrictModeWindow(for screen: NSScreen) -> NSWindow {
+        let window = NSWindow(
+            contentRect: screen.frame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false,
+            screen: screen
+        )
+
+        window.contentView = NSHostingView(rootView: StrictModeOverlayView())
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = false
+        window.level = .screenSaver
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        window.isReleasedWhenClosed = false
+
+        return window
+    }
+
+    @MainActor
+    private func presentStrictModeWindowsIfNeeded() {
+        guard PomodoroManager.shared.shouldEnforceStrictMode else {
+            cleanupStrictModeWindows()
+            return
+        }
+
+        let screens = NSScreen.screens
+        let targetUUIDs = Set(screens.compactMap { $0.displayUUID })
+
+        for uuid in strictModeWindows.keys where !targetUUIDs.contains(uuid) {
+            if let staleWindow = strictModeWindows[uuid] {
+                staleWindow.close()
+                strictModeWindows.removeValue(forKey: uuid)
+            }
+        }
+
+        for screen in screens {
+            guard let uuid = screen.displayUUID else { continue }
+
+            if strictModeWindows[uuid] == nil {
+                strictModeWindows[uuid] = createStrictModeWindow(for: screen)
+            }
+
+            if let window = strictModeWindows[uuid] {
+                window.setFrame(screen.frame, display: true)
+                window.orderFrontRegardless()
+            }
+        }
+    }
+
+    @MainActor
+    private func cleanupStrictModeWindows() {
+        strictModeWindows.values.forEach { window in
+            window.close()
+        }
+        strictModeWindows.removeAll()
+    }
+
+    private func setupStrictModeObservers() {
+        let manager = PomodoroManager.shared
+
+        manager.$phase
+            .combineLatest(manager.$state, manager.$strictModeBypassedForCurrentBreak)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _, _, _ in
+                Task { @MainActor in
+                    self?.presentStrictModeWindowsIfNeeded()
+                }
+            }
+            .store(in: &strictModeObservers)
+
+        Defaults.publisher(.pomodoroEnabled)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.presentStrictModeWindowsIfNeeded()
+                }
+            }
+            .store(in: &strictModeObservers)
+
+        Defaults.publisher(.pomodoroStrictModeEnabled)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.presentStrictModeWindowsIfNeeded()
+                }
+            }
+            .store(in: &strictModeObservers)
+    }
+
+    private func setupStrictModeEscMonitors() {
+        cleanupStrictModeEscMonitors()
+
+        strictModeEscGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handleStrictModeEscape(event)
+        }
+
+        strictModeEscLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.handleStrictModeEscape(event)
+            return event
+        }
+    }
+
+    private func cleanupStrictModeEscMonitors() {
+        if let strictModeEscGlobalMonitor {
+            NSEvent.removeMonitor(strictModeEscGlobalMonitor)
+            self.strictModeEscGlobalMonitor = nil
+        }
+
+        if let strictModeEscLocalMonitor {
+            NSEvent.removeMonitor(strictModeEscLocalMonitor)
+            self.strictModeEscLocalMonitor = nil
+        }
+
+        lastStrictModeEscPressAt = nil
+    }
+
+    private func handleStrictModeEscape(_ event: NSEvent) {
+        guard event.keyCode == 53 else {
+            DispatchQueue.main.async { [weak self] in
+                self?.lastStrictModeEscPressAt = nil
+            }
+            return
+        }
+
+        Task { @MainActor in
+            guard PomodoroManager.shared.shouldEnforceStrictMode else {
+                lastStrictModeEscPressAt = nil
+                return
+            }
+
+            let now = Date()
+            if let lastStrictModeEscPressAt,
+               now.timeIntervalSince(lastStrictModeEscPressAt) <= strictModeEscDoublePressInterval {
+                PomodoroManager.shared.skip()
+                self.lastStrictModeEscPressAt = nil
+                presentStrictModeWindowsIfNeeded()
+                return
+            }
+
+            lastStrictModeEscPressAt = now
+        }
+    }
+
+    private func setupPomodoroNotificationActions() {
+        let notificationCenter = UNUserNotificationCenter.current()
+        notificationCenter.delegate = self
+
+        let startBreakAction = UNNotificationAction(
+            identifier: pomodoroActionStartNextBreakNow,
+            title: "Start next break now"
+        )
+        let plusOneAction = UNNotificationAction(
+            identifier: pomodoroActionAddOneMinute,
+            title: "+1 min"
+        )
+        let plusFiveAction = UNNotificationAction(
+            identifier: pomodoroActionAddFiveMinutes,
+            title: "+5 min"
+        )
+        let skipBreakAction = UNNotificationAction(
+            identifier: pomodoroActionSkipBreak,
+            title: "Skip break"
+        )
+
+        let category = UNNotificationCategory(
+            identifier: pomodoroAlmostTimeCategoryID,
+            actions: [startBreakAction, plusOneAction, plusFiveAction, skipBreakAction],
+            intentIdentifiers: []
+        )
+
+        notificationCenter.setNotificationCategories([category])
+        notificationCenter.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    private func setupPomodoroAlmostTimeObservers() {
+        let manager = PomodoroManager.shared
+
+        manager.$phase
+            .combineLatest(manager.$state)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] phase, state in
+                guard let self else { return }
+
+                if phase != .focus || state != .running {
+                    didNotifyAlmostBreakForCurrentFocus = false
+                    removePendingPomodoroAlmostTimeNotification()
+                }
+            }
+            .store(in: &pomodoroNotificationObservers)
+
+        manager.$remainingTime
+            .combineLatest(manager.$phase, manager.$state)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] remaining, phase, state in
+                guard let self else { return }
+                guard phase == .focus, state == .running else { return }
+
+                let secondsLeft = Int(ceil(max(0, remaining)))
+                if secondsLeft > 60 {
+                    didNotifyAlmostBreakForCurrentFocus = false
+                    return
+                }
+
+                guard secondsLeft > 0, !didNotifyAlmostBreakForCurrentFocus else { return }
+                didNotifyAlmostBreakForCurrentFocus = true
+                postPomodoroAlmostTimeNotification(countdown: manager.formattedRemainingTime)
+            }
+            .store(in: &pomodoroNotificationObservers)
+    }
+
+    private func postPomodoroAlmostTimeNotification(countdown: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Almost time - \(countdown)"
+        content.body = "Take a break and rest your eyes"
+        content.sound = .default
+        content.categoryIdentifier = pomodoroAlmostTimeCategoryID
+
+        removePendingPomodoroAlmostTimeNotification()
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.25, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: pomodoroAlmostTimeNotificationID,
+            content: content,
+            trigger: trigger
+        )
+
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    private func removePendingPomodoroAlmostTimeNotification() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [pomodoroAlmostTimeNotificationID])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        Task { @MainActor in
+            defer { completionHandler() }
+
+            switch response.actionIdentifier {
+            case pomodoroActionStartNextBreakNow:
+                PomodoroManager.shared.startNextBreakNow()
+            case pomodoroActionAddOneMinute:
+                PomodoroManager.shared.extendCurrentFocus(byMinutes: 1)
+                didNotifyAlmostBreakForCurrentFocus = false
+            case pomodoroActionAddFiveMinutes:
+                PomodoroManager.shared.extendCurrentFocus(byMinutes: 5)
+                didNotifyAlmostBreakForCurrentFocus = false
+            case pomodoroActionSkipBreak:
+                PomodoroManager.shared.skip()
+            default:
+                break
+            }
+
+            removePendingPomodoroAlmostTimeNotification()
+            presentStrictModeWindowsIfNeeded()
+        }
     }
 
     private func cleanupWindows(shouldInvert: Bool = false) {
@@ -514,6 +807,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        KeyboardShortcuts.onKeyDown(for: .pomodoroEmergencyExit) { [weak self] in
+            Task { @MainActor in
+                guard PomodoroManager.shared.shouldEnforceStrictMode else { return }
+                PomodoroManager.shared.skip()
+                self?.presentStrictModeWindowsIfNeeded()
+            }
+        }
+
+        setupStrictModeObservers()
+        setupStrictModeEscMonitors()
+        setupPomodoroNotificationActions()
+        setupPomodoroAlmostTimeObservers()
+
         if !Defaults[.showOnAllDisplays] {
             let viewModel = self.vm
             let window = createBoringNotchWindow(
@@ -540,6 +846,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         previousScreens = NSScreen.screens
+
+        Task { @MainActor in
+            self.presentStrictModeWindowsIfNeeded()
+        }
     }
 
     func playWelcomeSound() {
@@ -592,6 +902,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.setupDragDetectors()
                 if self?.isScreenLocked == true {
                     self?.presentLockScreenPlayerWindows()
+                }
+                Task { @MainActor in
+                    self?.presentStrictModeWindowsIfNeeded()
                 }
             }
         }

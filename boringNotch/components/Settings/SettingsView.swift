@@ -6,6 +6,7 @@
 //
 
 import AVFoundation
+import AppKit
 import Defaults
 import EventKit
 import KeyboardShortcuts
@@ -698,6 +699,7 @@ struct Media: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("Media")
@@ -1035,6 +1037,8 @@ struct PomodoroSettings: View {
     @Default(.pomodoroClosedNotchDisplayMode) private var pomodoroClosedNotchDisplayMode
     @Default(.pomodoroTickSound) private var pomodoroTickSound
     @Default(.pomodoroEndSound) private var pomodoroEndSound
+    @Default(.pomodoroStrictModeWallpaperPath) private var pomodoroStrictModeWallpaperPath
+    @Default(.pomodoroStrictModeEyeExercisesEnabled) private var pomodoroStrictModeEyeExercisesEnabled
 
     var body: some View {
         Form {
@@ -1091,6 +1095,45 @@ struct PomodoroSettings: View {
                 }
             } header: {
                 Text("Session")
+            }
+
+            Section {
+                Defaults.Toggle(key: .pomodoroStrictModeEnabled) {
+                    Text("Enable strict mode")
+                }
+
+                Defaults.Toggle(key: .pomodoroStrictModeEyeExercisesEnabled) {
+                    Text("Enable eye exercise mode")
+                }
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Break wallpaper")
+                        Text(strictModeWallpaperLabel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 12)
+
+                    Button("Upload") {
+                        pickStrictModeWallpaper()
+                    }
+                    .buttonStyle(.bordered)
+
+                    if pomodoroStrictModeWallpaperPath != nil {
+                        Button("Reset") {
+                            pomodoroStrictModeWallpaperPath = nil
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            } header: {
+                Text("Strict Mode")
+            } footer: {
+                Text("When enabled, break sessions show a full-screen lock overlay on all monitors. Skip always asks for confirmation. You can keep blur as default or set a custom wallpaper.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -1167,6 +1210,26 @@ struct PomodoroSettings: View {
             get: { min(max(value.wrappedValue, range.lowerBound), range.upperBound) },
             set: { value.wrappedValue = min(max($0, range.lowerBound), range.upperBound) }
         )
+    }
+
+    private var strictModeWallpaperLabel: String {
+        guard let path = pomodoroStrictModeWallpaperPath, !path.isEmpty else {
+            return "Default blur background"
+        }
+
+        return URL(fileURLWithPath: path).lastPathComponent
+    }
+
+    private func pickStrictModeWallpaper() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.image]
+
+        if panel.runModal() == .OK, let url = panel.url {
+            pomodoroStrictModeWallpaperPath = url.path
+        }
     }
 }
 
@@ -1936,6 +1999,16 @@ struct Shortcuts: View {
             }
             Section {
                 KeyboardShortcuts.Recorder("Toggle Notch Open:", name: .toggleNotchOpen)
+            }
+            Section {
+                KeyboardShortcuts.Recorder("Pomodoro Skip Break:", name: .pomodoroEmergencyExit)
+            } header: {
+                Text("Pomodoro")
+            } footer: {
+                Text("Use this shortcut to skip the current break.")
+                    .multilineTextAlignment(.trailing)
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
             }
         }
         .accentColor(.effectiveAccent)
