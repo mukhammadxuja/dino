@@ -1028,6 +1028,7 @@ struct Shelf: View {
 
 struct PomodoroSettings: View {
     @Default(.pomodoroEnabled) private var pomodoroEnabled
+    @Default(.pomodoroNotificationsEnabled) private var pomodoroNotificationsEnabled
     @Default(.pomodoroFocusMinutes) private var pomodoroFocusMinutes
     @Default(.pomodoroShortBreakMinutes) private var pomodoroShortBreakMinutes
     @Default(.pomodoroLongBreakMinutes) private var pomodoroLongBreakMinutes
@@ -1093,8 +1094,15 @@ struct PomodoroSettings: View {
                 Defaults.Toggle(key: .pomodoroAutoStartFocus) {
                     Text("Auto-start next focus")
                 }
+                Defaults.Toggle(key: .pomodoroNotificationsEnabled) {
+                    Text("Notifications")
+                }
             } header: {
                 Text("Session")
+            } footer: {
+                Text("Shows a 1-minute warning notification before focus ends.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -1153,7 +1161,7 @@ struct PomodoroSettings: View {
 
             Section {
                 HStack {
-                    Picker("Countdown ticking", selection: $pomodoroTickSound) {
+                    Picker("Ticking", selection: $pomodoroTickSound) {
                         ForEach(PomodoroTickSound.allCases) { sound in
                             Text(sound.title).tag(sound)
                         }
@@ -1168,17 +1176,9 @@ struct PomodoroSettings: View {
                     .buttonStyle(.bordered)
                     .disabled(pomodoroTickSound == .off)
                 }
-            } header: {
-                Text("Countdown ticking")
-            } footer: {
-                Text("Plays a ticking sound during the last 5 seconds of focus/break.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
 
-            Section {
                 HStack {
-                    Picker("End sound", selection: $pomodoroEndSound) {
+                    Picker("End", selection: $pomodoroEndSound) {
                         ForEach(PomodoroEndSound.allCases) { sound in
                             Text(sound.title).tag(sound)
                         }
@@ -1194,9 +1194,9 @@ struct PomodoroSettings: View {
                     .disabled(pomodoroEndSound == .off)
                 }
             } header: {
-                Text("End sound")
+                Text("Sounds")
             } footer: {
-                Text("Plays when focus/break ends.")
+                Text("Ticking plays during the last 5 seconds of focus/break. End sound plays when the phase completes.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

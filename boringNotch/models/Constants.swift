@@ -290,14 +290,15 @@ extension Defaults.Keys {
 
     // MARK: Pomodoro
     static let pomodoroShowMenuBarIcon = Key<Bool>("pomodoroShowMenuBarIcon", default: true)
-    static let pomodoroTickSound = Key<PomodoroTickSound>("pomodoroTickSound", default: .clock1)
-    static let pomodoroEndSound = Key<PomodoroEndSound>("pomodoroEndSound", default: .end1)
+    static let pomodoroTickSound = Key<PomodoroTickSound>("pomodoroTickSound", default: .clock2)
+    static let pomodoroEndSound = Key<PomodoroEndSound>("pomodoroEndSound", default: .end2)
     static let pomodoroFocusMinutes = Key<Int>("pomodoroFocusMinutes", default: 25)
     static let pomodoroShortBreakMinutes = Key<Int>("pomodoroShortBreakMinutes", default: 5)
     static let pomodoroLongBreakMinutes = Key<Int>("pomodoroLongBreakMinutes", default: 15)
     static let pomodoroAutoStartBreaks = Key<Bool>("pomodoroAutoStartBreaks", default: false)
     static let pomodoroAutoStartFocus = Key<Bool>("pomodoroAutoStartFocus", default: false)
     static let pomodoroCycleBeforeLongBreak = Key<Int>("pomodoroCycleBeforeLongBreak", default: 4)
+    static let pomodoroNotificationsEnabled = Key<Bool>("pomodoroNotificationsEnabled", default: true)
     static let pomodoroStrictModeEnabled = Key<Bool>("pomodoroStrictModeEnabled", default: false)
     static let pomodoroStrictModeWallpaperPath = Key<String?>("pomodoroStrictModeWallpaperPath", default: nil)
     static let pomodoroStrictModeEyeExercisesEnabled = Key<Bool>("pomodoroStrictModeEyeExercisesEnabled", default: false)

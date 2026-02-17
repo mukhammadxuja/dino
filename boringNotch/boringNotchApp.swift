@@ -449,11 +449,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private func setupPomodoroAlmostTimeObservers() {
         let manager = PomodoroManager.shared
 
+        pomodoroNotificationObservers.removeAll()
+
         manager.$phase
             .combineLatest(manager.$state)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] phase, state in
                 guard let self else { return }
+
+                guard Defaults[.pomodoroNotificationsEnabled] else {
+                    didNotifyAlmostBreakForCurrentFocus = false
+                    removePendingPomodoroAlmostTimeNotification()
+                    return
+                }
 
                 if phase != .focus || state != .running {
                     didNotifyAlmostBreakForCurrentFocus = false
@@ -467,6 +475,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             .receive(on: DispatchQueue.main)
             .sink { [weak self] remaining, phase, state in
                 guard let self else { return }
+                guard Defaults[.pomodoroNotificationsEnabled] else { return }
                 guard phase == .focus, state == .running else { return }
 
                 let secondsLeft = Int(ceil(max(0, remaining)))
@@ -478,6 +487,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 guard secondsLeft > 0, !didNotifyAlmostBreakForCurrentFocus else { return }
                 didNotifyAlmostBreakForCurrentFocus = true
                 postPomodoroAlmostTimeNotification(countdown: manager.formattedRemainingTime)
+            }
+            .store(in: &pomodoroNotificationObservers)
+
+        Defaults.publisher(.pomodoroNotificationsEnabled)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] change in
+                guard let self else { return }
+                if !change.newValue {
+                    didNotifyAlmostBreakForCurrentFocus = false
+                    removePendingPomodoroAlmostTimeNotification()
+                }
             }
             .store(in: &pomodoroNotificationObservers)
     }
@@ -818,7 +838,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         setupStrictModeObservers()
         setupStrictModeEscMonitors()
         setupPomodoroNotificationActions()
-        setupPomodoroAlmostTimeObservers()
+        if Defaults[.pomodoroNotificationsEnabled] {
+            setupPomodoroAlmostTimeObservers()
+        }
 
         if !Defaults[.showOnAllDisplays] {
             let viewModel = self.vm
