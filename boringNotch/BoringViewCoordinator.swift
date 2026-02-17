@@ -241,10 +241,8 @@ class BoringViewCoordinator: ObservableObject {
             try? await Task.sleep(for: .seconds(duration))
             guard let self = self, !Task.isCancelled else { return }
             await MainActor.run {
-                withAnimation {
-                    self.toggleSneakPeek(status: false, type: .music)
-                    self.sneakPeekDuration = 1.5
-                }
+                self.toggleSneakPeek(status: false, type: .music, duration: 0.25)
+                self.sneakPeekDuration = 1.5
             }
         }
     }

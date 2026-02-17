@@ -102,13 +102,6 @@ struct StrictModeOverlayView: View {
                         Label("Skip break", systemImage: "forward.fill")
                     }
                     .buttonStyle(StrictModeCapsuleButtonStyle(prominent: true))
-
-                    Button {
-                    } label: {
-                        Label("Lock screen", systemImage: "lock.fill")
-                    }
-                    .buttonStyle(StrictModeCapsuleButtonStyle(prominent: false))
-                    .disabled(true)
                 }
 
                 Text("Press Esc twice to skip")

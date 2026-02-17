@@ -41,6 +41,7 @@ struct ContentView: View {
     @State private var isCoverHovering: Bool = false
     @State private var isVisualizerHovering: Bool = false
     @State private var showCoverHoverMusicDetails: Bool = false
+    @State private var coverHoverDismissTask: Task<Void, Never>?
 
     @Namespace var albumArtNamespace
 
@@ -546,7 +547,11 @@ struct ContentView: View {
             .onHover { hovering in
                 isCoverHovering = hovering
                 if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
-                    showCoverHoverMusicDetails = true
+                    coverHoverDismissTask?.cancel()
+                    coverHoverDismissTask = nil
+                    withAnimation(.smooth(duration: 0.25)) {
+                        showCoverHoverMusicDetails = true
+                    }
                     // Show sneak peek from bottom (standard style)
                     coordinator.toggleSneakPeek(
                         status: true,
@@ -555,12 +560,21 @@ struct ContentView: View {
                     )
                 } else if !hovering {
                     // Dismiss sneak peek after a short delay
-                    Task {
+                    coverHoverDismissTask?.cancel()
+                    coverHoverDismissTask = Task {
                         try? await Task.sleep(for: .milliseconds(600))
                         await MainActor.run {
                             if !isCoverHovering {
-                                showCoverHoverMusicDetails = false
-                                coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
+                                withAnimation(.smooth(duration: 0.25)) {
+                                    coordinator.toggleSneakPeek(status: false, type: .music, duration: 0.25)
+                                }
+
+                                Task { @MainActor in
+                                    try? await Task.sleep(for: .milliseconds(260))
+                                    withAnimation(.smooth(duration: 0.25)) {
+                                        showCoverHoverMusicDetails = false
+                                    }
+                                }
                             }
                         }
                     }
@@ -656,6 +670,14 @@ struct ContentView: View {
                         Image(systemName: musicManager.isPlaying ? "pause.fill" : "play.fill")
                             .font(.system(size: coverSize * 0.62, weight: .bold))
                             .foregroundStyle(.white)
+                            .shadow(color: .white.opacity(0.6), radius: 12)
+                            .shadow(color: .white.opacity(0.35), radius: 24)
+                            .padding(6)
+                            .background(
+                                Circle()
+                                    .fill(Color.white.opacity(0.12))
+                                    .blur(radius: 0.5)
+                            )
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     }
                     .buttonStyle(.plain)

@@ -7,6 +7,7 @@
 
 import AVFoundation
 import Combine
+import Carbon
 import Defaults
 import KeyboardShortcuts
 import Sparkle
@@ -77,6 +78,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var strictModeEscGlobalMonitor: Any?
     private var strictModeEscLocalMonitor: Any?
     private var lastStrictModeEscPressAt: Date?
+    private var lastPomodoroShortcutEscPressAt: Date?
     private var didNotifyAlmostBreakForCurrentFocus = false
     private let lockScreenPlayerSize = NSSize(width: 355, height: 176)
     private let lockScreenSoundPlayer = AudioPlayer()
@@ -830,6 +832,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         KeyboardShortcuts.onKeyDown(for: .pomodoroEmergencyExit) { [weak self] in
             Task { @MainActor in
                 guard PomodoroManager.shared.shouldEnforceStrictMode else { return }
+
+                if let shortcut = KeyboardShortcuts.Name.pomodoroEmergencyExit.shortcut,
+                   shortcut.carbonKeyCode == kVK_Escape,
+                   shortcut.modifiers.isEmpty {
+                    let now = Date()
+                    if let last = self?.lastPomodoroShortcutEscPressAt,
+                       now.timeIntervalSince(last) <= self?.strictModeEscDoublePressInterval ?? 0.65 {
+                        PomodoroManager.shared.skip()
+                        self?.lastPomodoroShortcutEscPressAt = nil
+                        self?.presentStrictModeWindowsIfNeeded()
+                    } else {
+                        self?.lastPomodoroShortcutEscPressAt = now
+                    }
+                    return
+                }
+
                 PomodoroManager.shared.skip()
                 self?.presentStrictModeWindowsIfNeeded()
             }
