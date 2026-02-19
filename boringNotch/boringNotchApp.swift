@@ -220,8 +220,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private func positionLockScreenPlayerWindow(_ window: NSWindow, on screen: NSScreen) {
         let screenFrame = screen.frame
         let x = screenFrame.origin.x + (screenFrame.width - lockScreenPlayerSize.width) / 2
-        let y = screenFrame.origin.y + 130
+        let y = screenFrame.origin.y + lockScreenPlayerBottomOffset
         window.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+
+    private var lockScreenPlayerBottomOffset: CGFloat {
+        let domain = "com.apple.loginwindow" as CFString
+        let key = "HideUserAvatarAndName" as CFString
+
+        let value = CFPreferencesCopyValue(
+            key,
+            domain,
+            kCFPreferencesAnyUser,
+            kCFPreferencesAnyHost
+        )
+
+        let hideUserAvatarAndName = (value as? Bool) ?? false
+        return hideUserAvatarAndName ? 130 : 185
     }
 
     @MainActor
