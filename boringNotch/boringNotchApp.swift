@@ -1083,6 +1083,10 @@ private struct LockScreenPasscodePlayerView: View {
     @State private var dragging = false
     @State private var lastDragged: Date = .distantPast
 
+    private var shouldShowPlayer: Bool {
+        musicManager.isPlaying || !musicManager.isPlayerIdle
+    }
+
     private var duration: Double {
         max(0, musicManager.songDuration)
     }
@@ -1112,25 +1116,29 @@ private struct LockScreenPasscodePlayerView: View {
         ZStack {
             Color.clear
 
-            VStack(alignment: .leading, spacing: 7) {
-                topRow
-                sliderBlock
-                controlsRow
+            if shouldShowPlayer {
+                VStack(alignment: .leading, spacing: 7) {
+                    topRow
+                    sliderBlock
+                    controlsRow
+                }
+                .padding(.horizontal, 15)
+                .padding(.vertical, 13)
+                .background {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(backgroundFill)
+                        .overlay { backgroundOverlayA }
+                        .overlay { backgroundOverlayB }
+                        .overlay { backgroundOverlayC }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .shadow(color: .black.opacity(0.4), radius: 22, y: 10)
+                .padding(.vertical, 16)
+                .transition(.opacity)
             }
-            .padding(.horizontal, 15)
-            .padding(.vertical, 13)
-            .background {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(backgroundFill)
-                    .overlay { backgroundOverlayA }
-                    .overlay { backgroundOverlayB }
-                    .overlay { backgroundOverlayC }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: .black.opacity(0.4), radius: 22, y: 10)
-            .padding(.vertical, 16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.smooth, value: shouldShowPlayer)
     }
 
     private var backgroundFill: AnyShapeStyle {
@@ -1257,7 +1265,12 @@ private struct LockScreenPasscodePlayerView: View {
 
     private var sliderBlock: some View {
         TimelineView(.animation(minimumInterval: musicManager.playbackRate > 0 ? 0.1 : nil)) { timeline in
-            VStack(spacing: 3) {
+            HStack(alignment: .center, spacing: 10) {
+                Text(formatTime(currentValue))
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.76))
+                    .monospacedDigit()
+
                 CustomSlider(
                     value: $sliderValue,
                     range: 0...max(duration, 0.01),
@@ -1268,17 +1281,15 @@ private struct LockScreenPasscodePlayerView: View {
                         MusicManager.shared.seek(to: newValue)
                     }
                 )
+                .frame(maxWidth: .infinity)
                 .frame(height: 10)
 
-                HStack {
-                    Text(formatTime(currentValue))
-                    Spacer()
-                    Text("-\(formatTime(remainingValue))")
-                }
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.76))
-                .monospacedDigit()
+                Text("-\(formatTime(remainingValue))")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.76))
+                    .monospacedDigit()
             }
+            .padding(.top, 6)
             .onChange(of: timeline.date) {
                 guard !dragging, musicManager.timestampDate.timeIntervalSince(lastDragged) > -1 else { return }
                 sliderValue = musicManager.estimatedPlaybackPosition(at: timeline.date)
