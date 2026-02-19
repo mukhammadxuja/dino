@@ -31,7 +31,8 @@ Say hello to **Dino**, the coolest way to make your MacBook’s notch the star o
   
   <div style="max-width: 800px; margin: 0 auto;">
     <video width="100%" height="auto" autoplay loop muted playsinline style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-      <source src="https://github.com/mukhammadxuja/dino/raw/main/examples/example.mp4" type="video/mp4">
+            <source src="https://github.com/mukhammadxuja/dino/raw/main/examples/example.mp4" type="video/mp4">
+
       Your browser does not support the video tag.
     </video>
   </div>
