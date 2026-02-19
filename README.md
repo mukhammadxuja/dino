@@ -25,77 +25,17 @@ Say hello to **Dino**, the coolest way to make your MacBook’s notch the star o
   <img src="https://github.com/user-attachments/assets/2d5f69c1-6e7b-4bc2-a6f1-bb9e27cf88a8" alt="Dino Demo GIF" />
 </p>
 
-<!-- Examples Carousel -->
+<!-- Examples Video -->
 <div align="center">
-  <h3>How Dino Works - Examples 1-5</h3>
+  <h3>How Dino Works - Video Example</h3>
   
-  <div style="position: relative; max-width: 800px; margin: 0 auto;">
-    <!-- Carousel Container -->
-    <div id="carousel" style="overflow: hidden; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-      <div id="carousel-inner" style="display: flex; transition: transform 0.5s ease-in-out;">
-        <img src="examples/1.png" alt="Example 1" style="width: 100%; height: auto; object-fit: contain;" />
-        <img src="examples/2.png" alt="Example 2" style="width: 100%; height: auto; object-fit: contain;" />
-        <img src="examples/3.png" alt="Example 3" style="width: 100%; height: auto; object-fit: contain;" />
-        <img src="examples/4.png" alt="Example 4" style="width: 100%; height: auto; object-fit: contain;" />
-        <img src="examples/5.png" alt="Example 5" style="width: 100%; height: auto; object-fit: contain;" />
-      </div>
-    </div>
-    
-    <!-- Navigation Controls -->
-    <button onclick="prevSlide()" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; padding: 10px 15px; border-radius: 50%; cursor: pointer; font-size: 18px;">‹</button>
-    <button onclick="nextSlide()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; padding: 10px 15px; border-radius: 50%; cursor: pointer; font-size: 18px;">›</button>
-    
-    <!-- Indicators -->
-    <div style="text-align: center; margin-top: 15px;">
-      <span class="dot" onclick="currentSlide(1)" style="height: 12px; width: 12px; margin: 0 5px; background-color: #bbb; border-radius: 50%; display: inline-block; cursor: pointer;"></span>
-      <span class="dot" onclick="currentSlide(2)" style="height: 12px; width: 12px; margin: 0 5px; background-color: #bbb; border-radius: 50%; display: inline-block; cursor: pointer;"></span>
-      <span class="dot" onclick="currentSlide(3)" style="height: 12px; width: 12px; margin: 0 5px; background-color: #bbb; border-radius: 50%; display: inline-block; cursor: pointer;"></span>
-      <span class="dot" onclick="currentSlide(4)" style="height: 12px; width: 12px; margin: 0 5px; background-color: #bbb; border-radius: 50%; display: inline-block; cursor: pointer;"></span>
-      <span class="dot" onclick="currentSlide(5)" style="height: 12px; width: 12px; margin: 0 5px; background-color: #bbb; border-radius: 50%; display: inline-block; cursor: pointer;"></span>
-    </div>
+  <div style="max-width: 800px; margin: 0 auto;">
+    <video width="100%" height="auto" autoplay loop muted playsinline style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+      <source src="examples/example.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
   </div>
 </div>
-
-<script>
-let slideIndex = 1;
-const totalSlides = 5;
-
-function showSlide(n) {
-  const carouselInner = document.getElementById('carousel-inner');
-  const dots = document.getElementsByClassName('dot');
-  
-  if (n > totalSlides) slideIndex = 1;
-  if (n < 1) slideIndex = totalSlides;
-  
-  carouselInner.style.transform = `translateX(-${(slideIndex - 1) * 100}%)`;
-  
-  for (let i = 0; i < dots.length; i++) {
-    dots[i].style.backgroundColor = '#bbb';
-  }
-  dots[slideIndex - 1].style.backgroundColor = '#717171';
-}
-
-function nextSlide() {
-  slideIndex++;
-  showSlide(slideIndex);
-}
-
-function prevSlide() {
-  slideIndex--;
-  showSlide(slideIndex);
-}
-
-function currentSlide(n) {
-  slideIndex = n;
-  showSlide(slideIndex);
-}
-
-// Auto-advance carousel every 3 seconds
-setInterval(nextSlide, 3000);
-
-// Initialize first slide
-showSlide(slideIndex);
-</script>
 
 ## <!--https://github.com/user-attachments/assets/19b87973-4b3a-4853-b532-7e82d1d6b040-->
 
