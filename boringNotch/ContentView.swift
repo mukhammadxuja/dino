@@ -469,43 +469,37 @@ struct ContentView: View {
                     case .home:
                         NotchHomeView(albumArtNamespace: albumArtNamespace)
                     case .shelf:
-                        ZStack(alignment: .topTrailing) {
-                            ShelfView()
-                                .padding(.top, 40)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-
-                            HStack {
+                        VStack(spacing: 0) {
+                            HStack(alignment: .center) {
                                 Text("Shelf")
                                     .font(.system(.subheadline, design: .rounded))
                                     .fontWeight(.semibold)
                                     .foregroundStyle(.white)
 
                                 Spacer(minLength: 0)
-                            }
-                            .padding(.top, 10)
-                            .padding(.leading, 12)
 
-                            Button(action: {
-                                withAnimation(.smooth) {
-                                    coordinator.currentView = .home
-                                }
-                            }) {
-                                Text("Close")
-                                    .font(.system(.caption, design: .rounded))
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 5)
-                                    .background(Color.white.opacity(0.12))
-                                    .clipShape(Capsule())
-                                    .overlay {
-                                        Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                Button(action: {
+                                    withAnimation(.smooth) {
+                                        coordinator.currentView = .home
                                     }
+                                }) {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.white.opacity(0.9))
+                                        .frame(width: 24, height: 24)
+                                        .background(Color.white.opacity(0.10))
+                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(PlainButtonStyle())
-                            .padding(.top, 8)
-                            .padding(.trailing, 8)
+                            .padding(.top, 4)
+                            .padding(.horizontal, 8)
+
+                            ShelfView()
+                                .padding(.top, 4)
                         }
+                        .padding(.horizontal, 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     case .calendar:
                         VStack(alignment: .leading, spacing: 0) {
                             CalendarView()
