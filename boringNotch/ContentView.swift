@@ -57,7 +57,7 @@ struct ContentView: View {
 
     private let extendedHoverPadding: CGFloat = 30
     private let zeroHeightHoverPadding: CGFloat = 10
-    private let homeBaseOpenWidth: CGFloat = 560
+    private let homeBaseOpenWidth: CGFloat = 420
     private let pomodoroReplaceWidthExpansion: CGFloat = 104
 
     private var topCornerRadius: CGFloat {
@@ -413,9 +413,7 @@ struct ContentView: View {
                       } else if !coordinator.expandingView.show && vm.notchState == .closed && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace] && !vm.hideOnClosed  {
                           BoringFaceAnimation()
                        } else if vm.notchState == .open {
-                           BoringHeader()
-                               .frame(height: max(24, vm.effectiveClosedNotchHeight))
-                               .opacity(gestureProgress != 0 ? 1.0 - min(abs(gestureProgress) * 0.1, 0.3) : 1.0)
+                           EmptyView()
                        } else {
                            Rectangle().fill(.clear).frame(width: vm.closedNotchSize.width - 20, height: vm.effectiveClosedNotchHeight)
                        }
@@ -471,7 +469,43 @@ struct ContentView: View {
                     case .home:
                         NotchHomeView(albumArtNamespace: albumArtNamespace)
                     case .shelf:
-                        ShelfView()
+                        ZStack(alignment: .topTrailing) {
+                            ShelfView()
+                                .padding(.top, 40)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                            HStack {
+                                Text("Shelf")
+                                    .font(.system(.subheadline, design: .rounded))
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.white)
+
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.top, 10)
+                            .padding(.leading, 12)
+
+                            Button(action: {
+                                withAnimation(.smooth) {
+                                    coordinator.currentView = .home
+                                }
+                            }) {
+                                Text("Close")
+                                    .font(.system(.caption, design: .rounded))
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(Color.white.opacity(0.12))
+                                    .clipShape(Capsule())
+                                    .overlay {
+                                        Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                    }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .padding(.top, 8)
+                            .padding(.trailing, 8)
+                        }
                     case .calendar:
                         VStack(alignment: .leading, spacing: 0) {
                             CalendarView()
