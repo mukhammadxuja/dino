@@ -692,10 +692,17 @@ private struct PomodoroHomeSection: View {
     var body: some View {
         GeometryReader { geo in
             let size = min(geo.size.width, geo.size.height)
-            let progressSize = min(geo.size.height - 32, 132)
             let clampedProgress = min(max(pomodoroManager.progress, 0), 1)
             let cycleLimit = max(1, Defaults[.pomodoroCycleBeforeLongBreak])
             let currentCycle = (pomodoroManager.completedFocusSessions % cycleLimit) + 1
+            let basePaddingX: CGFloat = 6
+            let basePaddingY: CGFloat = 4
+            let leftExtraPaddingX: CGFloat = basePaddingX * 2
+            let leftExtraPaddingY: CGFloat = basePaddingY * 2
+            let progressSize = min(geo.size.height - (basePaddingY * 2), 132)
+            let progressInnerPadding: CGFloat = 14
+            let progressRingLineWidth: CGFloat = 12
+            let progressCenterDiameter: CGFloat = max(0, progressSize * 0.50)
 
             let primaryLabel: String = {
                 switch pomodoroManager.state {
@@ -750,8 +757,7 @@ private struct PomodoroHomeSection: View {
                                 .font(.system(.subheadline, design: .rounded))
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.white)
-                                .frame(height: 30)
-                                .padding(.horizontal, 8)
+                                .frame(width: 84, height: 30)
                                 .background(Color.white.opacity(0.10))
                                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
@@ -772,6 +778,8 @@ private struct PomodoroHomeSection: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, leftExtraPaddingX)
+                .padding(.vertical, leftExtraPaddingY)
 
                 ZStack {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -783,14 +791,15 @@ private struct PomodoroHomeSection: View {
                                 .scaledToFit()
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .padding(progressInnerPadding)
                         } else {
                             ZStack {
                                 Circle()
-                                    .stroke(Color.white.opacity(0.12), lineWidth: 10)
+                                    .stroke(Color.white.opacity(0.12), lineWidth: progressRingLineWidth)
 
                                 Circle()
                                     .trim(from: 0, to: clampedProgress)
-                                    .stroke(Color.effectiveAccent, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                                    .stroke(Color.effectiveAccent, style: StrokeStyle(lineWidth: progressRingLineWidth, lineCap: .round))
                                     .rotationEffect(.degrees(-90))
 
                                 Button {
@@ -798,6 +807,7 @@ private struct PomodoroHomeSection: View {
                                 } label: {
                                     Circle()
                                         .fill(Color.black.opacity(0.55))
+                                        .frame(width: progressCenterDiameter, height: progressCenterDiameter)
                                         .overlay {
                                             Image(systemName: pomodoroManager.isRunning ? "pause.fill" : "play.fill")
                                                 .font(.system(size: 20, weight: .bold))
@@ -806,14 +816,14 @@ private struct PomodoroHomeSection: View {
                                 }
                                 .buttonStyle(.plain)
                             }
-                            .padding(16)
+                            .padding(progressInnerPadding)
                         }
                     }
                 }
                 .frame(width: progressSize, height: progressSize)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 16)
+            .padding(.horizontal, basePaddingX)
+            .padding(.vertical, basePaddingY)
             .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
