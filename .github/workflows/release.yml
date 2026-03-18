@@ -264,6 +264,7 @@ jobs:
           fi
           chmod +x Configuration/dmg/create_dmg.sh
           ./Configuration/dmg/create_dmg.sh "Release/${{ env.projname }}.app" "Release/dino.dmg" "Dino ${{ needs.preparation.outputs.version }}"
+          cp -f "Release/dino.dmg" "Release/boringNotch.dmg"
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
@@ -350,7 +351,9 @@ jobs:
           tag_name: v${{ needs.preparation.outputs.version }}
           fail_on_unmatched_files: true
           body: ${{ needs.preparation.outputs.release_notes_github }}
-          files: Release/dino.dmg
+          files: |
+            Release/dino.dmg
+            Release/boringNotch.dmg
           prerelease: ${{ needs.preparation.outputs.is_beta }}
           draft: false
 
