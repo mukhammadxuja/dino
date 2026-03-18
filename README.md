@@ -35,6 +35,7 @@ Say hello to **Dino**, the coolest way to make your MacBook’s notch the star o
 
       Your browser does not support the video tag.
     </video>
+
   </div>
 </div>
 
@@ -72,7 +73,7 @@ Say hello to **Dino**, the coolest way to make your MacBook’s notch the star o
 
 ### Option 1: Download and Install Manually
 
-<a href="https://github.com/TheBoredTeam/boring.notch/releases/latest/download/boringNotch.dmg" target="_self"><img width="200" src="https://github.com/user-attachments/assets/e3179be1-8416-4b8a-b417-743e1ecc67d6" alt="Download for macOS" /></a>
+<a href="https://github.com/mukhammadxuja/dino/releases/latest/download/dino.dmg" target="_self"><img width="200" src="https://github.com/user-attachments/assets/e3179be1-8416-4b8a-b417-743e1ecc67d6" alt="Download for macOS" /></a>
 
 ---
 
