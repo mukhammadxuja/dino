@@ -144,6 +144,64 @@ enum BatterySoundChoice: String, CaseIterable, Identifiable, Defaults.Serializab
     }
 }
 
+enum BatteryToastSize: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case extraSmall = "Extra Small"
+    case small = "Small"
+    case medium = "Medium"
+    case large = "Large"
+
+    var id: String { rawValue }
+    var title: String { rawValue }
+
+    var scale: CGFloat {
+        switch self {
+        case .extraSmall: return 0.85
+        case .small: return 0.92
+        case .medium: return 1.00
+        case .large: return 1.10
+        }
+    }
+}
+
+enum BatteryGlowIntensity: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case soft = "Soft"
+    case subtle = "Subtle"
+    case `default` = "Default"
+    case bold = "Bold"
+
+    var id: String { rawValue }
+    var title: String { rawValue }
+
+    var bloomDepth: CGFloat {
+        switch self {
+        case .soft: return 60
+        case .subtle: return 90
+        case .default: return 120
+        case .bold: return 160
+        }
+    }
+
+    var maxOpacity: Double {
+        switch self {
+        case .soft: return 0.45
+        case .subtle: return 0.65
+        case .default: return 0.85
+        case .bold: return 1.00
+        }
+    }
+}
+
+struct BatteryAlertItem: Codable, Identifiable, Hashable, Defaults.Serializable {
+    var id: UUID = UUID()
+    var percentage: Int
+    var isEnabled: Bool = true
+    var soundName: String = "Glass"
+    var borderGlow: Bool = true
+    var colorHex: String = "#FF453A"
+    var isPersistent: Bool = false
+    var position: String = "Top"
+}
+
 enum CalendarSelectionState: Codable, Defaults.Serializable {
     case all
     case selected(Set<String>)
@@ -320,8 +378,20 @@ extension Defaults.Keys {
     static let batteryGlowColorMode = Key<BatteryGlowColorMode>("batteryGlowColorMode", default: .dynamic)
     static let batteryToastEnabled = Key<Bool>("batteryToastEnabled", default: true)
     static let batteryToastType = Key<BatteryToastType>("batteryToastType", default: .dynamicNotch)
+    static let batteryToastSize = Key<BatteryToastSize>("batteryToastSize", default: .medium)
+    static let batteryGlowIntensity = Key<BatteryGlowIntensity>("batteryGlowIntensity", default: .default)
+    static let batteryShowGlowInPreview = Key<Bool>("batteryShowGlowInPreview", default: true)
     static let batterySoundEnabled = Key<Bool>("batterySoundEnabled", default: true)
     static let batterySoundName = Key<BatterySoundChoice>("batterySoundName", default: .glass)
+    static let lowBatteryAlerts = Key<[BatteryAlertItem]>("lowBatteryAlerts", default: [
+        BatteryAlertItem(percentage: 20, isEnabled: true, soundName: "Glass", borderGlow: true, colorHex: "#FF453A", isPersistent: false, position: "Top")
+    ])
+    static let chargedAlertThreshold = Key<Int>("chargedAlertThreshold", default: 80)
+    static let chargedAlertGlowEnabled = Key<Bool>("chargedAlertGlowEnabled", default: true)
+    static let chargedAlertSoundEnabled = Key<Bool>("chargedAlertSoundEnabled", default: true)
+    static let chargedAlertSoundName = Key<BatterySoundChoice>("chargedAlertSoundName", default: .glass)
+    static let chargedAlertPosition = Key<String>("chargedAlertPosition", default: "Top")
+    static let customBatterySounds = Key<[String]>("customBatterySounds", default: [])
     
     // MARK: Downloads
     static let enableDownloadListener = Key<Bool>("enableDownloadListener", default: true)

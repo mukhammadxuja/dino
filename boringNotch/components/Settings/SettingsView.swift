@@ -17,6 +17,7 @@ import SwiftUIIntrospect
 
 struct SettingsView: View {
     @State private var selectedTab = "General"
+    @State private var isBatteryExpanded = true
     @State private var accentColorUpdateTrigger = UUID()
 
     let updaterController: SPUStandardUpdaterController?
@@ -28,50 +29,83 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedTab) {
-                NavigationLink(value: "General") {
-                    Label("General", systemImage: "gear")
+                Group {
+                    NavigationLink(value: "General") {
+                        Label("General", systemImage: "gear")
+                    }
+                    NavigationLink(value: "Appearance") {
+                        Label("Appearance", systemImage: "eye")
+                    }
+                    NavigationLink(value: "Media") {
+                        Label("Media", systemImage: "play.laptopcomputer")
+                    }
+                    NavigationLink(value: "Calendar") {
+                        Label("Calendar", systemImage: "calendar")
+                    }
+                    NavigationLink(value: "HUD") {
+                        Label("HUDs", systemImage: "dial.medium.fill")
+                    }
                 }
-                NavigationLink(value: "Appearance") {
-                    Label("Appearance", systemImage: "eye")
+
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        isBatteryExpanded.toggle()
+                    }
+                }) {
+                    HStack {
+                        Label("Battery", systemImage: "battery.100.bolt")
+                        Spacer()
+                        Image(systemName: isBatteryExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
                 }
-                NavigationLink(value: "Media") {
-                    Label("Media", systemImage: "play.laptopcomputer")
+                .buttonStyle(.plain)
+
+                if isBatteryExpanded {
+                    NavigationLink(value: "Battery_General") {
+                        Label("General", systemImage: "slider.horizontal.3")
+                    }
+                    .padding(.leading, 12)
+                    NavigationLink(value: "Battery_Alerts") {
+                        Label("Alerts", systemImage: "bell.badge")
+                    }
+                    .padding(.leading, 12)
+                    NavigationLink(value: "Battery_Charging") {
+                        Label("Charging", systemImage: "bolt.fill")
+                    }
+                    .padding(.leading, 12)
+                    NavigationLink(value: "Battery_AppUsage") {
+                        Label("App Usage", systemImage: "chart.bar.xaxis")
+                    }
+                    .padding(.leading, 12)
                 }
-                NavigationLink(value: "Calendar") {
-                    Label("Calendar", systemImage: "calendar")
-                }
-                NavigationLink(value: "HUD") {
-                    Label("HUDs", systemImage: "dial.medium.fill")
-                }
-                NavigationLink(value: "Battery") {
-                    Label("Battery", systemImage: "battery.100.bolt")
-                }
-//                NavigationLink(value: "Downloads") {
-//                    Label("Downloads", systemImage: "square.and.arrow.down")
-//                }
-                NavigationLink(value: "Shelf") {
-                    Label("Shelf", systemImage: "books.vertical")
-                }
-                NavigationLink(value: "Pomodoro") {
-                    Label("Pomodoro", systemImage: "timer")
-                }
-                NavigationLink(value: "Shortcuts") {
-                    Label("Shortcuts", systemImage: "keyboard")
-                }
-                // NavigationLink(value: "Extensions") {
-                //     Label("Extensions", systemImage: "puzzlepiece.extension")
-                // }
-                NavigationLink(value: "Advanced") {
-                    Label("Advanced", systemImage: "gearshape.2")
-                }
-                NavigationLink(value: "About") {
-                    Label("About", systemImage: "info.circle")
+
+                Group {
+                    NavigationLink(value: "Shelf") {
+                        Label("Shelf", systemImage: "books.vertical")
+                    }
+                    NavigationLink(value: "Pomodoro") {
+                        Label("Pomodoro", systemImage: "timer")
+                    }
+                    NavigationLink(value: "Shortcuts") {
+                        Label("Shortcuts", systemImage: "keyboard")
+                    }
+                    NavigationLink(value: "Advanced") {
+                        Label("Advanced", systemImage: "gearshape.2")
+                    }
+                    NavigationLink(value: "About") {
+                        Label("About", systemImage: "info.circle")
+                    }
                 }
             }
             .listStyle(SidebarListStyle())
+            .scrollContentBackground(.hidden)
+            .background(Color(red: 245/255, green: 245/255, blue: 245/255))
             .tint(.effectiveAccent)
             .toolbar(removing: .sidebarToggle)
-            .navigationSplitViewColumnWidth(200)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 210)
         } detail: {
             Group {
                 switch selectedTab {
@@ -85,8 +119,14 @@ struct SettingsView: View {
                     CalendarSettings()
                 case "HUD":
                     HUD()
-                case "Battery":
-                    Charge()
+                case "Battery", "Battery_Alerts":
+                    BatteryAlertsSettingsView()
+                case "Battery_General":
+                    BatteryGeneralSettingsView()
+                case "Battery_Charging":
+                    BatteryChargingSettingsView()
+                case "Battery_AppUsage":
+                    BatteryAppUsageSettingsView()
                 case "Shelf":
                     Shelf()
                 case "Pomodoro":
@@ -112,6 +152,7 @@ struct SettingsView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.white)
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar(removing: .sidebarToggle)
@@ -123,8 +164,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 700)
-        .background(Color(NSColor.windowBackgroundColor))
+        .frame(minWidth: 840, idealWidth: 860, minHeight: 620, idealHeight: 640)
+        .background(Color.white)
+        .preferredColorScheme(.light)
         .tint(.effectiveAccent)
         .id(accentColorUpdateTrigger)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AccentColorChanged"))) { _ in
@@ -355,16 +397,790 @@ struct GeneralSettings: View {
     }
 }
 
-struct Charge: View {
-    @Default(.batteryAlertsEnabled) private var batteryAlertsEnabled
-    @Default(.batteryLowThreshold) private var batteryLowThreshold
-    @Default(.batteryHighThreshold) private var batteryHighThreshold
-    @Default(.batteryGlowEnabled) private var batteryGlowEnabled
-    @Default(.batteryGlowColorMode) private var batteryGlowColorMode
-    @Default(.batteryToastEnabled) private var batteryToastEnabled
+// MARK: - Battery Alerts Settings View
+struct BatteryAlertsSettingsView: View {
     @Default(.batteryToastType) private var batteryToastType
-    @Default(.batterySoundEnabled) private var batterySoundEnabled
-    @Default(.batterySoundName) private var batterySoundName
+    @Default(.batteryToastSize) private var batteryToastSize
+    @Default(.batteryGlowIntensity) private var batteryGlowIntensity
+    @Default(.batteryShowGlowInPreview) private var batteryShowGlowInPreview
+    @Default(.lowBatteryAlerts) private var lowBatteryAlerts
+    @Default(.chargedAlertThreshold) private var chargedAlertThreshold
+    @Default(.chargedAlertGlowEnabled) private var chargedAlertGlowEnabled
+    @Default(.chargedAlertSoundEnabled) private var chargedAlertSoundEnabled
+    @Default(.chargedAlertSoundName) private var chargedAlertSoundName
+    @Default(.chargedAlertPosition) private var chargedAlertPosition
+    @Default(.customBatterySounds) private var customBatterySounds
+
+    @ObservedObject private var batteryModel = BatteryStatusViewModel.shared
+    @ObservedObject private var soundManager = CustomSoundManager.shared
+
+    @State private var expandedAlertId: UUID? = nil
+    @State private var isChargedExpanded: Bool = false
+
+    var body: some View {
+        Form {
+            appearanceSection
+            lowBatterySection
+            chargedAlertSection
+            customSoundsSection
+            resetSection
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.white)
+        .accentColor(.effectiveAccent)
+        .navigationTitle("Alerts")
+    }
+
+    private var appearanceSection: some View {
+        Section {
+            HStack {
+                Text("Alert Style")
+                Spacer()
+                Picker("", selection: $batteryToastType) {
+                    ForEach(BatteryToastType.allCases) { type in
+                        Text(type.title).tag(type)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 150, alignment: .trailing)
+            }
+
+            if batteryToastType == .customToast {
+                HStack {
+                    Text("Alert Bubble Size")
+                    Spacer()
+                    Picker("", selection: $batteryToastSize) {
+                        ForEach(BatteryToastSize.allCases) { size in
+                            Text(size.title).tag(size)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 150, alignment: .trailing)
+                }
+            }
+
+            HStack {
+                Text("Screen Edge Glow")
+                Spacer()
+                Picker("", selection: $batteryGlowIntensity) {
+                    ForEach(BatteryGlowIntensity.allCases) { intensity in
+                        Text(intensity.title).tag(intensity)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 150, alignment: .trailing)
+            }
+        } header: {
+            Text("Notification Appearance")
+        }
+    }
+
+    private var lowBatterySection: some View {
+        Section {
+            ForEach(Array(lowBatteryAlerts.enumerated()), id: \.element.id) { index, alert in
+                LowBatteryAlertCardView(
+                    alert: binding(for: index),
+                    isExpanded: expandedAlertId == alert.id,
+                    showDelete: lowBatteryAlerts.count > 1,
+                    onToggleExpand: {
+                        toggleExpand(for: alert.id)
+                    },
+                    onDelete: {
+                        deleteAlert(at: index)
+                    },
+                    onTest: {
+                        batteryModel.triggerAlert(type: .lowBattery, isSimulation: true)
+                    }
+                )
+            }
+
+            Button(action: addNewAlert) {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                    Text("Add Low Battery Alert")
+                        .fontWeight(.medium)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        } header: {
+            Text("Low Battery Alerts")
+        }
+    }
+
+    private var chargedAlertSection: some View {
+        Section {
+            ChargedAlertCardView(
+                threshold: $chargedAlertThreshold,
+                glowEnabled: $chargedAlertGlowEnabled,
+                soundEnabled: $chargedAlertSoundEnabled,
+                soundName: $chargedAlertSoundName,
+                position: $chargedAlertPosition,
+                isExpanded: isChargedExpanded,
+                onToggleExpand: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                        isChargedExpanded.toggle()
+                    }
+                },
+                onTest: {
+                    batteryModel.triggerAlert(type: .highBattery, isSimulation: true)
+                }
+            )
+        } header: {
+            Text("Charged Alert")
+        }
+    }
+
+    private var customSoundsSection: some View {
+        Section {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.purple.opacity(0.15))
+                        .frame(width: 34, height: 34)
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(.purple)
+                        .font(.system(size: 18))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Import Custom Sound")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Text("MP3, WAV, M4A, or AIFF")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button(action: {
+                    soundManager.importSound()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "square.and.arrow.down")
+                        Text("Import")
+                    }
+                }
+                .controlSize(.small)
+            }
+
+            if !customBatterySounds.isEmpty {
+                ForEach(customBatterySounds, id: \.self) { sound in
+                    HStack {
+                        Image(systemName: "music.note")
+                            .foregroundStyle(.secondary)
+                        Text(sound)
+                            .font(.subheadline)
+                            .lineLimit(1)
+                        Spacer()
+                        Button(action: {
+                            soundManager.playCustom(soundName: sound)
+                        }) {
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 15))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(action: {
+                            soundManager.deleteSound(name: sound)
+                        }) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.red.opacity(0.8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        } header: {
+            Text("Custom Sounds")
+        }
+    }
+
+    private var resetSection: some View {
+        Section {
+            Button(action: resetAlerts) {
+                Text("Reset All Alerts")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            .controlSize(.small)
+        }
+    }
+
+    private func toggleExpand(for id: UUID) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            if expandedAlertId == id {
+                expandedAlertId = nil
+            } else {
+                expandedAlertId = id
+            }
+        }
+    }
+
+    private func deleteAlert(at index: Int) {
+        if lowBatteryAlerts.count > 1 && index < lowBatteryAlerts.count {
+            lowBatteryAlerts.remove(at: index)
+        }
+    }
+
+    private func addNewAlert() {
+        let currentMins = lowBatteryAlerts.map(\.percentage).min() ?? 20
+        let nextPct = max(5, currentMins - 5)
+        let newAlert = BatteryAlertItem(
+            percentage: nextPct,
+            isEnabled: true,
+            soundName: "Glass",
+            borderGlow: true,
+            colorHex: nextPct <= 10 ? "#FF453A" : "#FF9F0A",
+            isPersistent: false,
+            position: "Top"
+        )
+        lowBatteryAlerts.append(newAlert)
+        withAnimation {
+            expandedAlertId = newAlert.id
+        }
+    }
+
+    private func resetAlerts() {
+        lowBatteryAlerts = [
+            BatteryAlertItem(percentage: 20, isEnabled: true, soundName: "Glass", borderGlow: true, colorHex: "#FF453A", isPersistent: false, position: "Top")
+        ]
+        chargedAlertThreshold = 80
+        chargedAlertGlowEnabled = true
+        chargedAlertSoundEnabled = true
+        chargedAlertPosition = "Top"
+        batteryGlowIntensity = .default
+        batteryToastSize = .medium
+        batteryToastType = .dynamicNotch
+    }
+
+    private func binding(for index: Int) -> Binding<BatteryAlertItem> {
+        Binding(
+            get: {
+                if index < lowBatteryAlerts.count {
+                    return lowBatteryAlerts[index]
+                }
+                return BatteryAlertItem(percentage: 20)
+            },
+            set: { newValue in
+                if index < lowBatteryAlerts.count {
+                    lowBatteryAlerts[index] = newValue
+                }
+            }
+        )
+    }
+}
+
+// MARK: - Low Battery Alert Card View
+struct LowBatteryAlertCardView: View {
+    @Binding var alert: BatteryAlertItem
+    let isExpanded: Bool
+    let showDelete: Bool
+    let onToggleExpand: () -> Void
+    let onDelete: () -> Void
+    let onTest: () -> Void
+
+    @ObservedObject private var soundManager = CustomSoundManager.shared
+
+    private func soundDisplayName(for rawName: String) -> String {
+        if let choice = BatterySoundChoice(rawValue: rawName) {
+            return choice.title
+        }
+        return rawName
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header Row
+            HStack(spacing: 12) {
+                Image(systemName: "battery.25")
+                    .foregroundStyle(Color.fromHex(alert.colorHex))
+                    .font(.system(size: 16, weight: .bold))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(alert.percentage)%")
+                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Color.fromHex(alert.colorHex).opacity(0.18))
+                        .foregroundStyle(Color.fromHex(alert.colorHex))
+                        .clipShape(Capsule())
+
+                    Text("\(alert.position == "Center" ? "Center of Screen" : "Top of Screen") • \(alert.borderGlow ? "Border Glow" : "No Glow") • \(soundDisplayName(for: alert.soundName))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button(action: onToggleExpand) {
+                    Image(systemName: isExpanded ? "gearshape.fill" : "gearshape")
+                        .font(.system(size: 13))
+                        .foregroundStyle(isExpanded ? Color.effectiveAccent : .secondary)
+                }
+                .buttonStyle(.plain)
+
+                if showDelete {
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.red.opacity(0.8))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .contentShape(Rectangle())
+
+            // Expanded Details
+            if isExpanded {
+                Divider()
+                    .padding(.vertical, 12)
+
+                VStack(alignment: .leading, spacing: 16) {
+                    // 1. Battery Percentage and Slider (flex items center between on one line)
+                    HStack(alignment: .center, spacing: 16) {
+                        Text("Battery Percentage")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize()
+
+                        Slider(value: Binding(
+                            get: { Double(alert.percentage) },
+                            set: { alert.percentage = Int($0) }
+                        ), in: 1...50, step: 1)
+                        .tint(Color.fromHex(alert.colorHex))
+                    }
+
+                    // 2. 4 Columns: Color | Position | Sound | Border Glow
+                    HStack(alignment: .top, spacing: 16) {
+                        // Color Column
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Color")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            HStack(spacing: 8) {
+                                ForEach(["#FF453A", "#FF9F0A", "#FFD60A"], id: \.self) { hex in
+                                    Circle()
+                                        .fill(Color.fromHex(hex))
+                                        .frame(width: 20, height: 20)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.primary, lineWidth: alert.colorHex == hex ? 2 : 0)
+                                                .padding(-2)
+                                        )
+                                        .onTapGesture {
+                                            alert.colorHex = hex
+                                        }
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        // Position Column
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Position")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            HStack(spacing: 4) {
+                                Button(action: { alert.position = "Top" }) {
+                                    Image(systemName: "menubar.dock.rectangle")
+                                        .font(.system(size: 13))
+                                        .frame(width: 28, height: 24)
+                                        .background(alert.position == "Top" ? Color.effectiveAccent : Color(NSColor.controlBackgroundColor))
+                                        .foregroundStyle(alert.position == "Top" ? .white : .secondary)
+                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Top of Screen")
+
+                                Button(action: { alert.position = "Center" }) {
+                                    Image(systemName: "rectangle.inset.filled")
+                                        .font(.system(size: 13))
+                                        .frame(width: 28, height: 24)
+                                        .background(alert.position == "Center" ? Color.effectiveAccent : Color(NSColor.controlBackgroundColor))
+                                        .foregroundStyle(alert.position == "Center" ? .white : .secondary)
+                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Center of Screen")
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        // Sound Column (flex-col: Sound label on top, select + icon below)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Sound")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 4) {
+                                Picker("", selection: $alert.soundName) {
+                                    ForEach(BatterySoundChoice.allCases) { s in
+                                        Text(s.title).tag(s.rawValue)
+                                    }
+                                    ForEach(Defaults[.customBatterySounds], id: \.self) { cs in
+                                        Text(cs).tag(cs)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+
+                                Button(action: {
+                                    soundManager.playAny(soundName: alert.soundName)
+                                }) {
+                                    Image(systemName: "speaker.wave.2.fill")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Preview Sound")
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        // Border Glow Column
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Border Glow")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Toggle("", isOn: $alert.borderGlow)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .controlSize(.small)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    // 3. Alert Preview + Test Button (flex items center between)
+                    HStack {
+                        HStack(spacing: 6) {
+                            Image(systemName: "eye")
+                                .font(.system(size: 13))
+                            Text("Alert Preview")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        Button(action: onTest) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 9))
+                                Text("Test")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                            .foregroundStyle(.white)
+                            .background(Color.fromHex(alert.colorHex))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.top, 4)
+
+                    // 4. Preview Canvas (wide display box with screen glow & centered/top notification)
+                    ZStack(alignment: alert.position == "Center" ? .center : .top) {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(red: 0.08, green: 0.09, blue: 0.12))
+
+                        if alert.borderGlow {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Color.fromHex(alert.colorHex).opacity(0.85), lineWidth: 2)
+                                .shadow(color: Color.fromHex(alert.colorHex).opacity(0.5), radius: 6)
+                        } else {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                        }
+
+                        // Notch indicator
+                        VStack {
+                            HStack {
+                                Spacer()
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color.black)
+                                    .frame(width: 44, height: 6)
+                                Spacer()
+                            }
+                            Spacer()
+                        }
+                        .padding(.top, 2)
+
+                        // Notification bubble preview
+                        HStack(spacing: 8) {
+                            Image(systemName: "battery.25")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(Color.fromHex(alert.colorHex))
+
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("\(alert.percentage)% Remaining")
+                                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                Text("1h 12m until empty")
+                                    .font(.system(size: 8, weight: .regular, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.2))
+                                .background(Capsule().fill(.ultraThinMaterial))
+                        )
+                        .padding(.top, alert.position == "Center" ? 0 : 14)
+                    }
+                    .frame(height: 105)
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - Charged Alert Card View
+struct ChargedAlertCardView: View {
+    @Binding var threshold: Int
+    @Binding var glowEnabled: Bool
+    @Binding var soundEnabled: Bool
+    @Binding var soundName: BatterySoundChoice
+    @Binding var position: String
+    let isExpanded: Bool
+    let onToggleExpand: () -> Void
+    let onTest: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header Row
+            HStack(spacing: 12) {
+                Image(systemName: "battery.100.bolt")
+                    .foregroundStyle(.green)
+                    .font(.system(size: 16, weight: .bold))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(threshold)%")
+                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Color.green.opacity(0.18))
+                        .foregroundStyle(.green)
+                        .clipShape(Capsule())
+
+                    Text("\(position == "Center" ? "Center of Screen" : "Top of Screen") • \(glowEnabled ? "Border Glow" : "No Glow") • \(soundName.title)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button(action: onToggleExpand) {
+                    Image(systemName: isExpanded ? "gearshape.fill" : "gearshape")
+                        .font(.system(size: 13))
+                        .foregroundStyle(isExpanded ? Color.effectiveAccent : .secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .contentShape(Rectangle())
+
+            // Expanded Details
+            if isExpanded {
+                Divider()
+                    .padding(.vertical, 12)
+
+                VStack(alignment: .leading, spacing: 16) {
+                    // 1. Battery Percentage and Slider (flex items center between on one line)
+                    HStack(alignment: .center, spacing: 16) {
+                        Text("Battery Percentage")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize()
+
+                        Slider(value: Binding(
+                            get: { Double(threshold) },
+                            set: { threshold = Int($0) }
+                        ), in: 60...100, step: 5)
+                        .tint(.green)
+                    }
+
+                    // 2. Columns: Position | Sound | Border Glow
+                    HStack(alignment: .top, spacing: 16) {
+                        // Position Column
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Position")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            HStack(spacing: 4) {
+                                Button(action: { position = "Top" }) {
+                                    Image(systemName: "menubar.dock.rectangle")
+                                        .font(.system(size: 13))
+                                        .frame(width: 28, height: 24)
+                                        .background(position == "Top" ? Color.effectiveAccent : Color(NSColor.controlBackgroundColor))
+                                        .foregroundStyle(position == "Top" ? .white : .secondary)
+                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Top of Screen")
+
+                                Button(action: { position = "Center" }) {
+                                    Image(systemName: "rectangle.inset.filled")
+                                        .font(.system(size: 13))
+                                        .frame(width: 28, height: 24)
+                                        .background(position == "Center" ? Color.effectiveAccent : Color(NSColor.controlBackgroundColor))
+                                        .foregroundStyle(position == "Center" ? .white : .secondary)
+                                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Center of Screen")
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        // Sound Column (flex-col: Sound label on top, select + icon below)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Sound")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            HStack(spacing: 4) {
+                                Picker("", selection: $soundName) {
+                                    ForEach(BatterySoundChoice.allCases) { sound in
+                                        Text(sound.title).tag(sound)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+
+                                Button(action: {
+                                    soundName.play()
+                                }) {
+                                    Image(systemName: "speaker.wave.2.fill")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Preview Sound")
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        // Border Glow Column
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Border Glow")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Toggle("", isOn: $glowEnabled)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .controlSize(.small)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    // 3. Alert Preview + Test Button
+                    HStack {
+                        HStack(spacing: 6) {
+                            Image(systemName: "eye")
+                                .font(.system(size: 13))
+                            Text("Alert Preview")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        Button(action: onTest) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 9))
+                                Text("Test")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                            .foregroundStyle(.white)
+                            .background(Color.green)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.top, 4)
+
+                    // 4. Preview Canvas
+                    ZStack(alignment: position == "Center" ? .center : .top) {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(red: 0.08, green: 0.09, blue: 0.12))
+
+                        if glowEnabled {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Color.green.opacity(0.85), lineWidth: 2)
+                                .shadow(color: Color.green.opacity(0.5), radius: 6)
+                        } else {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                        }
+
+                        // Notch indicator
+                        VStack {
+                            HStack {
+                                Spacer()
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color.black)
+                                    .frame(width: 44, height: 6)
+                                Spacer()
+                            }
+                            Spacer()
+                        }
+                        .padding(.top, 2)
+
+                        // Notification bubble preview
+                        HStack(spacing: 8) {
+                            Image(systemName: "battery.100.bolt")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.green)
+
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("\(threshold)% Charged")
+                                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                Text("Ready to unplug")
+                                    .font(.system(size: 8, weight: .regular, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.2))
+                                .background(Capsule().fill(.ultraThinMaterial))
+                        )
+                        .padding(.top, position == "Center" ? 0 : 14)
+                    }
+                    .frame(height: 105)
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - General Battery Settings
+struct BatteryGeneralSettingsView: View {
+    @Default(.batteryAlertsEnabled) private var batteryAlertsEnabled
+    @Default(.showBatteryIndicator) private var showBatteryIndicator
+    @Default(.showPowerStatusNotifications) private var showPowerStatusNotifications
+    @Default(.showBatteryPercentage) private var showBatteryPercentage
+    @Default(.showPowerStatusIcons) private var showPowerStatusIcons
 
     @ObservedObject private var batteryModel = BatteryStatusViewModel.shared
 
@@ -372,137 +1188,40 @@ struct Charge: View {
         Form {
             Section {
                 Defaults.Toggle(key: .batteryAlertsEnabled) {
-                    Text("Enable Battery Alerts & Juice")
+                    Text("Enable Battery Notifications & Glow")
                 }
             } header: {
-                Text("Smart Battery Alerts")
-            } footer: {
-                Text("Triggers dynamic visual glow, toast notifications, and audio cues when battery hits your custom thresholds.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("Master Switch")
             }
 
-            if batteryAlertsEnabled {
-                Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Label("Low Battery Threshold", systemImage: "battery.25")
-                            Spacer()
-                            Text("\(batteryLowThreshold)%")
-                                .fontWeight(.semibold)
-                                .foregroundColor(.red)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(batteryLowThreshold) },
-                            set: { batteryLowThreshold = Int($0) }
-                        ), in: 5...30, step: 1)
-                        Text("Alerts when battery discharges down to this level without power connected.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Label("Top / High Battery Threshold", systemImage: "battery.100.bolt")
-                            Spacer()
-                            Text("\(batteryHighThreshold)%")
-                                .fontWeight(.semibold)
-                                .foregroundColor(.green)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(batteryHighThreshold) },
-                            set: { batteryHighThreshold = Int($0) }
-                        ), in: 60...100, step: 5)
-                        Text("Alerts when battery reaches this charge level to preserve battery health.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Threshold Limits")
+            Section {
+                HStack {
+                    Label("Battery Level", systemImage: "battery.100")
+                    Spacer()
+                    Text("\(Int(batteryModel.levelBattery))%")
+                        .fontWeight(.bold)
                 }
 
-                Section {
-                    Defaults.Toggle(key: .batteryGlowEnabled) {
-                        Text("Screen Edge Glow Effect")
-                    }
-
-                    if batteryGlowEnabled {
-                        Picker("Glow Color Mode", selection: $batteryGlowColorMode) {
-                            ForEach(BatteryGlowColorMode.allCases) { mode in
-                                Text(mode.title).tag(mode)
-                            }
-                        }
-                    }
-
-                    Defaults.Toggle(key: .batteryToastEnabled) {
-                        Text("Toast Notification")
-                    }
-
-                    if batteryToastEnabled {
-                        Picker("Toast Style", selection: $batteryToastType) {
-                            ForEach(BatteryToastType.allCases) { type in
-                                Text(type.title).tag(type)
-                            }
-                        }
-                    }
-
-                    Defaults.Toggle(key: .batterySoundEnabled) {
-                        Text("Audio Signal")
-                    }
-
-                    if batterySoundEnabled {
-                        HStack {
-                            Picker("Alert Sound", selection: $batterySoundName) {
-                                ForEach(BatterySoundChoice.allCases) { sound in
-                                    Text(sound.title).tag(sound)
-                                }
-                            }
-
-                            Button(action: {
-                                batterySoundName.play()
-                            }) {
-                                Image(systemName: "speaker.wave.2.fill")
-                            }
-                            .buttonStyle(.plain)
-                            .help("Preview Sound")
-                        }
-                    }
-                } header: {
-                    Text("Visual & Audio Effects")
-                }
-
-                Section {
-                    HStack(spacing: 12) {
-                        Button(action: {
-                            batteryModel.triggerSimulation(type: .lowBattery)
-                        }) {
-                            Label("Test Low Alert (\(batteryLowThreshold)%)", systemImage: "bolt.badge.clock.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.regular)
-
-                        Button(action: {
-                            batteryModel.triggerSimulation(type: .highBattery)
-                        }) {
-                            Label("Test High Alert (\(batteryHighThreshold)%)", systemImage: "battery.100.bolt")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.regular)
-                    }
-                } header: {
-                    Text("Simulation & Testing")
-                } footer: {
-                    Text("Trigger immediate preview of glow, toast, and sound effects.")
-                        .font(.caption)
+                HStack {
+                    Label("Status", systemImage: "bolt.fill")
+                    Spacer()
+                    Text(batteryModel.isCharging ? "Charging" : (batteryModel.isPluggedIn ? "Plugged in" : "On Battery"))
                         .foregroundStyle(.secondary)
                 }
+
+                HStack {
+                    Label("Low Power Mode", systemImage: "leaf.fill")
+                    Spacer()
+                    Text(batteryModel.isInLowPowerMode ? "Enabled" : "Disabled")
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Battery Status")
             }
 
             Section {
                 Defaults.Toggle(key: .showBatteryIndicator) {
-                    Text("Show battery indicator")
+                    Text("Show battery indicator in notch")
                 }
                 Defaults.Toggle(key: .showPowerStatusNotifications) {
                     Text("Show power status notifications")
@@ -514,16 +1233,104 @@ struct Charge: View {
                     Text("Show power status icons")
                 }
             } header: {
-                Text("General Indicators")
+                Text("Notch Display Indicators")
             }
         }
-        .onAppear {
-            Task { @MainActor in
-                await XPCHelperClient.shared.isAccessibilityAuthorized()
-            }
-        }
+        .formStyle(.grouped)
         .accentColor(.effectiveAccent)
-        .navigationTitle("Battery")
+        .navigationTitle("Battery General")
+    }
+}
+
+// MARK: - Charging Settings
+struct BatteryChargingSettingsView: View {
+    @State private var smartChargingEnabled: Bool = true
+    @State private var chargeLimit: Int = 80
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Optimized Battery Charging", isOn: $smartChargingEnabled)
+                HStack {
+                    Text("Charging Limit")
+                    Spacer()
+                    Text("\(chargeLimit)%")
+                        .fontWeight(.bold)
+                        .foregroundStyle(.green)
+                }
+                Slider(value: Binding(
+                    get: { Double(chargeLimit) },
+                    set: { chargeLimit = Int($0) }
+                ), in: 80...100, step: 5)
+            } header: {
+                Text("Charge Protection")
+            } footer: {
+                Text("Helps preserve maximum battery longevity over time.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .accentColor(.effectiveAccent)
+        .navigationTitle("Charging")
+    }
+}
+
+// MARK: - App Usage Settings
+struct BatteryAppUsageSettingsView: View {
+    var body: some View {
+        Form {
+            Section {
+                HStack {
+                    Image(systemName: "safari.fill")
+                        .foregroundStyle(.blue)
+                    Text("Safari")
+                    Spacer()
+                    Text("Normal")
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Image(systemName: "hammer.fill")
+                        .foregroundStyle(.blue)
+                    Text("Xcode")
+                    Spacer()
+                    Text("High Energy")
+                        .foregroundStyle(.orange)
+                }
+
+                HStack {
+                    Image(systemName: "music.note")
+                        .foregroundStyle(.red)
+                    Text("Music")
+                    Spacer()
+                    Text("Low")
+                        .foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("Apps Using Significant Energy")
+            }
+        }
+        .formStyle(.grouped)
+        .accentColor(.effectiveAccent)
+        .navigationTitle("App Usage")
+    }
+}
+
+// MARK: - Color Hex Helper
+extension Color {
+    static func fromHex(_ hex: String) -> Color {
+        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
+
+        var rgb: UInt64 = 0
+        guard Scanner(string: hexSanitized).scanHexInt64(&rgb) else { return .red }
+
+        return Color(
+            red: Double((rgb & 0xFF0000) >> 16) / 255.0,
+            green: Double((rgb & 0x00FF00) >> 8) / 255.0,
+            blue: Double(rgb & 0x0000FF) / 255.0
+        )
     }
 }
 

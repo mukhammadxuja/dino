@@ -264,20 +264,22 @@ struct ScreenEdgeGlowView: View {
         GeometryReader { _ in
             let glowColor: Color = batteryModel.activeGlowColor ?? .red
             let isActive = animatedIn && batteryModel.isGlowActive
+            let bloomDepth = Defaults[.batteryGlowIntensity].bloomDepth
+            let maxOpacity = Defaults[.batteryGlowIntensity].maxOpacity
 
             ZStack {
                 // Top screen edge bloom (pinned to top bezel, zero gap)
                 LinearGradient(
                     stops: [
-                        .init(color: glowColor.opacity(0.85), location: 0.0),
-                        .init(color: glowColor.opacity(0.40), location: 0.35),
-                        .init(color: glowColor.opacity(0.10), location: 0.70),
+                        .init(color: glowColor.opacity(maxOpacity), location: 0.0),
+                        .init(color: glowColor.opacity(maxOpacity * 0.45), location: 0.35),
+                        .init(color: glowColor.opacity(maxOpacity * 0.12), location: 0.70),
                         .init(color: Color.clear, location: 1.0)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: isActive ? 120 : 0)
+                .frame(height: isActive ? bloomDepth : 0)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .opacity(isActive ? 1.0 : 0.0)
 
@@ -285,29 +287,29 @@ struct ScreenEdgeGlowView: View {
                 LinearGradient(
                     stops: [
                         .init(color: Color.clear, location: 0.0),
-                        .init(color: glowColor.opacity(0.10), location: 0.30),
-                        .init(color: glowColor.opacity(0.40), location: 0.65),
-                        .init(color: glowColor.opacity(0.85), location: 1.0)
+                        .init(color: glowColor.opacity(maxOpacity * 0.12), location: 0.30),
+                        .init(color: glowColor.opacity(maxOpacity * 0.45), location: 0.65),
+                        .init(color: glowColor.opacity(maxOpacity), location: 1.0)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: isActive ? 120 : 0)
+                .frame(height: isActive ? bloomDepth : 0)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .opacity(isActive ? 1.0 : 0.0)
 
                 // Leading screen edge bloom (pinned to left bezel, zero gap)
                 LinearGradient(
                     stops: [
-                        .init(color: glowColor.opacity(0.85), location: 0.0),
-                        .init(color: glowColor.opacity(0.40), location: 0.35),
-                        .init(color: glowColor.opacity(0.10), location: 0.70),
+                        .init(color: glowColor.opacity(maxOpacity), location: 0.0),
+                        .init(color: glowColor.opacity(maxOpacity * 0.45), location: 0.35),
+                        .init(color: glowColor.opacity(maxOpacity * 0.12), location: 0.70),
                         .init(color: Color.clear, location: 1.0)
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
-                .frame(width: isActive ? 120 : 0)
+                .frame(width: isActive ? bloomDepth : 0)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .opacity(isActive ? 1.0 : 0.0)
 
@@ -315,14 +317,14 @@ struct ScreenEdgeGlowView: View {
                 LinearGradient(
                     stops: [
                         .init(color: Color.clear, location: 0.0),
-                        .init(color: glowColor.opacity(0.10), location: 0.30),
-                        .init(color: glowColor.opacity(0.40), location: 0.65),
-                        .init(color: glowColor.opacity(0.85), location: 1.0)
+                        .init(color: glowColor.opacity(maxOpacity * 0.12), location: 0.30),
+                        .init(color: glowColor.opacity(maxOpacity * 0.45), location: 0.65),
+                        .init(color: glowColor.opacity(maxOpacity), location: 1.0)
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
-                .frame(width: isActive ? 120 : 0)
+                .frame(width: isActive ? bloomDepth : 0)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                 .opacity(isActive ? 1.0 : 0.0)
 
@@ -381,27 +383,28 @@ struct CustomBatteryToastView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(batteryModel.alertHeadlineText ?? (isLow ? "Low Battery Warning" : "Battery Charged"))
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
 
                 Text(batteryModel.alertBannerText ?? (isLow ? "Connect charger" : "Ready to unplug"))
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.system(size: 12, weight: .regular, design: .rounded))
                     .foregroundStyle(.white.opacity(0.8))
             }
 
             Spacer(minLength: 8)
 
             Text("\(displayPercentage)%")
-                .font(.system(size: 14, weight: .heavy, design: .rounded))
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
+                .font(.system(size: 13, weight: .regular, design: .rounded))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
                 .background(tintColor.opacity(0.25))
                 .foregroundStyle(tintColor)
                 .clipShape(Capsule())
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .frame(width: 340)
+        .frame(width: 330)
+        .scaleEffect(Defaults[.batteryToastSize].scale)
         .background(
             ZStack {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)

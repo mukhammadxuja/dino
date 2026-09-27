@@ -159,3 +159,92 @@ class AudioPlayer {
         }
     }
 }
+
+// MARK: - CustomSoundManager
+import Defaults
+
+@MainActor
+final class CustomSoundManager: ObservableObject {
+    static let shared = CustomSoundManager()
+
+    private var audioPlayer: AVAudioPlayer?
+
+    private var customSoundsDirectory: URL {
+        let dir = documentsDirectory.appendingPathComponent("CustomSounds", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dir.path) {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        return dir
+    }
+
+    func importSound() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.audio, .mp3, .wav, .aiff]
+        panel.title = "Import Custom Alert Sound"
+        panel.prompt = "Import"
+
+        if panel.runModal() == .OK, let selectedURL = panel.url {
+            let filename = selectedURL.lastPathComponent
+            let destinationURL = customSoundsDirectory.appendingPathComponent(filename)
+
+            do {
+                if FileManager.default.fileExists(atPath: destinationURL.path) {
+                    try FileManager.default.removeItem(at: destinationURL)
+                }
+                try FileManager.default.copyItem(at: selectedURL, to: destinationURL)
+
+                var currentSounds = Defaults[.customBatterySounds]
+                if !currentSounds.contains(filename) {
+                    currentSounds.append(filename)
+                    Defaults[.customBatterySounds] = currentSounds
+                }
+                playCustom(soundName: filename)
+            } catch {
+                print("⚠️ [CustomSoundManager] Failed to import sound: \(error)")
+            }
+        }
+    }
+
+    func deleteSound(name: String) {
+        let destinationURL = customSoundsDirectory.appendingPathComponent(name)
+        try? FileManager.default.removeItem(at: destinationURL)
+
+        var currentSounds = Defaults[.customBatterySounds]
+        currentSounds.removeAll { $0 == name }
+        Defaults[.customBatterySounds] = currentSounds
+    }
+
+    func playCustom(soundName: String) {
+        let fileURL = customSoundsDirectory.appendingPathComponent(soundName)
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            NSSound.beep()
+            return
+        }
+
+        do {
+            audioPlayer?.stop()
+            audioPlayer = try AVAudioPlayer(contentsOf: fileURL)
+            audioPlayer?.prepareToPlay()
+            audioPlayer?.play()
+        } catch {
+            print("⚠️ [CustomSoundManager] Failed to play: \(error)")
+            NSSound.beep()
+        }
+    }
+
+    func playAny(soundName: String) {
+        if Defaults[.customBatterySounds].contains(soundName) {
+            playCustom(soundName: soundName)
+        } else if let choice = BatterySoundChoice(rawValue: soundName) {
+            choice.play()
+        } else if let sound = NSSound(named: NSSound.Name(soundName)) {
+            sound.play()
+        } else {
+            NSSound.beep()
+        }
+    }
+}
+
