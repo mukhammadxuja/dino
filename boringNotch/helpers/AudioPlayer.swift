@@ -20,9 +20,7 @@ class AudioPlayer {
 
     @discardableResult
     func playIfAvailable(fileName: String, fileExtension: String, subdirectory: String? = nil, volume: Float = 1.0) -> Bool {
-        let key = [subdirectory, "\(fileName).\(fileExtension)"]
-            .compactMap { $0 }
-            .joined(separator: "/")
+        let key = Self.keyFor(fileName: fileName, fileExtension: fileExtension, subdirectory: subdirectory)
 
         if let currentKey = Self.currentlyPlayingKey, currentKey != key, let currentPlayer = Self.players[currentKey] {
             if currentPlayer.isPlaying {
@@ -66,6 +64,60 @@ class AudioPlayer {
             print("⚠️ [AudioPlayer] Failed to play \(url.lastPathComponent): \(error.localizedDescription)")
             return false
         }
+    }
+
+    func pause(fileName: String, fileExtension: String, subdirectory: String? = nil) {
+        let key = Self.keyFor(fileName: fileName, fileExtension: fileExtension, subdirectory: subdirectory)
+        if let player = Self.players[key], player.isPlaying {
+            player.pause()
+        }
+    }
+
+    @discardableResult
+    func resume(fileName: String, fileExtension: String, subdirectory: String? = nil) -> Bool {
+        let key = Self.keyFor(fileName: fileName, fileExtension: fileExtension, subdirectory: subdirectory)
+        if let player = Self.players[key] {
+            if !player.isPlaying {
+                player.play()
+                Self.currentlyPlayingKey = key
+            }
+            return true
+        }
+        return false
+    }
+
+    func stop(fileName: String, fileExtension: String, subdirectory: String? = nil) {
+        let key = Self.keyFor(fileName: fileName, fileExtension: fileExtension, subdirectory: subdirectory)
+        if let player = Self.players[key] {
+            if player.isPlaying {
+                player.stop()
+            }
+            player.currentTime = 0
+            if Self.currentlyPlayingKey == key {
+                Self.currentlyPlayingKey = nil
+            }
+        }
+    }
+
+    func isPlaying(fileName: String, fileExtension: String, subdirectory: String? = nil) -> Bool {
+        let key = Self.keyFor(fileName: fileName, fileExtension: fileExtension, subdirectory: subdirectory)
+        return Self.players[key]?.isPlaying ?? false
+    }
+
+    func stopAll() {
+        for (_, player) in Self.players {
+            if player.isPlaying {
+                player.stop()
+            }
+            player.currentTime = 0
+        }
+        Self.currentlyPlayingKey = nil
+    }
+
+    private static func keyFor(fileName: String, fileExtension: String, subdirectory: String? = nil) -> String {
+        [subdirectory, "\(fileName).\(fileExtension)"]
+            .compactMap { $0 }
+            .joined(separator: "/")
     }
 
     private static func findResourceURL(fileName: String, fileExtension: String) -> URL? {
