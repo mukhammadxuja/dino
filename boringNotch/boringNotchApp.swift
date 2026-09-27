@@ -376,7 +376,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     @MainActor
     private func updateScreenGlowWindows() {
-        if BatteryStatusViewModel.shared.isGlowActive && Defaults[.batteryGlowEnabled] {
+        let shouldShow = (BatteryStatusViewModel.shared.isGlowActive && Defaults[.batteryGlowEnabled]) ||
+                         (BatteryStatusViewModel.shared.isCustomToastPresented && BatteryStatusViewModel.shared.alertPosition == "Center")
+        if shouldShow {
             glowWindowDismissTask?.cancel()
             let screens = NSScreen.screens
             for screen in screens {
@@ -394,7 +396,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             glowWindowDismissTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(900))
                 guard !Task.isCancelled else { return }
-                guard !BatteryStatusViewModel.shared.isGlowActive else { return }
+                guard !BatteryStatusViewModel.shared.isGlowActive && !(BatteryStatusViewModel.shared.isCustomToastPresented && BatteryStatusViewModel.shared.alertPosition == "Center") else { return }
                 for (_, window) in self.screenGlowWindows {
                     window.orderOut(nil)
                 }
@@ -404,6 +406,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     private func setupScreenGlowObservers() {
         BatteryStatusViewModel.shared.$isGlowActive
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.updateScreenGlowWindows()
+                }
+            }
+            .store(in: &screenGlowObservers)
+
+        BatteryStatusViewModel.shared.$isCustomToastPresented
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 Task { @MainActor in

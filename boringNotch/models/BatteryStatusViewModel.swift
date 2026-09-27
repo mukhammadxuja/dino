@@ -35,6 +35,11 @@ class BatteryStatusViewModel: ObservableObject {
     @Published var alertPercentage: Int = 0
     @Published var isCustomToastPresented: Bool = false
 
+    @Published var alertPosition: String = "Top"
+    @Published var alertTriggerId: UUID = UUID()
+    private var triggeredLowAlertIds: Set<UUID> = []
+    private var isChargedAlertTriggered: Bool = false
+
     private var glowDismissTask: Task<Void, Never>?
     private var customToastDismissTask: Task<Void, Never>?
     @Published private(set) var lastAlertTriggered: BatteryAlertType? = nil
@@ -149,46 +154,88 @@ class BatteryStatusViewModel: ObservableObject {
         guard Defaults[.batteryAlertsEnabled] else { return }
 
         let intLevel = Int(level)
-        let lowLimit = Defaults[.batteryLowThreshold]
-        let highLimit = Defaults[.batteryHighThreshold]
 
-        if !isCharging && !isPluggedIn && intLevel <= lowLimit {
-            if lastAlertTriggered != .lowBattery {
-                lastAlertTriggered = .lowBattery
-                triggerAlert(type: .lowBattery)
+        if !isCharging && !isPluggedIn {
+            // Running on battery -> check configured low battery alerts
+            let alerts = Defaults[.lowBatteryAlerts].filter { $0.isEnabled }
+            for alert in alerts.sorted(by: { $0.percentage > $1.percentage }) {
+                if intLevel <= alert.percentage {
+                    if !triggeredLowAlertIds.contains(alert.id) {
+                        triggeredLowAlertIds.insert(alert.id)
+                        triggerAlert(
+                            type: .lowBattery,
+                            percentage: alert.percentage,
+                            colorHex: alert.colorHex,
+                            position: alert.position,
+                            soundName: alert.soundName,
+                            borderGlow: alert.borderGlow,
+                            isSimulation: false
+                        )
+                    }
+                } else if intLevel > alert.percentage + 3 {
+                    triggeredLowAlertIds.remove(alert.id)
+                }
             }
-        } else if (isCharging || isPluggedIn) && intLevel >= highLimit {
-            if lastAlertTriggered != .highBattery {
-                lastAlertTriggered = .highBattery
-                triggerAlert(type: .highBattery)
-            }
-        } else {
-            if intLevel > lowLimit + 3 && intLevel < highLimit - 3 {
-                lastAlertTriggered = nil
+            isChargedAlertTriggered = false
+        } else if isCharging || isPluggedIn {
+            // Plugged in or charging -> reset low battery triggers
+            triggeredLowAlertIds.removeAll()
+
+            let chargedThreshold = Defaults[.chargedAlertThreshold]
+            if intLevel >= chargedThreshold {
+                if !isChargedAlertTriggered {
+                    isChargedAlertTriggered = true
+                    triggerAlert(
+                        type: .highBattery,
+                        percentage: chargedThreshold,
+                        colorHex: "#34C759",
+                        position: Defaults[.chargedAlertPosition],
+                        soundName: Defaults[.chargedAlertSoundEnabled] ? Defaults[.chargedAlertSoundName].rawValue : nil,
+                        borderGlow: Defaults[.chargedAlertGlowEnabled],
+                        isSimulation: false
+                    )
+                }
+            } else if intLevel < chargedThreshold - 3 {
+                isChargedAlertTriggered = false
             }
         }
     }
 
-    func triggerAlert(type: BatteryAlertType, isSimulation: Bool = false) {
+    func triggerAlert(
+        type: BatteryAlertType,
+        percentage: Int? = nil,
+        colorHex: String? = nil,
+        position: String = "Top",
+        soundName: String? = nil,
+        borderGlow: Bool = true,
+        isSimulation: Bool = false
+    ) {
         guard Defaults[.batteryAlertsEnabled] || isSimulation else { return }
 
         let glowColor: Color
-        switch Defaults[.batteryGlowColorMode] {
-        case .dynamic:
-            glowColor = (type == .lowBattery) ? .red : .green
-        case .red:
-            glowColor = .red
-        case .green:
-            glowColor = .green
-        case .custom:
-            glowColor = .effectiveAccent
+        if let hex = colorHex {
+            glowColor = Color.fromHex(hex)
+        } else {
+            switch Defaults[.batteryGlowColorMode] {
+            case .dynamic:
+                glowColor = (type == .lowBattery) ? .red : .green
+            case .red:
+                glowColor = .red
+            case .green:
+                glowColor = .green
+            case .custom:
+                glowColor = .effectiveAccent
+            }
         }
 
-        let currentLevel = isSimulation
-            ? (type == .lowBattery ? Defaults[.batteryLowThreshold] : Defaults[.batteryHighThreshold])
-            : Int(levelBattery)
+        let currentLevel = percentage ?? (isSimulation
+            ? (type == .lowBattery ? 20 : Defaults[.chargedAlertThreshold])
+            : Int(levelBattery))
 
         self.alertPercentage = currentLevel
+        self.alertPosition = position
+        self.lastAlertTriggered = type
+        self.alertTriggerId = UUID()
 
         let headline = (type == .lowBattery) ? "Low Battery Warning" : "Battery Charged"
         let alertText = (type == .lowBattery) ? "Connect charger" : "Ready to unplug"
@@ -197,27 +244,37 @@ class BatteryStatusViewModel: ObservableObject {
         self.alertBannerText = alertText
 
         // 1. Audio cue
-        if Defaults[.batterySoundEnabled] {
-            Defaults[.batterySoundName].play()
+        let soundToPlay = soundName ?? (Defaults[.batterySoundEnabled] ? Defaults[.batterySoundName].rawValue : nil)
+        if let sound = soundToPlay, !sound.isEmpty && sound != "None" {
+            CustomSoundManager.shared.playAny(soundName: sound)
         }
 
-        // 2. Glow effect (Around entire screen): Smooth easeInOut, NO spring bounce
-        if Defaults[.batteryGlowEnabled] {
+        // 2. Glow effect (Around entire screen): Smooth easeInOut
+        if borderGlow && Defaults[.batteryGlowEnabled] {
             withAnimation(.easeInOut(duration: 0.65)) {
                 self.activeGlowColor = glowColor
                 self.isGlowActive = true
             }
+        } else {
+            self.activeGlowColor = glowColor
+            self.isGlowActive = false
         }
 
-        // 3. Toast / Notification: Spring bounce effect!
+        // 3. Toast / Notification
         if Defaults[.batteryToastEnabled] {
-            switch Defaults[.batteryToastType] {
-            case .dynamicNotch:
-                self.statusText = alertText
-                self.coordinator.toggleExpandingView(status: true, type: .battery)
-            case .customToast:
+            if position == "Center" {
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.65)) {
                     self.isCustomToastPresented = true
+                }
+            } else {
+                switch Defaults[.batteryToastType] {
+                case .dynamicNotch:
+                    self.statusText = alertText
+                    self.coordinator.toggleExpandingView(status: true, type: .battery)
+                case .customToast:
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.65)) {
+                        self.isCustomToastPresented = true
+                    }
                 }
             }
         }
@@ -231,14 +288,29 @@ class BatteryStatusViewModel: ObservableObject {
             withAnimation(.easeInOut(duration: 0.65)) {
                 self.isGlowActive = false
             }
-            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.65)) {
                 self.isCustomToastPresented = false
             }
         }
     }
 
-    func triggerSimulation(type: BatteryAlertType) {
-        triggerAlert(type: type, isSimulation: true)
+    func triggerSimulation(
+        type: BatteryAlertType,
+        percentage: Int? = nil,
+        colorHex: String? = nil,
+        position: String = "Top",
+        soundName: String? = nil,
+        borderGlow: Bool = true
+    ) {
+        triggerAlert(
+            type: type,
+            percentage: percentage,
+            colorHex: colorHex,
+            position: position,
+            soundName: soundName,
+            borderGlow: borderGlow,
+            isSimulation: true
+        )
     }
 
     private func postNativeNotification(title: String, body: String) {

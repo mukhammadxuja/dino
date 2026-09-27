@@ -259,6 +259,7 @@ struct BoringBatteryView: View {
 struct ScreenEdgeGlowView: View {
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @State private var animatedIn: Bool = false
+    @State private var isToastVisible: Bool = false
 
     var body: some View {
         GeometryReader { _ in
@@ -339,6 +340,13 @@ struct ScreenEdgeGlowView: View {
                     .strokeBorder(glowColor.opacity(0.75), lineWidth: 2)
                     .blur(radius: 2)
                     .opacity(isActive ? 1.0 : 0.0)
+
+                // Centered Floating Toast when Position is Center
+                if batteryModel.alertPosition == "Center" {
+                    CustomBatteryToastView()
+                        .scaleEffect(isToastVisible ? 1.0 : 0.72, anchor: .center)
+                        .opacity(isToastVisible ? 1.0 : 0.0)
+                }
             }
             .animation(
                 .easeInOut(duration: 0.65),
@@ -350,10 +358,42 @@ struct ScreenEdgeGlowView: View {
                         animatedIn = true
                     }
                 }
+                if batteryModel.isCustomToastPresented && batteryModel.alertPosition == "Center" {
+                    isToastVisible = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                        withAnimation(.spring(response: 0.48, dampingFraction: 0.65)) {
+                            isToastVisible = true
+                        }
+                    }
+                }
             }
             .onChange(of: batteryModel.isGlowActive) { active in
                 withAnimation(.easeInOut(duration: 0.65)) {
                     animatedIn = active
+                }
+            }
+            .onChange(of: batteryModel.isCustomToastPresented) { presented in
+                if presented && batteryModel.alertPosition == "Center" {
+                    isToastVisible = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                        withAnimation(.spring(response: 0.48, dampingFraction: 0.65)) {
+                            isToastVisible = true
+                        }
+                    }
+                } else {
+                    withAnimation(.spring(response: 0.48, dampingFraction: 0.65)) {
+                        isToastVisible = false
+                    }
+                }
+            }
+            .onChange(of: batteryModel.alertTriggerId) { _ in
+                if batteryModel.isCustomToastPresented && batteryModel.alertPosition == "Center" {
+                    isToastVisible = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                        withAnimation(.spring(response: 0.48, dampingFraction: 0.65)) {
+                            isToastVisible = true
+                        }
+                    }
                 }
             }
         }

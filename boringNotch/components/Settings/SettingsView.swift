@@ -490,7 +490,15 @@ struct BatteryAlertsSettingsView: View {
                         deleteAlert(at: index)
                     },
                     onTest: {
-                        batteryModel.triggerAlert(type: .lowBattery, isSimulation: true)
+                        batteryModel.triggerAlert(
+                            type: .lowBattery,
+                            percentage: alert.percentage,
+                            colorHex: alert.colorHex,
+                            position: alert.position,
+                            soundName: alert.soundName,
+                            borderGlow: alert.borderGlow,
+                            isSimulation: true
+                        )
                     }
                 )
             }
@@ -523,7 +531,15 @@ struct BatteryAlertsSettingsView: View {
                     }
                 },
                 onTest: {
-                    batteryModel.triggerAlert(type: .highBattery, isSimulation: true)
+                    batteryModel.triggerAlert(
+                        type: .highBattery,
+                        percentage: chargedAlertThreshold,
+                        colorHex: "#34C759",
+                        position: chargedAlertPosition,
+                        soundName: chargedAlertSoundEnabled ? chargedAlertSoundName.rawValue : nil,
+                        borderGlow: chargedAlertGlowEnabled,
+                        isSimulation: true
+                    )
                 }
             )
         } header: {
@@ -910,29 +926,49 @@ struct LowBatteryAlertCardView: View {
                         }
                         .padding(.top, 2)
 
-                        // Notification bubble preview
-                        HStack(spacing: 8) {
-                            Image(systemName: "battery.25")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(Color.fromHex(alert.colorHex))
+                        if Defaults[.batteryToastType] == .dynamicNotch && alert.position != "Center" {
+                            HStack(spacing: 8) {
+                                Image(systemName: "bolt.fill")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(Color.fromHex(alert.colorHex))
 
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text("\(alert.percentage)% Remaining")
-                                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(.white)
-                                Text("1h 12m until empty")
-                                    .font(.system(size: 8, weight: .regular, design: .rounded))
-                                    .foregroundStyle(.white.opacity(0.7))
+                                Rectangle()
+                                    .fill(Color.black)
+                                    .frame(width: 34, height: 7)
+
+                                Text("\(alert.percentage)")
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Color.fromHex(alert.colorHex))
                             }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.black))
+                            .padding(.top, 2)
+                        } else {
+                            // Notification bubble preview
+                            HStack(spacing: 8) {
+                                Image(systemName: "battery.25")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(Color.fromHex(alert.colorHex))
+
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("\(alert.percentage)% Remaining")
+                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(.white)
+                                    Text("1h 12m until empty")
+                                        .font(.system(size: 8, weight: .regular, design: .rounded))
+                                        .foregroundStyle(.white.opacity(0.7))
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(Color.white.opacity(0.2))
+                                    .background(Capsule().fill(.ultraThinMaterial))
+                            )
+                            .padding(.top, alert.position == "Center" ? 0 : 14)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 5)
-                        .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.2))
-                                .background(Capsule().fill(.ultraThinMaterial))
-                        )
-                        .padding(.top, alert.position == "Center" ? 0 : 14)
                     }
                     .frame(height: 105)
                     .frame(maxWidth: .infinity)
@@ -1139,29 +1175,49 @@ struct ChargedAlertCardView: View {
                         }
                         .padding(.top, 2)
 
-                        // Notification bubble preview
-                        HStack(spacing: 8) {
-                            Image(systemName: "battery.100.bolt")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.green)
+                        if Defaults[.batteryToastType] == .dynamicNotch && position != "Center" {
+                            HStack(spacing: 8) {
+                                Image(systemName: "bolt.fill")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(.green)
 
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text("\(threshold)% Charged")
-                                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(.white)
-                                Text("Ready to unplug")
-                                    .font(.system(size: 8, weight: .regular, design: .rounded))
-                                    .foregroundStyle(.white.opacity(0.7))
+                                Rectangle()
+                                    .fill(Color.black)
+                                    .frame(width: 34, height: 7)
+
+                                Text("\(threshold)")
+                                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.green)
                             }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(Color.black))
+                            .padding(.top, 2)
+                        } else {
+                            // Notification bubble preview
+                            HStack(spacing: 8) {
+                                Image(systemName: "battery.100.bolt")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(.green)
+
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("\(threshold)% Charged")
+                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(.white)
+                                    Text("Ready to unplug")
+                                        .font(.system(size: 8, weight: .regular, design: .rounded))
+                                        .foregroundStyle(.white.opacity(0.7))
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(Color.white.opacity(0.2))
+                                    .background(Capsule().fill(.ultraThinMaterial))
+                            )
+                            .padding(.top, position == "Center" ? 0 : 14)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 5)
-                        .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.2))
-                                .background(Capsule().fill(.ultraThinMaterial))
-                        )
-                        .padding(.top, position == "Center" ? 0 : 14)
                     }
                     .frame(height: 105)
                     .frame(maxWidth: .infinity)

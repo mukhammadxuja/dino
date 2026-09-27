@@ -79,9 +79,13 @@ struct ContentView: View {
         var chinWidth: CGFloat = vm.closedNotchSize.width
 
         if coordinator.expandingView.type == .battery && coordinator.expandingView.show
-            && vm.notchState == .closed && (Defaults[.showPowerStatusNotifications] || Defaults[.batteryToastEnabled])
+            && vm.notchState == .closed
         {
-            chinWidth = 640
+            if Defaults[.batteryToastType] == .dynamicNotch {
+                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
+            } else {
+                chinWidth = 640
+            }
         } else if shouldShowPomodoroInlineClosedVisual {
             chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20 + pomodoroReplaceWidthExpansion)
         } else if shouldShowMusicClosedVisual {
@@ -319,7 +323,7 @@ struct ContentView: View {
                 }
             }
 
-            if batteryModel.isCustomToastPresented && Defaults[.batteryToastEnabled] && Defaults[.batteryToastType] == .customToast && vm.notchState == .closed {
+            if batteryModel.isCustomToastPresented && Defaults[.batteryToastEnabled] && Defaults[.batteryToastType] == .customToast && vm.notchState == .closed && batteryModel.alertPosition != "Center" {
                 CustomBatteryToastView()
                     .offset(y: vm.effectiveClosedNotchHeight + 8)
                     .transition(
@@ -393,33 +397,56 @@ struct ContentView: View {
                     Spacer()
                 } else {
                     if coordinator.expandingView.type == .battery && coordinator.expandingView.show
-                        && vm.notchState == .closed && (Defaults[.showPowerStatusNotifications] || Defaults[.batteryToastEnabled])
+                        && vm.notchState == .closed
                     {
-                        HStack(spacing: 0) {
-                            HStack {
-                                Text(batteryModel.alertBannerText ?? batteryModel.statusText)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .foregroundStyle(.white)
-                            }
-
-                            Rectangle()
-                                .fill(.black)
-                                .frame(width: vm.closedNotchSize.width + 10)
+                        if Defaults[.batteryToastType] == .dynamicNotch {
+                            let itemSize = max(0, vm.effectiveClosedNotchHeight - 12)
+                            let tintColor: Color = batteryModel.activeGlowColor ?? (batteryModel.levelBattery <= 20 ? .red : .green)
+                            let displayPercentage = batteryModel.alertPercentage > 0 ? batteryModel.alertPercentage : Int(batteryModel.levelBattery)
 
                             HStack {
-                                BoringBatteryView(
-                                    batteryWidth: 30,
-                                    isCharging: batteryModel.isCharging,
-                                    isInLowPowerMode: batteryModel.isInLowPowerMode,
-                                    isPluggedIn: batteryModel.isPluggedIn,
-                                    levelBattery: batteryModel.levelBattery,
-                                    isForNotification: true
-                                )
+                                Image(systemName: "bolt.fill")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(tintColor)
+                                    .frame(width: itemSize, height: itemSize)
+
+                                Rectangle()
+                                    .fill(.black)
+                                    .frame(width: vm.closedNotchSize.width - cornerRadiusInsets.closed.top, height: vm.effectiveClosedNotchHeight)
+
+                                Text("\(displayPercentage)")
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .foregroundStyle(tintColor)
+                                    .frame(width: itemSize, height: itemSize)
                             }
-                            .frame(width: 76, alignment: .trailing)
+                            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
+                        } else {
+                            HStack(spacing: 0) {
+                                HStack {
+                                    Text(batteryModel.alertBannerText ?? batteryModel.statusText)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(.white)
+                                }
+
+                                Rectangle()
+                                    .fill(.black)
+                                    .frame(width: vm.closedNotchSize.width + 10)
+
+                                HStack {
+                                    BoringBatteryView(
+                                        batteryWidth: 30,
+                                        isCharging: batteryModel.isCharging,
+                                        isInLowPowerMode: batteryModel.isInLowPowerMode,
+                                        isPluggedIn: batteryModel.isPluggedIn,
+                                        levelBattery: batteryModel.levelBattery,
+                                        isForNotification: true
+                                    )
+                                }
+                                .frame(width: 76, alignment: .trailing)
+                            }
+                            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
                         }
-                        .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
                       } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && vm.notchState == .closed {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
                               .transition(.opacity)
