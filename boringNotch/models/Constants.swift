@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Defaults
+import AppKit
 
 private let availableDirectories = FileManager
     .default
@@ -81,6 +82,64 @@ enum PomodoroEndSound: String, CaseIterable, Identifiable, Defaults.Serializable
             return "end1"
         case .end2:
             return "end2"
+        }
+    }
+}
+
+enum BatteryGlowColorMode: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case dynamic = "DYNAMIC"
+    case red = "RED"
+    case green = "GREEN"
+    case custom = "CUSTOM"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .dynamic: return "Dynamic"
+        case .red: return "Red"
+        case .green: return "Green"
+        case .custom: return "Accent Color"
+        }
+    }
+}
+
+enum BatteryToastType: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case dynamicNotch = "DYNAMIC_NOTCH"
+    case customToast = "CUSTOM_TOAST"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .dynamicNotch: return "Dynamic Notch"
+        case .customToast: return "Custom Toast"
+        }
+    }
+}
+
+enum BatterySoundChoice: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case subtle = "Subtle"
+    case glass = "Glass"
+    case ping = "Ping"
+    case basso = "Basso"
+    case blow = "Blow"
+    case lowBattery = "Low Battery"
+
+    var id: String { rawValue }
+
+    var title: String { rawValue }
+
+    func play() {
+        switch self {
+        case .lowBattery:
+            AudioPlayer().play(fileName: "low_battery", fileExtension: "mp3", subdirectory: "sounds")
+        default:
+            if let sound = NSSound(named: NSSound.Name(rawValue)) {
+                sound.play()
+            } else {
+                NSSound.beep()
+            }
         }
     }
 }
@@ -254,6 +313,15 @@ extension Defaults.Keys {
     static let showBatteryIndicator = Key<Bool>("showBatteryIndicator", default: true)
     static let showBatteryPercentage = Key<Bool>("showBatteryPercentage", default: true)
     static let showPowerStatusIcons = Key<Bool>("showPowerStatusIcons", default: true)
+    static let batteryAlertsEnabled = Key<Bool>("batteryAlertsEnabled", default: true)
+    static let batteryLowThreshold = Key<Int>("batteryLowThreshold", default: 20)
+    static let batteryHighThreshold = Key<Int>("batteryHighThreshold", default: 80)
+    static let batteryGlowEnabled = Key<Bool>("batteryGlowEnabled", default: true)
+    static let batteryGlowColorMode = Key<BatteryGlowColorMode>("batteryGlowColorMode", default: .dynamic)
+    static let batteryToastEnabled = Key<Bool>("batteryToastEnabled", default: true)
+    static let batteryToastType = Key<BatteryToastType>("batteryToastType", default: .dynamicNotch)
+    static let batterySoundEnabled = Key<Bool>("batterySoundEnabled", default: true)
+    static let batterySoundName = Key<BatterySoundChoice>("batterySoundName", default: .glass)
     
     // MARK: Downloads
     static let enableDownloadListener = Key<Bool>("enableDownloadListener", default: true)

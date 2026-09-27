@@ -74,6 +74,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var lockScreenPlayerWindows: [String: NSWindow] = [:] // UUID -> NSWindow
     private var strictModeWindows: [String: NSWindow] = [:] // UUID -> NSWindow
     private var strictModeObservers: Set<AnyCancellable> = []
+    private var screenGlowWindows: [String: NSWindow] = [:]
+    private var screenGlowObservers: Set<AnyCancellable> = []
+    private var glowWindowDismissTask: Task<Void, Never>?
     private var pomodoroNotificationObservers: Set<AnyCancellable> = []
     private var strictModeEscGlobalMonitor: Any?
     private var strictModeEscLocalMonitor: Any?
@@ -347,6 +350,78 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             window.close()
         }
         strictModeWindows.removeAll()
+    }
+
+    @MainActor
+    private func createScreenGlowWindow(for screen: NSScreen) -> NSWindow {
+        let window = NSWindow(
+            contentRect: screen.frame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false,
+            screen: screen
+        )
+
+        window.contentView = NSHostingView(rootView: ScreenEdgeGlowView())
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        window.isReleasedWhenClosed = false
+
+        return window
+    }
+
+    @MainActor
+    private func updateScreenGlowWindows() {
+        if BatteryStatusViewModel.shared.isGlowActive && Defaults[.batteryGlowEnabled] {
+            glowWindowDismissTask?.cancel()
+            let screens = NSScreen.screens
+            for screen in screens {
+                guard let uuid = screen.displayUUID else { continue }
+                if screenGlowWindows[uuid] == nil {
+                    screenGlowWindows[uuid] = createScreenGlowWindow(for: screen)
+                }
+                if let window = screenGlowWindows[uuid] {
+                    window.setFrame(screen.frame, display: true)
+                    window.orderFrontRegardless()
+                }
+            }
+        } else {
+            glowWindowDismissTask?.cancel()
+            glowWindowDismissTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(900))
+                guard !Task.isCancelled else { return }
+                guard !BatteryStatusViewModel.shared.isGlowActive else { return }
+                for (_, window) in self.screenGlowWindows {
+                    window.orderOut(nil)
+                }
+            }
+        }
+    }
+
+    private func setupScreenGlowObservers() {
+        BatteryStatusViewModel.shared.$isGlowActive
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.updateScreenGlowWindows()
+                }
+            }
+            .store(in: &screenGlowObservers)
+
+        Defaults.publisher(.batteryGlowEnabled)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] change in
+                if !change.newValue {
+                    Task { @MainActor in
+                        self?.updateScreenGlowWindows()
+                    }
+                }
+            }
+            .store(in: &screenGlowObservers)
     }
 
     private func setupStrictModeObservers() {
@@ -872,6 +947,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
 
         setupStrictModeObservers()
+        setupScreenGlowObservers()
         setupStrictModeEscMonitors()
         setupPomodoroNotificationActions()
         if Defaults[.pomodoroNotificationsEnabled] {

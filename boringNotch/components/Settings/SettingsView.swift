@@ -356,8 +356,150 @@ struct GeneralSettings: View {
 }
 
 struct Charge: View {
+    @Default(.batteryAlertsEnabled) private var batteryAlertsEnabled
+    @Default(.batteryLowThreshold) private var batteryLowThreshold
+    @Default(.batteryHighThreshold) private var batteryHighThreshold
+    @Default(.batteryGlowEnabled) private var batteryGlowEnabled
+    @Default(.batteryGlowColorMode) private var batteryGlowColorMode
+    @Default(.batteryToastEnabled) private var batteryToastEnabled
+    @Default(.batteryToastType) private var batteryToastType
+    @Default(.batterySoundEnabled) private var batterySoundEnabled
+    @Default(.batterySoundName) private var batterySoundName
+
+    @ObservedObject private var batteryModel = BatteryStatusViewModel.shared
+
     var body: some View {
         Form {
+            Section {
+                Defaults.Toggle(key: .batteryAlertsEnabled) {
+                    Text("Enable Battery Alerts & Juice")
+                }
+            } header: {
+                Text("Smart Battery Alerts")
+            } footer: {
+                Text("Triggers dynamic visual glow, toast notifications, and audio cues when battery hits your custom thresholds.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if batteryAlertsEnabled {
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Label("Low Battery Threshold", systemImage: "battery.25")
+                            Spacer()
+                            Text("\(batteryLowThreshold)%")
+                                .fontWeight(.semibold)
+                                .foregroundColor(.red)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(batteryLowThreshold) },
+                            set: { batteryLowThreshold = Int($0) }
+                        ), in: 5...30, step: 1)
+                        Text("Alerts when battery discharges down to this level without power connected.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Label("Top / High Battery Threshold", systemImage: "battery.100.bolt")
+                            Spacer()
+                            Text("\(batteryHighThreshold)%")
+                                .fontWeight(.semibold)
+                                .foregroundColor(.green)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(batteryHighThreshold) },
+                            set: { batteryHighThreshold = Int($0) }
+                        ), in: 60...100, step: 5)
+                        Text("Alerts when battery reaches this charge level to preserve battery health.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Threshold Limits")
+                }
+
+                Section {
+                    Defaults.Toggle(key: .batteryGlowEnabled) {
+                        Text("Screen Edge Glow Effect")
+                    }
+
+                    if batteryGlowEnabled {
+                        Picker("Glow Color Mode", selection: $batteryGlowColorMode) {
+                            ForEach(BatteryGlowColorMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                    }
+
+                    Defaults.Toggle(key: .batteryToastEnabled) {
+                        Text("Toast Notification")
+                    }
+
+                    if batteryToastEnabled {
+                        Picker("Toast Style", selection: $batteryToastType) {
+                            ForEach(BatteryToastType.allCases) { type in
+                                Text(type.title).tag(type)
+                            }
+                        }
+                    }
+
+                    Defaults.Toggle(key: .batterySoundEnabled) {
+                        Text("Audio Signal")
+                    }
+
+                    if batterySoundEnabled {
+                        HStack {
+                            Picker("Alert Sound", selection: $batterySoundName) {
+                                ForEach(BatterySoundChoice.allCases) { sound in
+                                    Text(sound.title).tag(sound)
+                                }
+                            }
+
+                            Button(action: {
+                                batterySoundName.play()
+                            }) {
+                                Image(systemName: "speaker.wave.2.fill")
+                            }
+                            .buttonStyle(.plain)
+                            .help("Preview Sound")
+                        }
+                    }
+                } header: {
+                    Text("Visual & Audio Effects")
+                }
+
+                Section {
+                    HStack(spacing: 12) {
+                        Button(action: {
+                            batteryModel.triggerSimulation(type: .lowBattery)
+                        }) {
+                            Label("Test Low Alert (\(batteryLowThreshold)%)", systemImage: "bolt.badge.clock.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .controlSize(.regular)
+
+                        Button(action: {
+                            batteryModel.triggerSimulation(type: .highBattery)
+                        }) {
+                            Label("Test High Alert (\(batteryHighThreshold)%)", systemImage: "battery.100.bolt")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .controlSize(.regular)
+                    }
+                } header: {
+                    Text("Simulation & Testing")
+                } footer: {
+                    Text("Trigger immediate preview of glow, toast, and sound effects.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section {
                 Defaults.Toggle(key: .showBatteryIndicator) {
                     Text("Show battery indicator")
@@ -365,10 +507,6 @@ struct Charge: View {
                 Defaults.Toggle(key: .showPowerStatusNotifications) {
                     Text("Show power status notifications")
                 }
-            } header: {
-                Text("General")
-            }
-            Section {
                 Defaults.Toggle(key: .showBatteryPercentage) {
                     Text("Show battery percentage")
                 }
@@ -376,7 +514,7 @@ struct Charge: View {
                     Text("Show power status icons")
                 }
             } header: {
-                Text("Battery Information")
+                Text("General Indicators")
             }
         }
         .onAppear {

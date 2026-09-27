@@ -79,7 +79,7 @@ struct ContentView: View {
         var chinWidth: CGFloat = vm.closedNotchSize.width
 
         if coordinator.expandingView.type == .battery && coordinator.expandingView.show
-            && vm.notchState == .closed && Defaults[.showPowerStatusNotifications]
+            && vm.notchState == .closed && (Defaults[.showPowerStatusNotifications] || Defaults[.batteryToastEnabled])
         {
             chinWidth = 640
         } else if shouldShowPomodoroInlineClosedVisual {
@@ -318,7 +318,25 @@ struct ContentView: View {
                         .frame(width: computedChinWidth, height: vm.chinHeight)
                 }
             }
+
+            if batteryModel.isCustomToastPresented && Defaults[.batteryToastEnabled] && Defaults[.batteryToastType] == .customToast && vm.notchState == .closed {
+                CustomBatteryToastView()
+                    .offset(y: vm.effectiveClosedNotchHeight + 8)
+                    .transition(
+                        .asymmetric(
+                            insertion: .move(edge: .top).combined(with: .scale(scale: 0.82, anchor: .top)).combined(with: .opacity),
+                            removal: .move(edge: .top).combined(with: .scale(scale: 0.88, anchor: .top)).combined(with: .opacity)
+                        )
+                    )
+                    .zIndex(100)
+            }
         }
+        .animation(
+            batteryModel.isCustomToastPresented
+                ? .spring(response: 0.45, dampingFraction: 0.65)
+                : .spring(response: 0.45, dampingFraction: 0.8),
+            value: batteryModel.isCustomToastPresented
+        )
         .padding(.bottom, 8)
         .frame(maxWidth: windowSize.width, maxHeight: windowSize.height, alignment: .top)
         .compositingGroup()
@@ -375,12 +393,13 @@ struct ContentView: View {
                     Spacer()
                 } else {
                     if coordinator.expandingView.type == .battery && coordinator.expandingView.show
-                        && vm.notchState == .closed && Defaults[.showPowerStatusNotifications]
+                        && vm.notchState == .closed && (Defaults[.showPowerStatusNotifications] || Defaults[.batteryToastEnabled])
                     {
                         HStack(spacing: 0) {
                             HStack {
-                                Text(batteryModel.statusText)
+                                Text(batteryModel.alertBannerText ?? batteryModel.statusText)
                                     .font(.subheadline)
+                                    .fontWeight(.medium)
                                     .foregroundStyle(.white)
                             }
 
