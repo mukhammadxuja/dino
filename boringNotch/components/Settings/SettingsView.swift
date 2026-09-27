@@ -17,10 +17,106 @@ import Sparkle
 import SwiftUI
 import SwiftUIIntrospect
 
+// MARK: - Sidebar Custom Items (Modern Squircle UI)
+struct SettingsSidebarItemRow: View {
+    let title: String
+    let icon: String
+    let iconBg: Color
+    let isSelected: Bool
+    var isSubItem: Bool = false
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: isSubItem ? 6 : 7.5, style: .continuous)
+                        .fill(iconBg)
+                        .frame(width: isSubItem ? 22 : 28, height: isSubItem ? 22 : 28)
+
+                    Image(systemName: icon)
+                        .font(.system(size: isSubItem ? 11 : 13.5, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+
+                Text(title)
+                    .font(.system(size: isSubItem ? 12.5 : 13.5, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? .primary : .primary.opacity(0.88))
+
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, isSubItem ? 4.5 : 6)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? Color.primary.opacity(0.09) : (isHovered ? Color.primary.opacity(0.04) : Color.clear))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(isSelected ? Color.primary.opacity(0.07) : Color.clear, lineWidth: 1)
+                    )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, isSubItem ? 16 : 0)
+        .onHover { hov in
+            isHovered = hov
+        }
+    }
+}
+
+struct SettingsSidebarBatteryRow: View {
+    let isExpanded: Bool
+    let onToggle: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7.5, style: .continuous)
+                        .fill(Color(red: 0.18, green: 0.80, blue: 0.44))
+                        .frame(width: 28, height: 28)
+
+                    Image(systemName: "battery.100.bolt")
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+
+                Text("Battery")
+                    .font(.system(size: 13.5, weight: .medium))
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.secondary.opacity(0.6))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isHovered ? Color.primary.opacity(0.04) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hov in
+            isHovered = hov
+        }
+    }
+}
+
 struct SettingsView: View {
     @State private var selectedTab = "General"
     @State private var isBatteryExpanded = true
     @State private var accentColorUpdateTrigger = UUID()
+    @Default(.useCustomAccentColor) private var useCustomAccentColor
+    @Default(.customAccentColorData) private var customAccentColorData
 
     let updaterController: SPUStandardUpdaterController?
 
@@ -30,84 +126,69 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selectedTab) {
-                Group {
-                    NavigationLink(value: "General") {
-                        Label("General", systemImage: "gear")
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 3) {
+                    SettingsSidebarItemRow(title: "General", icon: "gearshape.fill", iconBg: Color.effectiveAccent, isSelected: selectedTab == "General") {
+                        selectedTab = "General"
                     }
-                    NavigationLink(value: "Appearance") {
-                        Label("Appearance", systemImage: "eye")
+                    SettingsSidebarItemRow(title: "Appearance", icon: "eye.fill", iconBg: Color(red: 0.15, green: 0.55, blue: 0.98), isSelected: selectedTab == "Appearance") {
+                        selectedTab = "Appearance"
                     }
-                    NavigationLink(value: "Media") {
-                        Label("Media", systemImage: "play.laptopcomputer")
+                    SettingsSidebarItemRow(title: "Media", icon: "play.tv.fill", iconBg: Color(red: 0.95, green: 0.25, blue: 0.35), isSelected: selectedTab == "Media") {
+                        selectedTab = "Media"
                     }
-                    NavigationLink(value: "Calendar") {
-                        Label("Calendar", systemImage: "calendar")
+                    SettingsSidebarItemRow(title: "Calendar", icon: "calendar", iconBg: Color(red: 0.98, green: 0.35, blue: 0.35), isSelected: selectedTab == "Calendar") {
+                        selectedTab = "Calendar"
                     }
-                    NavigationLink(value: "HUD") {
-                        Label("HUDs", systemImage: "dial.medium.fill")
+                    SettingsSidebarItemRow(title: "HUDs", icon: "dial.medium.fill", iconBg: Color(red: 0.98, green: 0.58, blue: 0.10), isSelected: selectedTab == "HUD") {
+                        selectedTab = "HUD"
                     }
-                }
 
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        isBatteryExpanded.toggle()
+                    SettingsSidebarBatteryRow(isExpanded: isBatteryExpanded) {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            isBatteryExpanded.toggle()
+                        }
                     }
-                }) {
-                    HStack {
-                        Label("Battery", systemImage: "battery.100.bolt")
-                        Spacer()
-                        Image(systemName: isBatteryExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
 
-                if isBatteryExpanded {
-                    NavigationLink(value: "Battery_General") {
-                        Label("General", systemImage: "slider.horizontal.3")
+                    if isBatteryExpanded {
+                        VStack(spacing: 2) {
+                            SettingsSidebarItemRow(title: "General", icon: "slider.horizontal.3", iconBg: Color(red: 0.42, green: 0.45, blue: 0.92), isSelected: selectedTab == "Battery_General", isSubItem: true) {
+                                selectedTab = "Battery_General"
+                            }
+                            SettingsSidebarItemRow(title: "Alerts", icon: "bell.badge.fill", iconBg: Color(red: 0.98, green: 0.45, blue: 0.20), isSelected: selectedTab == "Battery_Alerts" || selectedTab == "Battery", isSubItem: true) {
+                                selectedTab = "Battery_Alerts"
+                            }
+                            SettingsSidebarItemRow(title: "Charging", icon: "bolt.fill", iconBg: Color(red: 0.10, green: 0.75, blue: 0.70), isSelected: selectedTab == "Battery_Charging", isSubItem: true) {
+                                selectedTab = "Battery_Charging"
+                            }
+                            SettingsSidebarItemRow(title: "App Usage", icon: "chart.bar.xaxis", iconBg: Color(red: 0.12, green: 0.55, blue: 0.95), isSelected: selectedTab == "Battery_AppUsage", isSubItem: true) {
+                                selectedTab = "Battery_AppUsage"
+                            }
+                        }
                     }
-                    .padding(.leading, 12)
-                    NavigationLink(value: "Battery_Alerts") {
-                        Label("Alerts", systemImage: "bell.badge")
-                    }
-                    .padding(.leading, 12)
-                    NavigationLink(value: "Battery_Charging") {
-                        Label("Charging", systemImage: "bolt.fill")
-                    }
-                    .padding(.leading, 12)
-                    NavigationLink(value: "Battery_AppUsage") {
-                        Label("App Usage", systemImage: "chart.bar.xaxis")
-                    }
-                    .padding(.leading, 12)
-                }
 
-                Group {
-                    NavigationLink(value: "Shelf") {
-                        Label("Shelf", systemImage: "books.vertical")
+                    SettingsSidebarItemRow(title: "Shelf", icon: "books.vertical.fill", iconBg: Color(red: 0.55, green: 0.35, blue: 0.95), isSelected: selectedTab == "Shelf") {
+                        selectedTab = "Shelf"
                     }
-                    NavigationLink(value: "Pomodoro") {
-                        Label("Pomodoro", systemImage: "timer")
+                    SettingsSidebarItemRow(title: "Pomodoro", icon: "timer", iconBg: Color(red: 0.95, green: 0.35, blue: 0.25), isSelected: selectedTab == "Pomodoro") {
+                        selectedTab = "Pomodoro"
                     }
-                    NavigationLink(value: "Shortcuts") {
-                        Label("Shortcuts", systemImage: "keyboard")
+                    SettingsSidebarItemRow(title: "Shortcuts", icon: "command", iconBg: Color(red: 0.10, green: 0.65, blue: 0.95), isSelected: selectedTab == "Shortcuts") {
+                        selectedTab = "Shortcuts"
                     }
-                    NavigationLink(value: "Advanced") {
-                        Label("Advanced", systemImage: "gearshape.2")
+                    SettingsSidebarItemRow(title: "Advanced", icon: "gearshape.2.fill", iconBg: Color(red: 0.50, green: 0.52, blue: 0.58), isSelected: selectedTab == "Advanced") {
+                        selectedTab = "Advanced"
                     }
-                    NavigationLink(value: "About") {
-                        Label("About", systemImage: "info.circle")
+                    SettingsSidebarItemRow(title: "About", icon: "info", iconBg: Color(red: 0.35, green: 0.45, blue: 0.95), isSelected: selectedTab == "About") {
+                        selectedTab = "About"
                     }
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 12)
             }
-            .listStyle(SidebarListStyle())
-            .scrollContentBackground(.hidden)
-            .background(Color(red: 245/255, green: 245/255, blue: 245/255))
-            .tint(.effectiveAccent)
+            .background(Color(red: 245/255, green: 245/255, blue: 247/255))
             .toolbar(removing: .sidebarToggle)
-            .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 210)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 215, max: 235)
         } detail: {
             Group {
                 switch selectedTab {
@@ -413,6 +494,8 @@ struct BatteryAlertsSettingsView: View {
     @Default(.chargedAlertPosition) private var chargedAlertPosition
     @Default(.customBatterySounds) private var customBatterySounds
 
+    @Default(.batteryAlertsEnabled) private var batteryAlertsEnabled
+
     @ObservedObject private var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject private var soundManager = CustomSoundManager.shared
 
@@ -427,19 +510,63 @@ struct BatteryAlertsSettingsView: View {
                     .foregroundStyle(Color(red: 0.45, green: 0.45, blue: 0.48))
                     .padding(.bottom, 4)
 
-                appearanceCard
-                lowBatterySection
-                chargedAlertCard
-                customSoundsCard
-                resetCard
+                masterNotificationCard
+
+                if batteryAlertsEnabled {
+                    appearanceCard
+                    lowBatterySection
+                    chargedAlertCard
+                    customSoundsCard
+                    resetCard
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 24)
             .padding(.vertical, 20)
+            .animation(.easeInOut(duration: 0.2), value: batteryAlertsEnabled)
         }
         .background(Color.white)
         .accentColor(.effectiveAccent)
         .navigationTitle("Alerts")
+    }
+
+    private var masterNotificationCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.blue.opacity(0.12))
+                        .frame(width: 28, height: 28)
+                    Image(systemName: "bell.badge.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color(red: 0.12, green: 0.48, blue: 0.98))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Battery notifications")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("Receive notifications and screen edge glow alerts for battery milestones.")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Toggle("", isOn: $batteryAlertsEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.regular)
+                    .tint(.effectiveAccent)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+        )
     }
 
     private var appearanceCard: some View {
@@ -959,7 +1086,8 @@ struct LowBatteryAlertCardView: View {
                             Toggle("", isOn: $alert.borderGlow)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
-                                .controlSize(.small)
+                                .controlSize(.regular)
+                                .tint(.effectiveAccent)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -1215,7 +1343,8 @@ struct ChargedAlertCardView: View {
                             Toggle("", isOn: $glowEnabled)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
-                                .controlSize(.small)
+                                .controlSize(.regular)
+                                .tint(.effectiveAccent)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -1582,12 +1711,6 @@ final class BatteryHardwareStatsManager: ObservableObject {
 
 // MARK: - General Battery Settings
 struct BatteryGeneralSettingsView: View {
-    @Default(.batteryAlertsEnabled) private var batteryAlertsEnabled
-    @Default(.showBatteryIndicator) private var showBatteryIndicator
-    @Default(.showPowerStatusNotifications) private var showPowerStatusNotifications
-    @Default(.showBatteryPercentage) private var showBatteryPercentage
-    @Default(.showPowerStatusIcons) private var showPowerStatusIcons
-
     @ObservedObject private var batteryModel = BatteryStatusViewModel.shared
     @StateObject private var stats = BatteryHardwareStatsManager.shared
 
@@ -1623,9 +1746,6 @@ struct BatteryGeneralSettingsView: View {
 
                 // Card: Temperature
                 temperatureCard
-
-                // Section: Notch & Notification Preferences
-                preferencesSection
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 24)
@@ -1729,7 +1849,7 @@ struct BatteryGeneralSettingsView: View {
                 HStack(spacing: 5) {
                     Image(systemName: "arrow.2.squarepath")
                         .font(.system(size: 10))
-                        .foregroundStyle(Color(red: 0.15, green: 0.55, blue: 0.95))
+                        .foregroundStyle(Color(red: 0.12, green: 0.48, blue: 0.98))
                     Text("CYCLES")
                         .font(.system(size: 9.5, weight: .bold))
                         .foregroundStyle(.secondary)
@@ -1754,7 +1874,7 @@ struct BatteryGeneralSettingsView: View {
 
                 Text("of \(stats.ratedCycles) rated")
                     .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(Color(red: 0.15, green: 0.55, blue: 0.95))
+                    .foregroundStyle(Color(red: 0.12, green: 0.48, blue: 0.98))
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1796,7 +1916,7 @@ struct BatteryGeneralSettingsView: View {
 
                 Spacer()
 
-                // Pill Selector
+                // Pill Selector with unified main blue
                 HStack(spacing: 2) {
                     ForEach(["24h", "7d", "14d"], id: \.self) { win in
                         Text(win)
@@ -1805,7 +1925,7 @@ struct BatteryGeneralSettingsView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3.5)
                             .background(
-                                stats.levelWindow == win ? Color(red: 0.18, green: 0.80, blue: 0.44) : Color.clear
+                                stats.levelWindow == win ? Color(red: 0.12, green: 0.48, blue: 0.98) : Color.clear
                             )
                             .clipShape(Capsule())
                             .onTapGesture {
@@ -1828,9 +1948,10 @@ struct BatteryGeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Charge Level Timeline Bar Chart
+            // Charge Level Timeline Bar Chart with hover
             BatteryLevelTimelineView(window: stats.levelWindow, currentLevel: stats.currentCapacityPercent)
                 .frame(height: 140)
+                .padding(.top, 12)
 
             // Footnote
             HStack(spacing: 5) {
@@ -1860,7 +1981,7 @@ struct BatteryGeneralSettingsView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "chart.bar.fill")
                         .font(.system(size: 11))
-                        .foregroundStyle(Color(red: 0.18, green: 0.80, blue: 0.44))
+                        .foregroundStyle(Color(red: 0.12, green: 0.48, blue: 0.98))
                     Text("DAILY USAGE")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.secondary)
@@ -1890,7 +2011,7 @@ struct BatteryGeneralSettingsView: View {
 
                 Spacer()
 
-                // Pill Selector
+                // Pill Selector with unified main blue
                 HStack(spacing: 2) {
                     ForEach(["7d", "30d", "90d"], id: \.self) { win in
                         Text(win)
@@ -1899,7 +2020,7 @@ struct BatteryGeneralSettingsView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3.5)
                             .background(
-                                stats.dailyUsageWindow == win ? Color(red: 0.35, green: 0.35, blue: 0.95) : Color.clear
+                                stats.dailyUsageWindow == win ? Color(red: 0.12, green: 0.48, blue: 0.98) : Color.clear
                             )
                             .clipShape(Capsule())
                             .onTapGesture {
@@ -1926,7 +2047,8 @@ struct BatteryGeneralSettingsView: View {
                 }
 
                 DailyEnergyBarChart(window: stats.dailyUsageWindow, stats: stats)
-                    .frame(height: 105)
+                    .frame(height: 110)
+                    .padding(.top, 12)
 
                 HStack(spacing: 5) {
                     Image(systemName: "info.circle")
@@ -1953,7 +2075,8 @@ struct BatteryGeneralSettingsView: View {
                 }
 
                 DailyScreenOnBarChart(window: stats.dailyUsageWindow, stats: stats)
-                    .frame(height: 105)
+                    .frame(height: 110)
+                    .padding(.top, 12)
 
                 HStack(spacing: 5) {
                     Image(systemName: "info.circle")
@@ -2048,7 +2171,7 @@ struct BatteryGeneralSettingsView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.2.squarepath")
                         .font(.system(size: 12))
-                        .foregroundStyle(Color(red: 0.15, green: 0.55, blue: 0.95))
+                        .foregroundStyle(Color(red: 0.12, green: 0.48, blue: 0.98))
                     Text("Battery Cycles")
                         .font(.system(size: 13, weight: .bold))
                 }
@@ -2057,7 +2180,7 @@ struct BatteryGeneralSettingsView: View {
 
                 Text("\(stats.cycleCount) cycles")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Color(red: 0.15, green: 0.55, blue: 0.95))
+                    .foregroundStyle(Color(red: 0.12, green: 0.48, blue: 0.98))
 
                 Button(action: { showCyclesPopover.toggle() }) {
                     Image(systemName: "info.circle")
@@ -2107,7 +2230,7 @@ struct BatteryGeneralSettingsView: View {
                         .font(.system(size: 13, weight: .bold))
                 }
 
-                // Pill Selector
+                // Pill Selector with unified main blue
                 HStack(spacing: 2) {
                     ForEach(["24h", "Trend"], id: \.self) { win in
                         Text(win)
@@ -2116,7 +2239,7 @@ struct BatteryGeneralSettingsView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3.5)
                             .background(
-                                stats.tempWindow == win ? Color(red: 0.18, green: 0.80, blue: 0.44) : Color.clear
+                                stats.tempWindow == win ? Color(red: 0.12, green: 0.48, blue: 0.98) : Color.clear
                             )
                             .clipShape(Capsule())
                             .onTapGesture {
@@ -2151,7 +2274,7 @@ struct BatteryGeneralSettingsView: View {
                 }
             }
 
-            // Temperature Wave Chart
+            // Temperature Wave Chart with interactive hover
             TemperatureWaveChart(window: stats.tempWindow, currentTemp: stats.temperatureC)
                 .frame(height: 125)
 
@@ -2202,119 +2325,14 @@ struct BatteryGeneralSettingsView: View {
                 .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
         )
     }
-
-    // MARK: - Preferences Section
-    private var preferencesSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(Color.green.opacity(0.12))
-                        .frame(width: 28, height: 28)
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Color(red: 0.18, green: 0.80, blue: 0.44))
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Notch & Display Preferences")
-                        .font(.system(size: 13, weight: .semibold))
-                    Text("Configure live notch indicators, alert glows, and percentage badges.")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Rectangle()
-                .fill(Color(red: 0.93, green: 0.93, blue: 0.95))
-                .frame(height: 1)
-
-            // Master Alert Glow Toggle
-            HStack {
-                Text("Battery notifications & edge glow")
-                    .font(.system(size: 13))
-                Spacer()
-                Toggle("", isOn: $batteryAlertsEnabled)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-            }
-
-            Rectangle()
-                .fill(Color(red: 0.93, green: 0.93, blue: 0.95))
-                .frame(height: 1)
-
-            // Show Indicator Toggle
-            HStack {
-                Text("Show battery indicator in notch")
-                    .font(.system(size: 13))
-                Spacer()
-                Toggle("", isOn: $showBatteryIndicator)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-            }
-
-            Rectangle()
-                .fill(Color(red: 0.93, green: 0.93, blue: 0.95))
-                .frame(height: 1)
-
-            // Power status notifications
-            HStack {
-                Text("Show power status notifications")
-                    .font(.system(size: 13))
-                Spacer()
-                Toggle("", isOn: $showPowerStatusNotifications)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-            }
-
-            Rectangle()
-                .fill(Color(red: 0.93, green: 0.93, blue: 0.95))
-                .frame(height: 1)
-
-            // Show percentage
-            HStack {
-                Text("Show battery percentage")
-                    .font(.system(size: 13))
-                Spacer()
-                Toggle("", isOn: $showBatteryPercentage)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-            }
-
-            Rectangle()
-                .fill(Color(red: 0.93, green: 0.93, blue: 0.95))
-                .frame(height: 1)
-
-            // Show icons
-            HStack {
-                Text("Show power status icons")
-                    .font(.system(size: 13))
-                Spacer()
-                Toggle("", isOn: $showPowerStatusIcons)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
-        )
-    }
 }
 
 // MARK: - Battery Level Timeline Chart
 struct BatteryLevelTimelineView: View {
     let window: String
     let currentLevel: Int
+
+    @State private var hoveredBarId: Int? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -2437,13 +2455,43 @@ struct BatteryLevelTimelineView: View {
                         .offset(y: chartH * 0.5)
                     }
 
-                    // Vertical charge bars
+                    // Vertical charge bars with hover tooltip
                     let bars = chargeBars(for: window)
                     HStack(alignment: .bottom, spacing: window == "14d" ? 1.5 : (window == "7d" ? 2.5 : 3.0)) {
                         ForEach(bars, id: \.id) { bar in
+                            let barW = max(2.5, (w - 60) / CGFloat(bars.count + 4))
+                            let barH = max(4, chartH * CGFloat(bar.pct))
+                            let isHov = hoveredBarId == bar.id
+
                             RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                .fill(bar.isLow ? Color.red : Color(red: 0.18, green: 0.80, blue: 0.44))
-                                .frame(width: max(2.5, (w - 60) / CGFloat(bars.count + 4)), height: max(4, chartH * CGFloat(bar.pct)))
+                                .fill(bar.isLow ? Color.red : (isHov ? Color(red: 0.12, green: 0.48, blue: 0.98) : Color(red: 0.18, green: 0.80, blue: 0.44)))
+                                .frame(width: barW, height: barH)
+                                .frame(width: barW, height: chartH, alignment: .bottom)
+                                .overlay(alignment: .bottom) {
+                                    if isHov {
+                                        VStack(spacing: 2) {
+                                            Text("\(Int(bar.pct * 100))%")
+                                                .font(.system(size: 9.5, weight: .bold))
+                                            Text(barTimeLabel(for: bar.id, total: bars.count, window: window))
+                                                .font(.system(size: 8))
+                                                .foregroundStyle(.white.opacity(0.85))
+                                        }
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3.5)
+                                        .background(Color(red: 0.12, green: 0.12, blue: 0.15).opacity(0.92))
+                                        .foregroundColor(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                        .shadow(color: Color.black.opacity(0.2), radius: 3, y: 2)
+                                        .fixedSize()
+                                        .offset(y: max(-(chartH - 36), -barH - 24))
+                                        .zIndex(100)
+                                        .allowsHitTesting(false)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                                .onHover { isHovered in
+                                    hoveredBarId = isHovered ? bar.id : nil
+                                }
                         }
                         Spacer()
                     }
@@ -2487,7 +2535,6 @@ struct BatteryLevelTimelineView: View {
                 }
             }
         }
-        .clipped()
     }
 
     private var sleepClockIcon: some View {
@@ -2502,11 +2549,26 @@ struct BatteryLevelTimelineView: View {
             .frame(width: max(2, width), height: 1)
     }
 
+    private func barTimeLabel(for id: Int, total: Int, window: String) -> String {
+        if window == "24h" {
+            let hoursAgo = total - 1 - id
+            if hoursAgo == 0 { return "Now" }
+            return "\(hoursAgo)h ago"
+        } else if window == "7d" {
+            let daysAgo = (total - 1 - id) / 4
+            if daysAgo == 0 { return "Today" }
+            return "\(daysAgo)d ago"
+        } else {
+            let daysAgo = (total - 1 - id) / 3
+            if daysAgo == 0 { return "Today" }
+            return "\(daysAgo)d ago"
+        }
+    }
+
     private func chargeBars(for win: String) -> [(id: Int, pct: Double, isLow: Bool)] {
         let livePct = max(0.10, min(1.0, Double(currentLevel) / 100.0))
 
         if win == "7d" {
-            // 28 bars (4 per day)
             var list: [(id: Int, pct: Double, isLow: Bool)] = []
             let pattern = [0.85, 0.70, 0.52, 0.35, 0.90, 0.75, 0.60, 0.42, 0.88, 0.70, 0.55, 0.38, 0.95, 0.80, 0.62, 0.45, 0.85, 0.68, 0.50, 0.32, 0.92, 0.76, 0.58, 0.40, 0.78, 0.62, 0.50]
             for (idx, p) in pattern.enumerated() {
@@ -2515,7 +2577,6 @@ struct BatteryLevelTimelineView: View {
             list.append((pattern.count, livePct, livePct < 0.20))
             return list
         } else if win == "14d" {
-            // 42 bars (3 per day)
             var list: [(id: Int, pct: Double, isLow: Bool)] = []
             for i in 0..<41 {
                 let base = 0.50 + 0.35 * sin(Double(i) * 0.7)
@@ -2525,7 +2586,6 @@ struct BatteryLevelTimelineView: View {
             list.append((41, livePct, livePct < 0.20))
             return list
         } else {
-            // 24h: 36 intervals ending at current real battery level
             var list: [(id: Int, pct: Double, isLow: Bool)] = [
                 (0, 0.22, true), (1, 0.38, false), (2, 0.55, false), (3, 0.72, false),
                 (4, 0.52, false), (5, 0.64, false), (6, 0.73, false), (7, 0.79, false),
@@ -2547,6 +2607,8 @@ struct BatteryLevelTimelineView: View {
 struct DailyEnergyBarChart: View {
     let window: String
     let stats: BatteryHardwareStatsManager
+
+    @State private var hoveredIdx: Int? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -2575,17 +2637,45 @@ struct DailyEnergyBarChart: View {
                     }
                     .frame(height: chartH)
 
-                    // Bars
+                    // Bars with hover tooltip
                     HStack(alignment: .bottom, spacing: 0) {
                         ForEach(0..<barValues.count, id: \.self) { idx in
                             let ratio = CGFloat(min(1.0, max(0.05, Double(barValues[idx]) / 100.0)))
                             let isLast = idx == barValues.count - 1
+                            let isHov = hoveredIdx == idx
+                            let barH = chartH * ratio
+
                             VStack {
                                 Spacer()
                                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                    .fill(isLast ? Color(red: 0.18, green: 0.80, blue: 0.44) : Color(red: 0.18, green: 0.80, blue: 0.44).opacity(0.75))
-                                    .frame(height: chartH * ratio)
-                                    .padding(.horizontal, window == "7d" ? 6 : 14)
+                                    .fill(isHov ? Color(red: 0.12, green: 0.48, blue: 0.98) : (isLast ? Color(red: 0.18, green: 0.80, blue: 0.44) : Color(red: 0.18, green: 0.80, blue: 0.44).opacity(0.75)))
+                                    .frame(height: barH)
+                                    .overlay(alignment: .bottom) {
+                                        if isHov {
+                                            VStack(spacing: 2) {
+                                                Text(labels[idx])
+                                                    .font(.system(size: 9.5, weight: .bold))
+                                                Text("\(barValues[idx])% used")
+                                                    .font(.system(size: 8.5))
+                                                    .foregroundStyle(.white.opacity(0.9))
+                                            }
+                                            .padding(.horizontal, 7)
+                                            .padding(.vertical, 4)
+                                            .background(Color(red: 0.12, green: 0.12, blue: 0.15).opacity(0.92))
+                                            .foregroundColor(.white)
+                                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                            .shadow(color: Color.black.opacity(0.2), radius: 3, y: 2)
+                                            .offset(y: max(-(chartH - 36), -barH - 24))
+                                            .fixedSize()
+                                            .zIndex(100)
+                                            .allowsHitTesting(false)
+                                        }
+                                    }
+                                .padding(.horizontal, window == "7d" ? 6 : 14)
+                                .contentShape(Rectangle())
+                                .onHover { isHovered in
+                                    hoveredIdx = isHovered ? idx : nil
+                                }
                             }
                             .frame(maxWidth: .infinity)
                         }
@@ -2607,7 +2697,6 @@ struct DailyEnergyBarChart: View {
                 }
             }
         }
-        .clipped()
     }
 
     private var axisLabels: [String] {
@@ -2638,6 +2727,8 @@ struct DailyScreenOnBarChart: View {
     let window: String
     let stats: BatteryHardwareStatsManager
 
+    @State private var hoveredIdx: Int? = nil
+
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width
@@ -2667,17 +2758,45 @@ struct DailyScreenOnBarChart: View {
                     }
                     .frame(height: chartH)
 
-                    // Bars
+                    // Bars with hover tooltip
                     HStack(alignment: .bottom, spacing: 0) {
                         ForEach(0..<hourValues.count, id: \.self) { idx in
                             let ratio = CGFloat(min(1.0, max(0.06, hourValues[idx] / maxH)))
                             let isLast = idx == hourValues.count - 1
+                            let isHov = hoveredIdx == idx
+                            let barH = chartH * ratio
+
                             VStack {
                                 Spacer()
                                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                    .fill(isLast ? Color(red: 0.08, green: 0.55, blue: 1.0) : Color(red: 0.08, green: 0.55, blue: 1.0).opacity(0.75))
-                                    .frame(height: chartH * ratio)
-                                    .padding(.horizontal, window == "7d" ? 6 : 14)
+                                    .fill(isHov ? Color(red: 0.12, green: 0.48, blue: 0.98) : (isLast ? Color(red: 0.08, green: 0.55, blue: 1.0) : Color(red: 0.08, green: 0.55, blue: 1.0).opacity(0.75)))
+                                    .frame(height: barH)
+                                    .overlay(alignment: .bottom) {
+                                        if isHov {
+                                            VStack(spacing: 2) {
+                                                Text(labels[idx])
+                                                    .font(.system(size: 9.5, weight: .bold))
+                                                Text(String(format: "%.1fh screen", hourValues[idx]))
+                                                    .font(.system(size: 8.5))
+                                                    .foregroundStyle(.white.opacity(0.9))
+                                            }
+                                            .padding(.horizontal, 7)
+                                            .padding(.vertical, 4)
+                                            .background(Color(red: 0.12, green: 0.12, blue: 0.15).opacity(0.92))
+                                            .foregroundColor(.white)
+                                            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                            .shadow(color: Color.black.opacity(0.2), radius: 3, y: 2)
+                                            .offset(y: max(-(chartH - 36), -barH - 24))
+                                            .fixedSize()
+                                            .zIndex(100)
+                                            .allowsHitTesting(false)
+                                        }
+                                    }
+                                .padding(.horizontal, window == "7d" ? 6 : 14)
+                                .contentShape(Rectangle())
+                                .onHover { isHovered in
+                                    hoveredIdx = isHovered ? idx : nil
+                                }
                             }
                             .frame(maxWidth: .infinity)
                         }
@@ -2699,7 +2818,6 @@ struct DailyScreenOnBarChart: View {
                 }
             }
         }
-        .clipped()
     }
 
     private var axisLabels: [String] {
@@ -2781,7 +2899,6 @@ struct CapacityDeclineLineChart: View {
                 }
             }
         }
-        .clipped()
     }
 
     private var dateRangeStrings: (String, String) {
@@ -2835,7 +2952,7 @@ struct CyclesTimelineChart: View {
                         path.addLine(to: CGPoint(x: w * 0.65, y: endY + 8))
                         path.addLine(to: CGPoint(x: w - 10, y: endY))
                     }
-                    .stroke(Color(red: 0.15, green: 0.55, blue: 0.95), lineWidth: 1.8)
+                    .stroke(Color(red: 0.12, green: 0.48, blue: 0.98), lineWidth: 1.8)
 
                     // X-axis
                     HStack {
@@ -2850,7 +2967,6 @@ struct CyclesTimelineChart: View {
                 }
             }
         }
-        .clipped()
     }
 
     private var dateRangeStrings: (String, String) {
@@ -2867,6 +2983,8 @@ struct CyclesTimelineChart: View {
 struct TemperatureWaveChart: View {
     let window: String
     let currentTemp: Double
+
+    @State private var hoverX: CGFloat? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -2959,6 +3077,37 @@ struct TemperatureWaveChart: View {
                         .stroke(Color(red: 0.18, green: 0.80, blue: 0.44), lineWidth: 1.8)
                     }
 
+                    // Hover indicator
+                    if let hX = hoverX, hX >= leftMargin && hX <= leftMargin + usableW {
+                        let pct = (hX - leftMargin) / usableW
+                        let (estTemp, timeDesc) = estimateTempAt(pct: pct, window: window)
+
+                        DashedLine()
+                            .stroke(Color(red: 0.18, green: 0.80, blue: 0.44), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                            .frame(width: 1, height: chartH)
+                            .offset(x: hX)
+
+                        // Floating tooltip badge
+                        HStack(spacing: 5) {
+                            Text(timeDesc)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.white.opacity(0.85))
+                            Text("•")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.white.opacity(0.6))
+                            Text(String(format: "%.1f°C", estTemp))
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3.5)
+                        .background(Color(red: 0.12, green: 0.12, blue: 0.15).opacity(0.92))
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.2), radius: 3, y: 2)
+                        .offset(x: min(max(leftMargin, hX - 45), w - 100), y: 4)
+                        .zIndex(10)
+                    }
+
                     // X-axis timestamps
                     if window == "Trend" {
                         let days = BatteryHardwareStatsManager.shared.last7Days()
@@ -2991,20 +3140,44 @@ struct TemperatureWaveChart: View {
                         .offset(y: chartH + 4)
                     }
                 }
+                .contentShape(Rectangle())
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let loc):
+                        withAnimation(.easeOut(duration: 0.1)) {
+                            hoverX = loc.x
+                        }
+                    case .ended:
+                        withAnimation(.easeOut(duration: 0.1)) {
+                            hoverX = nil
+                        }
+                    }
+                }
             }
         }
-        .clipped()
+    }
+
+    private func estimateTempAt(pct: CGFloat, window: String) -> (Double, String) {
+        if window == "Trend" {
+            let daysAgo = Int(round((1.0 - pct) * 6.0))
+            let desc = daysAgo == 0 ? "Today" : "\(daysAgo)d ago"
+            let t = currentTemp - 0.7 + sin(Double(pct) * 5.0) * 1.5
+            return (t, desc)
+        } else {
+            let hoursAgo = Int(round((1.0 - pct) * 24.0))
+            let desc = hoursAgo == 0 ? "Now" : "\(hoursAgo)h ago"
+            let t = currentTemp - (Double(hoursAgo) / 24.0) * 2.5 + sin(Double(pct) * 4.0) * 1.2
+            return (t, desc)
+        }
     }
 
     private func wavePoints(for win: String) -> [(CGFloat, CGFloat)] {
         if win == "Trend" {
-            // Smoothed daily trend points
             return [
                 (0.00, 0.55), (0.16, 0.48), (0.33, 0.60), (0.50, 0.40),
                 (0.66, 0.52), (0.83, 0.38), (1.00, 0.46)
             ]
         } else {
-            // 24h curve: cooler at night, rises during daytime activity
             return [
                 (0.00, 0.68), (0.05, 0.72), (0.12, 0.75), (0.22, 0.65),
                 (0.35, 0.42), (0.45, 0.35), (0.55, 0.38), (0.68, 0.46),
@@ -3174,7 +3347,8 @@ struct BatteryChargingSettingsView: View {
                         Toggle("", isOn: $chargeLimitEnabled)
                             .labelsHidden()
                             .toggleStyle(.switch)
-                            .controlSize(.small)
+                            .controlSize(.regular)
+                            .tint(.effectiveAccent)
                     }
 
                     if chargeLimitEnabled {
@@ -3259,7 +3433,8 @@ struct BatteryChargingSettingsView: View {
                             Toggle("", isOn: $showCableChargeStatus)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
-                                .controlSize(.small)
+                                .controlSize(.regular)
+                                .tint(.effectiveAccent)
                         }
 
                         // Active Status Banner
@@ -3334,7 +3509,8 @@ struct BatteryChargingSettingsView: View {
                         Toggle("", isOn: $sailingModeEnabled)
                             .labelsHidden()
                             .toggleStyle(.switch)
-                            .controlSize(.small)
+                            .controlSize(.regular)
+                            .tint(.effectiveAccent)
                     }
 
                     if sailingModeEnabled {
@@ -3415,7 +3591,8 @@ struct BatteryChargingSettingsView: View {
                     Toggle("", isOn: $heatProtectionEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .controlSize(.small)
+                        .controlSize(.regular)
+                        .tint(.effectiveAccent)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
@@ -3465,7 +3642,8 @@ struct BatteryChargingSettingsView: View {
                     Toggle("", isOn: $sleepPreventionEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .controlSize(.small)
+                        .controlSize(.regular)
+                        .tint(.effectiveAccent)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
@@ -3524,7 +3702,8 @@ struct BatteryChargingSettingsView: View {
                     Toggle("", isOn: $automaticDischargeEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .controlSize(.small)
+                        .controlSize(.regular)
+                        .tint(.effectiveAccent)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
@@ -3757,10 +3936,36 @@ final class AppEnergyUsageManager: ObservableObject {
     }
 
     func terminateApp(_ appItem: AppEnergyItem) {
-        if let running = NSRunningApplication(processIdentifier: appItem.pid) {
-            running.terminate()
+        var didQuit = false
+        if appItem.pid > 0, let running = NSRunningApplication(processIdentifier: appItem.pid) {
+            didQuit = running.terminate()
+            if !didQuit {
+                _ = running.forceTerminate()
+            }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        if !appItem.bundleIdentifier.isEmpty {
+            let matched = NSRunningApplication.runningApplications(withBundleIdentifier: appItem.bundleIdentifier)
+            for app in matched {
+                if !app.terminate() {
+                    _ = app.forceTerminate()
+                }
+            }
+        }
+        if appItem.pid > 0 {
+            kill(appItem.pid, SIGTERM)
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) {
+                kill(appItem.pid, SIGKILL)
+            }
+        }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            if self.unusuallyActiveApp?.id == appItem.id {
+                self.unusuallyActiveApp = nil
+            }
+            self.apps.removeAll(where: { $0.id == appItem.id })
+            self.rightNowApps.removeAll(where: { $0.id == appItem.id })
+            self.topDrainers.removeAll(where: { $0.id == appItem.id })
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             self?.refresh()
         }
     }
@@ -3779,7 +3984,7 @@ struct EnergySparklineView: View {
                 let step = validPoints.count > 1 ? w / CGFloat(validPoints.count - 1) : w
 
                 ZStack {
-                    // Gradient Fill
+                    // Gradient Fill in Main Blue
                     Path { path in
                         guard validPoints.count > 1 else { return }
                         let startY = h - CGFloat(validPoints[0]) * (h - 6) - 3
@@ -3799,7 +4004,7 @@ struct EnergySparklineView: View {
                     }
                     .fill(
                         LinearGradient(
-                            colors: [Color.red.opacity(0.18), Color.red.opacity(0.01)],
+                            colors: [Color(red: 0.12, green: 0.48, blue: 0.98).opacity(0.18), Color(red: 0.12, green: 0.48, blue: 0.98).opacity(0.01)],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -3820,7 +4025,7 @@ struct EnergySparklineView: View {
                             path.addCurve(to: CGPoint(x: currX, y: currY), control1: CGPoint(x: midX, y: prevY), control2: CGPoint(x: midX, y: currY))
                         }
                     }
-                    .stroke(Color(red: 0.95, green: 0.35, blue: 0.35), lineWidth: 1.5)
+                    .stroke(Color(red: 0.12, green: 0.48, blue: 0.98), lineWidth: 1.5)
                 }
             }
         }
@@ -3843,6 +4048,8 @@ struct DashedLine: Shape {
 struct EnergyBezierChartView: View {
     let points: [Double]
     var window: String = "24h"
+
+    @State private var hoverX: CGFloat? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -3876,7 +4083,7 @@ struct EnergyBezierChartView: View {
                     }
                     .frame(height: chartH)
 
-                    // Fill & Stroke Curve
+                    // Fill & Stroke Curve in Main Blue
                     ZStack {
                         Path { path in
                             guard validPoints.count > 1 else { return }
@@ -3898,8 +4105,8 @@ struct EnergyBezierChartView: View {
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color(red: 0.40, green: 0.35, blue: 0.95).opacity(0.35),
-                                    Color(red: 0.40, green: 0.35, blue: 0.95).opacity(0.02)
+                                    Color(red: 0.12, green: 0.48, blue: 0.98).opacity(0.30),
+                                    Color(red: 0.12, green: 0.48, blue: 0.98).opacity(0.02)
                                 ],
                                 startPoint: .top,
                                 endPoint: .bottom
@@ -3920,7 +4127,55 @@ struct EnergyBezierChartView: View {
                                 path.addCurve(to: CGPoint(x: currX, y: currY), control1: CGPoint(x: midX, y: prevY), control2: CGPoint(x: midX, y: currY))
                             }
                         }
-                        .stroke(Color(red: 0.40, green: 0.35, blue: 0.95), lineWidth: 2)
+                        .stroke(Color(red: 0.12, green: 0.48, blue: 0.98), lineWidth: 2)
+                    }
+
+                    // Hover indicator & tooltip
+                    if let hX = hoverX, hX >= leftMargin && hX <= leftMargin + usableW {
+                        let relX = hX - leftMargin
+                        let ratio = max(0, min(1, relX / usableW))
+                        let idx = min(validPoints.count - 1, max(0, Int(round(ratio * Double(validPoints.count - 1)))))
+                        let ptVal = validPoints[idx]
+                        let ptX = leftMargin + (validPoints.count > 1 ? CGFloat(idx) * step : 0)
+                        let ptY = chartH - CGFloat(ptVal) * (chartH - 8) - 4
+                        let (timeStr, scoreStr) = hoverInfo(for: idx, val: ptVal, total: validPoints.count)
+
+                        // Vertical guide line
+                        DashedLine()
+                            .stroke(Color(red: 0.12, green: 0.48, blue: 0.98), style: StrokeStyle(lineWidth: 1, dash: [2, 2]))
+                            .frame(width: 1, height: chartH)
+                            .offset(x: ptX)
+
+                        // Glowing curve dot
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 8, height: 8)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color(red: 0.12, green: 0.48, blue: 0.98), lineWidth: 2.5)
+                            )
+                            .shadow(color: Color.blue.opacity(0.4), radius: 3)
+                            .position(x: ptX, y: ptY)
+
+                        // Tooltip Badge
+                        HStack(spacing: 5) {
+                            Text(timeStr)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.white.opacity(0.85))
+                            Text("•")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.white.opacity(0.5))
+                            Text(scoreStr)
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3.5)
+                        .background(Color(red: 0.12, green: 0.12, blue: 0.16).opacity(0.92))
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.2), radius: 3, y: 2)
+                        .offset(x: min(max(leftMargin, ptX - 45), w - 105), y: 4)
+                        .zIndex(10)
                     }
 
                     // X-axis timeline labels
@@ -3956,10 +4211,43 @@ struct EnergyBezierChartView: View {
                     .foregroundStyle(.secondary)
                     .offset(y: chartH + 6)
                 }
+                .contentShape(Rectangle())
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let loc):
+                        withAnimation(.easeOut(duration: 0.08)) {
+                            hoverX = loc.x
+                        }
+                    case .ended:
+                        withAnimation(.easeOut(duration: 0.08)) {
+                            hoverX = nil
+                        }
+                    }
+                }
             }
         }
         .frame(height: 165)
-        .clipped()
+    }
+
+    private func hoverInfo(for idx: Int, val: Double, total: Int) -> (String, String) {
+        let score = Int(val * 8000)
+        let scoreFormatted = score >= 1000 ? String(format: "%.1fk", Double(score) / 1000.0) : "\(score)"
+
+        if window == "7d" {
+            let daysAgo = total - 1 - idx
+            let timeStr = daysAgo == 0 ? "Today" : "\(daysAgo)d ago"
+            return (timeStr, "\(scoreFormatted) score")
+        } else if window == "30d" {
+            let daysAgo = total - 1 - idx
+            let timeStr = daysAgo == 0 ? "Today" : "\(daysAgo)d ago"
+            return (timeStr, "\(scoreFormatted) score")
+        } else {
+            let h = idx % 24
+            let period = h >= 12 ? "PM" : "AM"
+            let h12 = h == 0 ? 12 : (h > 12 ? h - 12 : h)
+            let timeStr = "\(h12) \(period)"
+            return (timeStr, "\(scoreFormatted) score")
+        }
     }
 
     private func yAxisLabel(for index: Int) -> String {
@@ -3991,7 +4279,7 @@ struct AppUsageDetailView: View {
                         Text("Back to all apps")
                             .font(.system(size: 13, weight: .semibold))
                     }
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color(red: 0.12, green: 0.48, blue: 0.98))
                 }
                 .buttonStyle(.plain)
 
@@ -4014,128 +4302,21 @@ struct AppUsageDetailView: View {
                     }
                 }
 
-                // 4 Metric Summary Cards
-                HStack(spacing: 12) {
-                    // Card 1: Battery Cost
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: "battery.100")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color(red: 0.95, green: 0.55, blue: 0.15))
-                            Text("BATTERY COST")
-                                .font(.system(size: 9.5, weight: .bold))
-                                .foregroundStyle(Color(red: 0.95, green: 0.55, blue: 0.15))
-                            Spacer()
-                            Image(systemName: "info.circle")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color(red: 0.95, green: 0.55, blue: 0.15).opacity(0.8))
-                        }
-
-                        Text(app.drainedCostString(window: selectedWindow))
-                            .font(.system(size: 18, weight: .bold))
+                // 4 Metric Summary Cards - Responsive
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        cardBatteryCost
+                        cardShareOfTotal
+                        cardPeakScore
+                        cardWindow
                     }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(red: 1.0, green: 0.97, blue: 0.94))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color(red: 1.0, green: 0.90, blue: 0.82), lineWidth: 1)
-                    )
 
-                    // Card 2: Share of Total
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: "chart.pie.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color(red: 0.1, green: 0.5, blue: 0.95))
-                            Text("SHARE OF TOTAL")
-                                .font(.system(size: 9.5, weight: .bold))
-                                .foregroundStyle(Color(red: 0.1, green: 0.5, blue: 0.95))
-                            Spacer()
-                            Image(systemName: "info.circle")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color(red: 0.1, green: 0.5, blue: 0.95).opacity(0.8))
-                        }
-
-                        Text(String(format: "%.0f%%", app.shareOfTotal))
-                            .font(.system(size: 18, weight: .bold))
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                        cardBatteryCost
+                        cardShareOfTotal
+                        cardPeakScore
+                        cardWindow
                     }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(red: 0.94, green: 0.97, blue: 1.0))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color(red: 0.85, green: 0.92, blue: 1.0), lineWidth: 1)
-                    )
-
-                    // Card 3: Peak Score
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: "flame.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color(red: 0.85, green: 0.35, blue: 0.85))
-                            Text("PEAK SCORE")
-                                .font(.system(size: 9.5, weight: .bold))
-                                .foregroundStyle(Color(red: 0.85, green: 0.35, blue: 0.85))
-                            Spacer()
-                            Image(systemName: "info.circle")
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color(red: 0.85, green: 0.35, blue: 0.85).opacity(0.8))
-                        }
-
-                        Text(app.peakScoreFormatted)
-                            .font(.system(size: 18, weight: .bold))
-                    }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(red: 0.99, green: 0.95, blue: 0.99))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color(red: 0.96, green: 0.88, blue: 0.96), lineWidth: 1)
-                    )
-
-                    // Card 4: Window
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: "clock")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                            Text("WINDOW")
-                                .font(.system(size: 9.5, weight: .bold))
-                                .foregroundStyle(.secondary)
-                        }
-
-                        HStack(spacing: 2) {
-                            ForEach(["24h", "7d", "30d"], id: \.self) { win in
-                                Text(win)
-                                    .font(.system(size: 10.5, weight: selectedWindow == win ? .bold : .medium))
-                                    .foregroundStyle(selectedWindow == win ? .white : .secondary)
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3)
-                                    .background(
-                                        selectedWindow == win ? Color(red: 0.35, green: 0.35, blue: 0.95) : Color.clear
-                                    )
-                                    .clipShape(Capsule())
-                                    .onTapGesture {
-                                        selectedWindow = win
-                                    }
-                            }
-                        }
-                        .padding(2)
-                        .background(Color(red: 0.93, green: 0.93, blue: 0.95))
-                        .clipShape(Capsule())
-                    }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(red: 0.98, green: 0.98, blue: 0.99))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
-                    )
                 }
 
                 // Energy use over time
@@ -4179,7 +4360,7 @@ struct AppUsageDetailView: View {
                         Text("Back to all apps")
                             .font(.system(size: 13, weight: .semibold))
                     }
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color(red: 0.12, green: 0.48, blue: 0.98))
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 4)
@@ -4189,6 +4370,132 @@ struct AppUsageDetailView: View {
             .padding(.vertical, 20)
         }
         .background(Color.white)
+    }
+
+    // MARK: - Individual Responsive Cards
+    private var cardBatteryCost: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "battery.100")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(red: 0.95, green: 0.55, blue: 0.15))
+                Text("BATTERY COST")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundStyle(Color(red: 0.95, green: 0.55, blue: 0.15))
+                Spacer()
+                Image(systemName: "info.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(red: 0.95, green: 0.55, blue: 0.15).opacity(0.8))
+            }
+
+            Text(app.drainedCostString(window: selectedWindow))
+                .font(.system(size: 18, weight: .bold))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 1.0, green: 0.97, blue: 0.94))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(red: 1.0, green: 0.90, blue: 0.82), lineWidth: 1)
+        )
+    }
+
+    private var cardShareOfTotal: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "chart.pie.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(red: 0.12, green: 0.48, blue: 0.98))
+                Text("SHARE OF TOTAL")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundStyle(Color(red: 0.12, green: 0.48, blue: 0.98))
+                Spacer()
+                Image(systemName: "info.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(red: 0.12, green: 0.48, blue: 0.98).opacity(0.8))
+            }
+
+            Text(String(format: "%.0f%%", app.shareOfTotal))
+                .font(.system(size: 18, weight: .bold))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 0.94, green: 0.97, blue: 1.0))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(red: 0.85, green: 0.92, blue: 1.0), lineWidth: 1)
+        )
+    }
+
+    private var cardPeakScore: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(red: 0.85, green: 0.35, blue: 0.85))
+                Text("PEAK SCORE")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundStyle(Color(red: 0.85, green: 0.35, blue: 0.85))
+                Spacer()
+                Image(systemName: "info.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(red: 0.85, green: 0.35, blue: 0.85).opacity(0.8))
+            }
+
+            Text(app.peakScoreFormatted)
+                .font(.system(size: 18, weight: .bold))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 0.99, green: 0.95, blue: 0.99))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(red: 0.96, green: 0.88, blue: 0.96), lineWidth: 1)
+        )
+    }
+
+    private var cardWindow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "clock")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Text("WINDOW")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 2) {
+                ForEach(["24h", "7d", "30d"], id: \.self) { win in
+                    Text(win)
+                        .font(.system(size: 10.5, weight: selectedWindow == win ? .bold : .medium))
+                        .foregroundStyle(selectedWindow == win ? .white : .secondary)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(
+                            selectedWindow == win ? Color(red: 0.12, green: 0.48, blue: 0.98) : Color.clear
+                        )
+                        .clipShape(Capsule())
+                        .onTapGesture {
+                            selectedWindow = win
+                        }
+                }
+            }
+            .padding(2)
+            .background(Color(red: 0.93, green: 0.93, blue: 0.95))
+            .clipShape(Capsule())
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 0.98, green: 0.98, blue: 0.99))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+        )
     }
 }
 
@@ -4246,7 +4553,7 @@ struct BatteryAppUsageSettingsView: View {
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3.5)
                                 .background(
-                                    manager.selectedTimeWindow == win ? Color(red: 0.35, green: 0.35, blue: 0.95) : Color.clear
+                                    manager.selectedTimeWindow == win ? Color(red: 0.12, green: 0.48, blue: 0.98) : Color.clear
                                 )
                                 .clipShape(Capsule())
                                 .onTapGesture {
@@ -4333,6 +4640,13 @@ struct BatteryAppUsageSettingsView: View {
                                             .font(.system(size: 12, weight: .bold))
                                             .frame(width: 36, alignment: .trailing)
                                     }
+                                    .help("\(app.name): ~\(Int(app.instantShare))% instantaneous energy share (PID: \(app.pid))")
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        withAnimation(.easeInOut(duration: 0.18)) {
+                                            selectedApp = app
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -4403,6 +4717,13 @@ struct BatteryAppUsageSettingsView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                     .frame(width: 44, alignment: .trailing)
+                                }
+                                .help("\(app.name): \(app.drainedCostString(window: manager.selectedTimeWindow)) battery drain (\(String(format: "%.1f%%", app.shareOfTotal)) of all apps energy)")
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withAnimation(.easeInOut(duration: 0.18)) {
+                                        selectedApp = app
+                                    }
                                 }
                             }
                         }
