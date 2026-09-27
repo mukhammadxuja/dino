@@ -393,6 +393,16 @@ extension Defaults.Keys {
     static let chargedAlertPosition = Key<String>("chargedAlertPosition", default: "Top")
     static let customBatterySounds = Key<[String]>("customBatterySounds", default: [])
     
+    // MARK: Battery Charging Safeguards
+    static let chargeLimitEnabled = Key<Bool>("chargeLimitEnabled", default: true)
+    static let chargeLimitValue = Key<Int>("chargeLimitValue", default: 80)
+    static let showCableChargeStatus = Key<Bool>("showCableChargeStatus", default: true)
+    static let sailingModeEnabled = Key<Bool>("sailingModeEnabled", default: true)
+    static let sailingModeDropValue = Key<Int>("sailingModeDropValue", default: 5)
+    static let heatProtectionEnabled = Key<Bool>("heatProtectionEnabled", default: false)
+    static let sleepPreventionEnabled = Key<Bool>("sleepPreventionEnabled", default: false)
+    static let automaticDischargeEnabled = Key<Bool>("automaticDischargeEnabled", default: false)
+    
     // MARK: Downloads
     static let enableDownloadListener = Key<Bool>("enableDownloadListener", default: true)
     static let enableSafariDownloads = Key<Bool>("enableSafariDownloads", default: true)
