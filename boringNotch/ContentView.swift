@@ -24,6 +24,7 @@ struct ContentView: View {
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var brightnessManager = BrightnessManager.shared
     @ObservedObject var volumeManager = VolumeManager.shared
+    @ObservedObject var antigravityManager = AntigravityManager.shared
     @State private var hoverTask: Task<Void, Never>?
     @State private var isHovering: Bool = false
     @State private var anyDropDebounceTask: Task<Void, Never>?
@@ -86,6 +87,8 @@ struct ContentView: View {
             } else {
                 chinWidth = 640
             }
+        } else if ((coordinator.expandingView.type == .antigravity && coordinator.expandingView.show) || antigravityManager.isVisible) && antigravityManager.currentPhase != .idle && vm.notchState == .closed {
+            chinWidth = vm.closedNotchSize.width
         } else if shouldShowPomodoroInlineClosedVisual {
             chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20 + pomodoroReplaceWidthExpansion)
         } else if shouldShowMusicClosedVisual {
@@ -447,7 +450,12 @@ struct ContentView: View {
                             }
                             .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
                         }
-                      } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && vm.notchState == .closed {
+                    } else if ((coordinator.expandingView.type == .antigravity && coordinator.expandingView.show) || antigravityManager.isVisible) && antigravityManager.currentPhase != .idle && vm.notchState == .closed {
+                        AntigravityInlineHUD()
+                            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
+                            .frame(minWidth: max(0, vm.closedNotchSize.width - 20))
+                            .transition(.opacity)
+                    } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && vm.notchState == .closed {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
                               .transition(.opacity)
                       } else if shouldShowPomodoroInlineClosedVisual {
