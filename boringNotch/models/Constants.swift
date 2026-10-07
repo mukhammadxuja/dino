@@ -86,6 +86,30 @@ enum PomodoroEndSound: String, CaseIterable, Identifiable, Defaults.Serializable
     }
 }
 
+enum ActiveNotchModule: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case none = "None"
+    case music = "Music"
+    case pomodoro = "Pomodoro"
+    case calendar = "Calendar"
+    case battery = "Battery"
+    case coding = "Coding"
+    case shelf = "Shelf"
+
+    var id: String { rawValue }
+
+    var iconName: String {
+        switch self {
+        case .none: return "sparkles"
+        case .music: return "music.note"
+        case .pomodoro: return "timer"
+        case .calendar: return "calendar"
+        case .battery: return "battery.100"
+        case .coding: return "curlybraces"
+        case .shelf: return "arrow.up.doc"
+        }
+    }
+}
+
 enum BatteryGlowColorMode: String, CaseIterable, Identifiable, Defaults.Serializable {
     case dynamic = "DYNAMIC"
     case red = "RED"
@@ -331,6 +355,7 @@ extension Defaults.Keys {
     static let enableShadow = Key<Bool>("enableShadow", default: true)
     static let cornerRadiusScaling = Key<Bool>("cornerRadiusScaling", default: true)
 
+    static let activeModule = Key<ActiveNotchModule>("activeModule", default: .none)
     static let showNotHumanFace = Key<Bool>("showNotHumanFace", default: false)
     static let tileShowLabels = Key<Bool>("tileShowLabels", default: false)
     static let showCalendar = Key<Bool>("showCalendar", default: false)

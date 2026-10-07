@@ -24,12 +24,12 @@ struct MeasureSizeModifier: ViewModifier {
 
 struct MarqueeText: View {
     @Binding var text: String
-    let font: Font
-    let nsFont: NSFont.TextStyle
-    let textColor: Color
-    let backgroundColor: Color
-    let minDuration: Double
-    let frameWidth: CGFloat
+    var font: Font = .body
+    var nsFont: NSFont.TextStyle = .body
+    var textColor: Color = .primary
+    var backgroundColor: Color = .clear
+    var minDuration: Double = 3.0
+    var frameWidth: CGFloat = 200
     
     @State private var animate = false
     @State private var textSize: CGSize = .zero
@@ -88,6 +88,5 @@ struct MarqueeText: View {
             .clipped()
         }
         .frame(height: textSize.height * 1.3)
-        
     }
 }

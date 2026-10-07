@@ -487,7 +487,7 @@ public final class AntigravityManager: ObservableObject {
         if let type = json["type"] as? String, type == "PLANNER_RESPONSE", let status = json["status"] as? String, status == "DONE" {
             let toolCalls = (json["tool_calls"] as? [[String: Any]]) ?? []
             if toolCalls.isEmpty {
-                return .taskCompleted(summary: "Done")
+                return .taskCompleted(summary: "Completed")
             }
         }
         

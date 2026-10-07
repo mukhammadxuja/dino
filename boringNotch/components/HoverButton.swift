@@ -12,8 +12,10 @@ struct HoverButton: View {
     var iconColor: Color = .primary
     var scale: Image.Scale = .medium
     var cornerRadius: CGFloat? = nil
+    var customFont: Font? = nil
+    var customSize: CGFloat? = nil
     var action: () -> Void
-    var contentTransition: ContentTransition = .symbolEffect;
+    var contentTransition: ContentTransition = .symbolEffect
     
     @State private var isHovering = false
 
@@ -22,6 +24,8 @@ struct HoverButton: View {
         iconColor: Color = .primary,
         scale: Image.Scale = .medium,
         cornerRadius: CGFloat? = nil,
+        customFont: Font? = nil,
+        customSize: CGFloat? = nil,
         contentTransition: ContentTransition = .symbolEffect,
         action: @escaping () -> Void
     ) {
@@ -29,12 +33,14 @@ struct HoverButton: View {
         self.iconColor = iconColor
         self.scale = scale
         self.cornerRadius = cornerRadius
+        self.customFont = customFont
+        self.customSize = customSize
         self.action = action
         self.contentTransition = contentTransition
     }
 
     var body: some View {
-        let size = CGFloat(scale == .large ? 40 : 30)
+        let size = customSize ?? CGFloat(scale == .large ? 42 : 32)
         
         Button(action: action) {
             Rectangle()
@@ -45,23 +51,23 @@ struct HoverButton: View {
                     ZStack {
                         if let cornerRadius {
                             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .fill(isHovering ? Color.gray.opacity(0.2) : .clear)
+                                .fill(isHovering ? Color.white.opacity(0.14) : .clear)
                         } else {
                             Capsule()
-                                .fill(isHovering ? Color.gray.opacity(0.2) : .clear)
+                                .fill(isHovering ? Color.white.opacity(0.14) : .clear)
                         }
 
                         Image(systemName: icon)
                             .foregroundColor(iconColor)
                             .contentTransition(contentTransition)
-                            .font(scale == .large ? .largeTitle : .body)
+                            .font(customFont ?? (scale == .large ? .system(size: 24, weight: .bold) : .system(size: 18, weight: .bold)))
                     }
                     .frame(width: size, height: size)
                 }
         }
         .buttonStyle(PlainButtonStyle())
         .onHover { hovering in
-            withAnimation(.smooth(duration: 0.3)) {
+            withAnimation(.smooth(duration: 0.2)) {
                 isHovering = hovering
             }
         }

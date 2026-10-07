@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Defaults
 
 // MARK: - Custom 3x3 Pixel Snake Loader (Matches Reference & 14 Dynamic Colors)
 
@@ -116,7 +117,7 @@ public struct SunburstCheckmark: View {
     @State private var rayOpacity: Double = 0.3
     @State private var rotation: Double = 0.0
     
-    public init(size: CGFloat = 13.5) {
+    public init(size: CGFloat = 13.0) {
         self.size = size
     }
     
@@ -126,8 +127,8 @@ public struct SunburstCheckmark: View {
             ForEach(0..<8, id: \.self) { i in
                 Capsule()
                     .fill(Color(red: 0.20, green: 0.95, blue: 0.45))
-                    .frame(width: max(1.2, size * 0.10), height: size * 0.36)
-                    .offset(y: -size * 0.76)
+                    .frame(width: max(1.0, size * 0.09), height: size * 0.24)
+                    .offset(y: -size * 0.62)
                     .rotationEffect(.degrees(Double(i) * 45.0 + rotation))
                     .opacity(rayOpacity)
                     .scaleEffect(rayScale)
@@ -136,21 +137,21 @@ public struct SunburstCheckmark: View {
             // Central Soft Glow
             Circle()
                 .fill(Color(red: 0.20, green: 0.95, blue: 0.45))
-                .frame(width: size * 1.1, height: size * 1.1)
-                .blur(radius: size * 0.25)
-                .opacity(0.6)
+                .frame(width: size, height: size)
+                .blur(radius: size * 0.2)
+                .opacity(0.5)
             
             // Circled Checkmark
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: size, weight: .bold))
                 .foregroundColor(Color(red: 0.20, green: 0.95, blue: 0.45))
-                .shadow(color: Color(red: 0.20, green: 0.95, blue: 0.45).opacity(0.7), radius: 2.0)
+                .shadow(color: Color(red: 0.20, green: 0.95, blue: 0.45).opacity(0.6), radius: 1.5)
         }
-        .frame(width: size * 1.8, height: size * 1.8)
+        .frame(width: size * 1.15, height: size * 1.15)
         .onAppear {
             withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
-                rayScale = 1.15
-                rayOpacity = 0.95
+                rayScale = 1.1
+                rayOpacity = 0.9
                 rotation = 22.5
             }
         }
@@ -268,121 +269,132 @@ public struct AnimatedCyclingDots: View {
 public struct AntigravityLiveActivity: View {
     @ObservedObject var manager = AntigravityManager.shared
     @EnvironmentObject var vm: BoringViewModel
+    @Default(.displaySelection) var displaySelection
+    @Default(.builtinFormFactor) var builtinFormFactor
+    @Default(.externalFormFactor) var externalFormFactor
     
     public init() {}
+    
+    private var isCurrentDisplayIsland: Bool {
+        let isBuiltin = (NSApp.keyWindow?.screen ?? NSScreen.main)?.isBuiltin ?? true
+        switch displaySelection {
+        case .builtin:
+            return builtinFormFactor == .island
+        case .external:
+            return externalFormFactor == .island
+        case .both:
+            return isBuiltin ? (builtinFormFactor == .island) : (externalFormFactor == .island)
+        }
+    }
     
     public var body: some View {
         ZStack {
             // MARK: - Background Matrix Binary Streams (0 & 1 with masked center)
             BinaryMatrixRainView()
+                .frame(height: vm.effectiveClosedNotchHeight)
+                .clipped()
                 .opacity(manager.currentPhase != .idle ? 1.0 : 0.0)
                 .allowsHitTesting(false)
             
-            // MARK: - Foreground Content
-            VStack(spacing: 0) {
-                // Safe spacer for MacBook physical camera notch
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(
-                        width: max(0, vm.closedNotchSize.width - 20),
-                        height: vm.effectiveClosedNotchHeight
-                    )
-                
-                // Unified Status Row: [Loader / SunburstCheckmark] [Action Title] [Target File / Detail]
-                HStack(alignment: .center, spacing: 6.5) {
-                    switch manager.currentPhase {
-                    case .idle:
-                        EmptyView()
-                        
-                    case .working(let task):
-                        PixelSnakeLoader(accentColor: manager.currentPhase.accentColor, size: 13.5)
-                        
-                        Text("Working")
-                            .font(.system(size: 13.5, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
+            // Unified Status Row: [Loader / SunburstCheckmark] [Action Title] [Target File / Detail]
+            HStack(alignment: .center, spacing: 6.5) {
+                switch manager.currentPhase {
+                case .idle:
+                    EmptyView()
+                    
+                case .working(let task):
+                    PixelSnakeLoader(accentColor: manager.currentPhase.accentColor, size: 13.0)
+                    
+                    Text("Working")
+                        .font(.system(size: 13.0, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .fixedSize()
+                    
+                    if !task.isEmpty {
+                        Text(task)
+                            .font(.system(size: 12.0, weight: .regular, design: .rounded))
+                            .foregroundColor(Color.white.opacity(0.55))
                             .lineLimit(1)
-                            .fixedSize()
-                        
-                        if !task.isEmpty {
-                            Text(task)
-                                .font(.system(size: 12.0, weight: .regular, design: .rounded))
-                                .foregroundColor(Color.white.opacity(0.50))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        } else {
-                            AnimatedCyclingDots(fontSize: 13.5)
-                        }
-                        
-                    case .waitingInput(let question):
-                        PixelSnakeLoader(accentColor: manager.currentPhase.accentColor, size: 13.5)
-                        
-                        Text("Waiting response")
-                            .font(.system(size: 13.5, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: isCurrentDisplayIsland ? 100 : 120, alignment: .leading)
+                    } else {
+                        AnimatedCyclingDots(fontSize: 13.0)
+                    }
+                    
+                case .waitingInput(let question):
+                    PixelSnakeLoader(accentColor: manager.currentPhase.accentColor, size: 13.0)
+                    
+                    Text("Waiting")
+                        .font(.system(size: 13.0, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .fixedSize()
+                    
+                    if !question.isEmpty {
+                        Text(question)
+                            .font(.system(size: 12.0, weight: .regular, design: .rounded))
+                            .foregroundColor(Color.white.opacity(0.55))
                             .lineLimit(1)
-                            .fixedSize()
-                        
-                        if !question.isEmpty {
-                            Text(question)
-                                .font(.system(size: 12.0, weight: .regular, design: .rounded))
-                                .foregroundColor(Color.white.opacity(0.50))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        } else {
-                            AnimatedCyclingDots(fontSize: 13.5)
-                        }
-                        
-                    case .askingPermission(let action):
-                        PixelSnakeLoader(accentColor: manager.currentPhase.accentColor, size: 13.5)
-                        
-                        Text("Permission")
-                            .font(.system(size: 13.5, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: isCurrentDisplayIsland ? 100 : 120, alignment: .leading)
+                    } else {
+                        AnimatedCyclingDots(fontSize: 13.0)
+                    }
+                    
+                case .askingPermission(let action):
+                    PixelSnakeLoader(accentColor: manager.currentPhase.accentColor, size: 13.0)
+                    
+                    Text("Permission")
+                        .font(.system(size: 13.0, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .fixedSize()
+                    
+                    if !action.isEmpty {
+                        Text(action)
+                            .font(.system(size: 12.0, weight: .regular, design: .rounded))
+                            .foregroundColor(Color.white.opacity(0.55))
                             .lineLimit(1)
-                            .fixedSize()
-                        
-                        if !action.isEmpty {
-                            Text(action)
-                                .font(.system(size: 12.0, weight: .regular, design: .rounded))
-                                .foregroundColor(Color.white.opacity(0.50))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        } else {
-                            AnimatedCyclingDots(fontSize: 13.5)
-                        }
-                        
-                    case .taskCompleted(let summary):
-                        SunburstCheckmark(size: 13.5)
-                        
-                        Text(summary.isEmpty || summary == "Done" || summary == "Task completed successfully" ? "Task Completed Successfully" : summary)
-                            .font(.system(size: 13.5, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: isCurrentDisplayIsland ? 100 : 120, alignment: .leading)
+                    } else {
+                        AnimatedCyclingDots(fontSize: 13.0)
+                    }
+                    
+                case .taskCompleted(let summary):
+                    SunburstCheckmark(size: 13.0)
+                    
+                    Text(summary.isEmpty || summary == "Done" || summary == "Task completed successfully" ? "Completed" : summary)
+                        .font(.system(size: 13.0, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .fixedSize()
+                    
+                default:
+                    PixelSnakeLoader(accentColor: manager.currentPhase.accentColor, size: 13.0)
+                    
+                    Text(manager.currentPhase.actionTitle)
+                        .font(.system(size: 13.0, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .fixedSize()
+                    
+                    if let detail = manager.currentPhase.targetDetail {
+                        Text(detail)
+                            .font(.system(size: 12.0, weight: .regular, design: .rounded))
+                            .foregroundColor(Color.white.opacity(0.55))
                             .lineLimit(1)
-                            .fixedSize()
-                        
-                    default:
-                        PixelSnakeLoader(accentColor: manager.currentPhase.accentColor, size: 13.5)
-                        
-                        Text(manager.currentPhase.actionTitle)
-                            .font(.system(size: 13.5, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                            .fixedSize()
-                        
-                        if let detail = manager.currentPhase.targetDetail {
-                            Text(detail)
-                                .font(.system(size: 12.0, weight: .regular, design: .rounded))
-                                .foregroundColor(Color.white.opacity(0.50))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
+                            .truncationMode(.middle)
+                            .frame(maxWidth: isCurrentDisplayIsland ? 100 : 120, alignment: .leading)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 9)
             }
+            .padding(.horizontal, 10)
+            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
         }
+        .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
+        .clipped()
         .animation(.spring(response: 0.38, dampingFraction: 0.8), value: manager.currentPhase)
     }
 }

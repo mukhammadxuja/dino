@@ -190,7 +190,22 @@ class BoringViewModel: NSObject, ObservableObject {
     }
 
     func open() {
-        self.notchSize = openNotchSize
+        let isIsland: Bool = {
+            let screen = screenUUID.flatMap { NSScreen.screen(withUUID: $0) } ?? NSScreen.main
+            let isBuiltin = screen?.isBuiltin ?? true
+            switch Defaults[.displaySelection] {
+            case .builtin:
+                return Defaults[.builtinFormFactor] == .island
+            case .external:
+                return Defaults[.externalFormFactor] == .island
+            case .both:
+                return isBuiltin ? (Defaults[.builtinFormFactor] == .island) : (Defaults[.externalFormFactor] == .island)
+            }
+        }()
+        let homeWidth: CGFloat = isIsland ? 385 : 435
+        let openWidth: CGFloat = (coordinator.currentView == .home) ? homeWidth : openNotchSize.width
+        let openHeight: CGFloat = (coordinator.currentView == .home) ? 188 : openNotchSize.height
+        self.notchSize = .init(width: openWidth, height: openHeight)
         self.notchState = .open
         
         // Force music information update when notch is opened

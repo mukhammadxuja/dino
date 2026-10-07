@@ -12,13 +12,13 @@ import SwiftUI
 let downloadSneakSize: CGSize = .init(width: 65, height: 1)
 let batterySneakSize: CGSize = .init(width: 160, height: 1)
 
-let shadowPadding: CGFloat = 20
+let shadowPadding: CGFloat = 30
 let openNotchSize: CGSize = .init(width: 640, height: 190)
-let windowSize: CGSize = .init(width: openNotchSize.width, height: openNotchSize.height + shadowPadding)
-let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 19, bottom: 24), closed: (top: 6, bottom: 14))
+let windowSize: CGSize = .init(width: openNotchSize.width, height: openNotchSize.height + shadowPadding + 30)
+let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 38, bottom: 48), closed: (top: 14, bottom: 16))
 
 enum MusicPlayerImageSizes {
-    static let cornerRadiusInset: (opened: CGFloat, closed: CGFloat) = (opened: 11.0, closed: 4.0)
+    static let cornerRadiusInset: (opened: CGFloat, closed: CGFloat) = (opened: 11.0, closed: 6.0)
     static let size = (opened: CGSize(width: 90, height: 90), closed: CGSize(width: 20, height: 20))
 }
 
@@ -49,7 +49,16 @@ enum MusicPlayerImageSizes {
 
     // Check if the screen is available
     if let screen = selectedScreen {
-        let hasPhysicalNotch = screen.safeAreaInsets.top > 0
+        let isBuiltinScreen: Bool = {
+            if Defaults[.displaySelection] == .builtin {
+                return true
+            } else if Defaults[.displaySelection] == .external {
+                return false
+            } else {
+                return screen.isBuiltin
+            }
+        }()
+
         let isIsland: Bool = {
             switch Defaults[.displaySelection] {
             case .builtin:
@@ -57,16 +66,18 @@ enum MusicPlayerImageSizes {
             case .external:
                 return Defaults[.externalFormFactor] == .island
             case .both:
-                return hasPhysicalNotch ? (Defaults[.builtinFormFactor] == .island) : (Defaults[.externalFormFactor] == .island)
+                return isBuiltinScreen ? (Defaults[.builtinFormFactor] == .island) : (Defaults[.externalFormFactor] == .island)
             }
         }()
 
         if isIsland {
-            // Island is a compact floating pill
-            notchWidth = 98
-            notchHeight = 26
+            // Built-in island is a prominent floating pill; external island fits neatly in menubar (height 24)
+            notchWidth = isBuiltinScreen ? 88 : 70
+            notchHeight = isBuiltinScreen ? 33 : 24
             return .init(width: notchWidth, height: notchHeight)
         }
+
+        let hasPhysicalNotch = screen.safeAreaInsets.top > 0
 
         // Calculate and set the exact width of the notch
         if let topLeftNotchpadding: CGFloat = screen.auxiliaryTopLeftArea?.width,

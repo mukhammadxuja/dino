@@ -9,6 +9,16 @@ import AppKit
 import CoreGraphics
 
 extension NSScreen {
+    /// Returns true if this display is the Mac's built-in display
+    var isBuiltin: Bool {
+        if safeAreaInsets.top > 0 { return true }
+        guard let number = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
+            return false
+        }
+        let displayID = CGDirectDisplayID(number.uint32Value)
+        return CGDisplayIsBuiltin(displayID) != 0
+    }
+
     /// Returns a persistent UUID for this display
     var displayUUID: String? {
         guard let number = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {

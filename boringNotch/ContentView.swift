@@ -43,6 +43,7 @@ struct ContentView: View {
     @State private var isVisualizerHovering: Bool = false
     @State private var showCoverHoverMusicDetails: Bool = false
     @State private var coverHoverDismissTask: Task<Void, Never>?
+    @State private var coverRotationY: Double = 0
 
     @Namespace var albumArtNamespace
 
@@ -51,6 +52,10 @@ struct ContentView: View {
     @Default(.pomodoroClosedNotchDisplayMode) var pomodoroClosedNotchDisplayMode
     @Default(.showMirror) var showMirror
     @Default(.showNotHumanFace) var showNotHumanFace
+    @Default(.showCalendar) var showCalendar
+    @Default(.activeModule) var activeModule
+    
+    @State private var emptyClickBounce: Bool = false
     
     // Displays & Island Mode
     @Default(.displaySelection) var displaySelection
@@ -65,30 +70,43 @@ struct ContentView: View {
 
     private let extendedHoverPadding: CGFloat = 30
     private let zeroHeightHoverPadding: CGFloat = 10
-    private let homeBaseOpenWidth: CGFloat = 365
+    private let homeBaseOpenWidth: CGFloat = 385
     private let pomodoroReplaceWidthExpansion: CGFloat = 104
 
+    private var currentTargetScreen: NSScreen? {
+        if let uuid = vm.screenUUID {
+            return NSScreen.screen(withUUID: uuid)
+        }
+        return NSScreen.main
+    }
+
+    private var isCurrentScreenBuiltin: Bool {
+        if displaySelection == .builtin {
+            return true
+        } else if displaySelection == .external {
+            return false
+        } else {
+            return currentTargetScreen?.isBuiltin ?? true
+        }
+    }
+
     private var isCurrentDisplayIsland: Bool {
-        let hasPhysicalNotch = (NSScreen.main?.safeAreaInsets.top ?? 0) > 0
         switch displaySelection {
         case .builtin:
             return builtinFormFactor == .island
         case .external:
             return externalFormFactor == .island
         case .both:
-            return hasPhysicalNotch ? (builtinFormFactor == .island) : (externalFormFactor == .island)
+            return isCurrentScreenBuiltin ? (builtinFormFactor == .island) : (externalFormFactor == .island)
         }
     }
 
     private var islandCornerRadius: CGFloat {
-        (vm.notchState == .open) ? 22 : 14
+        (vm.notchState == .open) ? 36 : (isCurrentScreenBuiltin ? 16 : 12)
     }
 
     private var effectiveIslandVisibility: IslandVisibility {
-        let currentScreen = NSScreen.screens.first(where: { $0.displayUUID == vm.screenUUID }) ?? NSScreen.main
-        let hasPhysicalNotch = (currentScreen?.safeAreaInsets.top ?? 0) > 0
-        // Built-in display with physical notch/camera automatically behaves as .onHover
-        if hasPhysicalNotch {
+        if isCurrentScreenBuiltin {
             return .onHover
         } else {
             return islandVisibility
@@ -97,19 +115,22 @@ struct ContentView: View {
 
     private var islandYOffset: CGFloat {
         guard isCurrentDisplayIsland else { return 0 }
-        let currentScreen = NSScreen.screens.first(where: { $0.displayUUID == vm.screenUUID }) ?? NSScreen.main
+        if vm.notchState == .open {
+            return 8
+        }
+        let currentScreen = currentTargetScreen
         let physicalHeight = max(32, currentScreen?.safeAreaInsets.top ?? 38)
         let menuBarHeight = max(24, (currentScreen?.frame.maxY ?? 0) - (currentScreen?.visibleFrame.maxY ?? 0))
-        let centeredMenuBarOffset = max(2, (menuBarHeight - 26) / 2)
+        let centeredMenuBarOffset = max(2, (menuBarHeight - (isCurrentScreenBuiltin ? 33 : 24)) / 2)
         
         // Exact drop down offset below camera / menu bar with clean breathing space
         let dropDownOffset = max(physicalHeight, menuBarHeight) + 8
 
         if effectiveIslandVisibility == .onHover {
-            if isHovering || vm.notchState == .open {
+            if isHovering {
                 return dropDownOffset
             } else {
-                return -35 // Retracted and hidden up top
+                return -40 // Retracted and hidden up top
             }
         } else {
             return centeredMenuBarOffset
@@ -118,8 +139,9 @@ struct ContentView: View {
 
     private var islandOpacity: Double {
         guard isCurrentDisplayIsland else { return 1.0 }
+        if vm.notchState == .open { return 1.0 }
         if effectiveIslandVisibility == .onHover {
-            return (isHovering || vm.notchState == .open) ? 1.0 : 0.0
+            return isHovering ? 1.0 : 0.0
         }
         return 1.0
     }
@@ -180,42 +202,52 @@ struct ContentView: View {
         }
     }
 
+    private var isShowingMusicSneakPeek: Bool {
+        (coordinator.sneakPeek.show && coordinator.sneakPeek.type == .music && vm.notchState == .closed && !vm.hideOnClosed && (Defaults[.sneakPeekStyles] == .standard || showCoverHoverMusicDetails))
+    }
+
     private var computedChinWidth: CGFloat {
         if isCurrentDisplayIsland {
-            if coordinator.expandingView.type == .battery && coordinator.expandingView.show && vm.notchState == .closed {
-                return 175
+            if isShowingMusicSneakPeek {
+                return isCurrentScreenBuiltin ? 175 : 145
+            } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show && vm.notchState == .closed {
+                return isCurrentScreenBuiltin ? 180 : 145
             } else if isAntigravityActive {
-                return 165
+                return isCurrentScreenBuiltin ? 190 : 160
             } else if shouldShowPomodoroInlineClosedVisual {
-                return 190
+                return isCurrentScreenBuiltin ? 165 : 135
             } else if shouldShowMusicClosedVisual {
-                return 160
+                return isCurrentScreenBuiltin ? 175 : 145
+            } else if shouldShowCalendarClosedVisual {
+                return isCurrentScreenBuiltin ? 140 : 114
             } else {
-                return 98
+                return isCurrentScreenBuiltin ? 88 : 70
             }
         }
 
-        var chinWidth: CGFloat = vm.closedNotchSize.width
+        var chinWidth: CGFloat = vm.closedNotchSize.width + (2 * topCornerRadius) + 8
 
-        if coordinator.expandingView.type == .battery && coordinator.expandingView.show
+        if isShowingMusicSneakPeek {
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
+        } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show
             && vm.notchState == .closed
         {
             if Defaults[.batteryToastType] == .dynamicNotch {
-                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
+                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
             } else {
                 chinWidth = 640
             }
-        } else if isAntigravityActive {
-            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
         } else if shouldShowPomodoroInlineClosedVisual {
-            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20 + pomodoroReplaceWidthExpansion)
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24 + pomodoroReplaceWidthExpansion)
         } else if shouldShowMusicClosedVisual {
-            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
+        } else if shouldShowCalendarClosedVisual {
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
         } else if !coordinator.expandingView.show && vm.notchState == .closed
             && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace]
             && !vm.hideOnClosed
         {
-            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
         }
 
         return chinWidth
@@ -230,11 +262,22 @@ struct ContentView: View {
     private var desiredOpenNotchWidth: CGFloat {
         switch coordinator.currentView {
         case .home:
-            return homeBaseOpenWidth
+            return isCurrentDisplayIsland ? 385 : 435
         case .shelf:
             return 560
         case .calendar:
             return 560
+        }
+    }
+
+    private var desiredOpenNotchHeight: CGFloat {
+        switch coordinator.currentView {
+        case .home:
+            return 188
+        case .shelf:
+            return 190
+        case .calendar:
+            return 190
         }
     }
 
@@ -252,9 +295,32 @@ struct ContentView: View {
     private var shouldShowMusicClosedVisual: Bool {
         (!coordinator.expandingView.show || coordinator.expandingView.type == .music)
             && vm.notchState == .closed
-            && (musicManager.isPlaying || !musicManager.isPlayerIdle)
+            && (musicManager.isPlaying || !musicManager.isPlayerIdle || isShowingMusicSneakPeek)
             && coordinator.musicLiveActivityEnabled
             && !vm.hideOnClosed
+    }
+
+    private var shouldShowCalendarClosedVisual: Bool {
+        showCalendar
+            && activeModule == .calendar
+            && vm.notchState == .closed
+            && !vm.hideOnClosed
+            && !shouldShowMusicClosedVisual
+            && !shouldShowPomodoroInlineClosedVisual
+            && !isAntigravityActive
+            && !coordinator.expandingView.show
+    }
+
+    private var hasActiveFeature: Bool {
+        if coordinator.expandingView.show { return true }
+        if coordinator.sneakPeek.show { return true }
+        if shouldShowMusicClosedVisual { return true }
+        if shouldShowPomodoroInlineClosedVisual { return true }
+        if shouldShowCalendarClosedVisual { return true }
+        if activeModule != .none && activeModule != .music && activeModule != .calendar && activeModule != .coding { return true }
+        if activeModule == .calendar && showCalendar { return true }
+        if !musicManager.isPlayerIdle || musicManager.isPlaying { return true }
+        return false
     }
 
     private var isShowingInlineMusicPlaybackPeek: Bool {
@@ -278,10 +344,11 @@ struct ContentView: View {
     private func updateOpenNotchWidth(animated: Bool = true) {
         guard vm.notchState == .open else { return }
         let targetWidth = desiredOpenNotchWidth
-        guard abs(vm.notchSize.width - targetWidth) > 0.5 else { return }
+        let targetHeight = desiredOpenNotchHeight
+        guard abs(vm.notchSize.width - targetWidth) > 0.5 || abs(vm.notchSize.height - targetHeight) > 0.5 else { return }
 
         let applyChange = {
-            vm.notchSize = .init(width: targetWidth, height: openNotchSize.height)
+            vm.notchSize = .init(width: targetWidth, height: targetHeight)
         }
 
         if animated {
@@ -303,12 +370,15 @@ struct ContentView: View {
         
         ZStack(alignment: .top) {
             if isCurrentDisplayIsland && effectiveIslandVisibility == .onHover {
-                // Continuous vertical hover bridge from menubar down to dropped island (height 95pt)
+                // Continuous vertical hover bridge from menubar down to dropped island
                 Color.clear
-                    .frame(width: max(180, vm.closedNotchSize.width + 40), height: 95)
+                    .frame(width: max(220, vm.closedNotchSize.width + 60), height: 110)
                     .contentShape(Rectangle())
                     .onHover { hovering in
                         handleHover(hovering)
+                    }
+                    .onTapGesture {
+                        handleTap()
                     }
             }
 
@@ -318,12 +388,11 @@ struct ContentView: View {
                     .padding(
                         .horizontal,
                         vm.notchState == .open
-                        ? Defaults[.cornerRadiusScaling]
-                        ? (cornerRadiusInsets.opened.top) : (cornerRadiusInsets.opened.bottom)
-                        : cornerRadiusInsets.closed.bottom
+                            ? (isCurrentDisplayIsland ? 22 : (topCornerRadius + 14))
+                            : (isCurrentDisplayIsland ? 10 : (topCornerRadius + 6))
                     )
-                    .padding(.horizontal, vm.notchState == .open ? 12 : 0)
-                    .padding(.bottom, vm.notchState == .open ? 12 : 0)
+                    .padding(.top, vm.notchState == .open ? 18 : 0)
+                    .padding(.bottom, vm.notchState == .open ? 18 : 0)
                     .background(surfaceBackground)
                     .conditionalModifier(isCurrentDisplayIsland) { view in
                         view.clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
@@ -354,15 +423,15 @@ struct ContentView: View {
                         alignment: .top
                     )
                     .scaleEffect(
-                        x: (isCurrentDisplayIsland && isHovering && vm.notchState == .closed) ? 1.08 : 1.0,
-                        y: 1.0,
+                        x: emptyClickBounce ? 0.94 : ((isHovering && vm.notchState == .closed) ? 1.05 : 1.0),
+                        y: emptyClickBounce ? 0.94 : 1.0,
                         anchor: .top
                     )
                     .offset(y: islandYOffset)
                     .opacity(islandOpacity)
-                    .animation(.interactiveSpring(response: 0.32, dampingFraction: 0.68), value: isHovering)
-                    .animation(.interactiveSpring(response: 0.36, dampingFraction: 0.74), value: islandYOffset)
-                    .animation(.easeInOut(duration: 0.2), value: islandOpacity)
+                    .animation(.interactiveSpring(response: 0.42, dampingFraction: 0.80), value: isHovering)
+                    .animation(.interactiveSpring(response: 0.44, dampingFraction: 0.82), value: islandYOffset)
+                    .animation(.easeInOut(duration: 0.28), value: islandOpacity)
                     .conditionalModifier(true) { view in
                         let openAnimation = Animation.interactiveSpring(response: 0.4, dampingFraction: 0.82, blendDuration: 0)
                         let closeAnimation = Animation.interactiveSpring(response: 0.42, dampingFraction: 0.84, blendDuration: 0)
@@ -375,13 +444,14 @@ struct ContentView: View {
                             .animation(animationSpring, value: shouldShowPomodoroInlineClosedVisual)
                             .animation(animationSpring, value: isShowingInlineMusicPlaybackPeek)
                             .animation(animationSpring, value: isAntigravityActive)
+                            .animation(animationSpring, value: isShowingMusicSneakPeek)
                     }
-                    .contentShape(Rectangle())
+                    .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
                     .onHover { hovering in
                         handleHover(hovering)
                     }
                     .onTapGesture {
-                        doOpen()
+                        handleTap()
                     }
                     .conditionalModifier(Defaults[.enableGestures]) { view in
                         view
@@ -422,12 +492,6 @@ struct ContentView: View {
                         if newState == .open {
                             updateOpenNotchWidth()
                         }
-
-                        if newState == .closed && isHovering {
-                            withAnimation {
-                                isHovering = false
-                            }
-                        }
                     }
                     .onChange(of: coordinator.currentView) { _, _ in
                         updateOpenNotchWidth()
@@ -443,6 +507,22 @@ struct ContentView: View {
                     }
                     .onChange(of: webcamManager.cameraAvailable) { _, _ in
                         updateOpenNotchWidth()
+                    }
+                    .onChange(of: musicManager.songTitle) { _, newTitle in
+                        guard !newTitle.isEmpty else { return }
+                        withAnimation(.spring(response: 0.55, dampingFraction: 0.72)) {
+                            coverRotationY -= 180
+                        }
+                        if vm.notchState == .closed && !vm.hideOnClosed {
+                            coordinator.toggleSneakPeek(status: true, type: .music, duration: 4.5)
+                        }
+                    }
+                    .onChange(of: coordinator.sneakPeek.show) { _, isShowing in
+                        if isShowing && coordinator.sneakPeek.type == .music && vm.notchState == .closed {
+                            withAnimation(.spring(response: 0.55, dampingFraction: 0.72)) {
+                                coverRotationY -= 180
+                            }
+                        }
                     }
                     .onChange(of: vm.isBatteryPopoverActive) {
                         if !vm.isBatteryPopoverActive && !isHovering && vm.notchState == .open && !SharingStateManager.shared.preventNotchClose {
@@ -537,8 +617,8 @@ struct ContentView: View {
 
     @ViewBuilder
     func NotchLayout() -> some View {
-        VStack(alignment: .leading) {
-            VStack(alignment: .leading) {
+        VStack(spacing: 0) {
+            VStack(spacing: 0) {
                 if coordinator.helloAnimationRunning {
                     Spacer()
                     HelloAnimation(onFinish: {
@@ -603,6 +683,8 @@ struct ContentView: View {
                         }
                     } else if isAntigravityActive {
                         AntigravityLiveActivity()
+                            .frame(width: computedChinWidth, height: vm.effectiveClosedNotchHeight, alignment: .center)
+                            .clipped()
                             .transition(.opacity)
                     } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && vm.notchState == .closed {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
@@ -613,6 +695,9 @@ struct ContentView: View {
                       } else if shouldShowMusicClosedVisual {
                           MusicLiveActivity()
                               .frame(alignment: .center)
+                      } else if shouldShowCalendarClosedVisual {
+                          CalendarClosedNotchView()
+                              .transition(.opacity)
                       } else if !coordinator.expandingView.show && vm.notchState == .closed && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace] && !vm.hideOnClosed  {
                           BoringFaceAnimation()
                        } else if vm.notchState == .open {
@@ -642,29 +727,12 @@ struct ContentView: View {
                               .padding(.leading, 4)
                               .padding(.trailing, 8)
                           }
-                          // Old sneak peek music
-                          else if coordinator.sneakPeek.type == .music {
-                              if vm.notchState == .closed && !vm.hideOnClosed
-                                    && (Defaults[.sneakPeekStyles] == .standard || showCoverHoverMusicDetails)
-                              {
-                                  HStack(alignment: .center) {
-                                      Image(systemName: "music.note")
-                                      GeometryReader { geo in
-                                          MarqueeText(.constant(musicManager.songTitle + " - " + musicManager.artistName),  textColor: Defaults[.playerColorTinting] ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.6) : .gray, minDuration: 1, frameWidth: geo.size.width)
-                                      }
-                                  }
-                                  .foregroundStyle(.gray)
-                                  .padding(.bottom, 10)
-                              }
-                          }
                       }
 
                   }
               }
               .conditionalModifier(
-                  (coordinator.sneakPeek.show && (coordinator.sneakPeek.type == .music) && vm.notchState == .closed && !vm.hideOnClosed && (Defaults[.sneakPeekStyles] == .standard || showCoverHoverMusicDetails))
-                  || (coordinator.sneakPeek.show && (coordinator.sneakPeek.type != .music) && (vm.notchState == .closed))
-                  || isAntigravityActive
+                  coordinator.sneakPeek.show && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (vm.notchState == .closed)
               ) { view in
                   view
                       .fixedSize()
@@ -673,7 +741,7 @@ struct ContentView: View {
             if vm.notchState == .open {
                 VStack {
                     switch coordinator.currentView {
-                    case .home:
+                    case .home, .calendar:
                         NotchHomeView(albumArtNamespace: albumArtNamespace)
                     case .shelf:
                         VStack(spacing: 0) {
@@ -706,12 +774,6 @@ struct ContentView: View {
                                 .padding(.top, 4)
                         }
                         .padding(.horizontal, 8)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    case .calendar:
-                        VStack(alignment: .leading, spacing: 0) {
-                            CalendarView()
-                                .frame(width: calendarTabContentWidth, alignment: .topLeading)
-                        }
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     }
                 }
@@ -752,195 +814,209 @@ struct ContentView: View {
 
     @ViewBuilder
     func MusicLiveActivity() -> some View {
-        let coverSize = max(0, vm.effectiveClosedNotchHeight - 12)
+        let coverSize = max(0, vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? 10 : 12))
         let showGesturePrev = mediaGestureDirection == .right && mediaGestureIconVisible && musicManager.isPlaying
         let showGestureNext = mediaGestureDirection == .left && mediaGestureIconVisible && musicManager.isPlaying
+        let islandSneakPeekWidth: CGFloat = isCurrentScreenBuiltin ? 170 : 145
+        let defaultCenterSpacerWidth: CGFloat = isCurrentDisplayIsland
+            ? (isShowingMusicSneakPeek ? max(20, islandSneakPeekWidth - (coverSize * 2)) : (isCurrentScreenBuiltin ? 76 : 50))
+            : (vm.closedNotchSize.width + 14)
 
-        HStack {
-            // MARK: Left side - Album art with gesture prev icon & hover sneak peek
-            ZStack {
-                Image(nsImage: musicManager.albumArt)
-                    .resizable()
-                    .clipped()
-                    .clipShape(
-                        RoundedRectangle(
-                            cornerRadius: MusicPlayerImageSizes.cornerRadiusInset.closed)
-                    )
-                    .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
-                    .opacity(showGesturePrev ? 0 : 1)
-                    .animation(.easeOut(duration: 0.2), value: showGesturePrev)
+        VStack(spacing: isShowingMusicSneakPeek ? 4 : 0) {
+            HStack(spacing: 0) {
+                // MARK: Left side - Album art with gesture prev icon & hover sneak peek
+                ZStack {
+                    Image(nsImage: musicManager.albumArt)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: coverSize, height: coverSize)
+                        .clipShape(
+                            RoundedRectangle(
+                                cornerRadius: isCurrentDisplayIsland ? 5 : MusicPlayerImageSizes.cornerRadiusInset.closed,
+                                style: .continuous
+                            )
+                        )
+                        .rotation3DEffect(.degrees(coverRotationY), axis: (x: 0, y: 1, z: 0))
+                        .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
+                        .opacity(showGesturePrev ? 0 : 1)
+                        .animation(.easeOut(duration: 0.2), value: showGesturePrev)
 
-                // Gesture: swipe right → prev icon replaces cover
-                if showGesturePrev {
-                    Image(systemName: "backward.fill")
-                        .font(.system(size: coverSize * 0.45, weight: .bold))
-                        .foregroundStyle(.white)
-                        .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .frame(width: coverSize, height: coverSize)
-            .onHover { hovering in
-                isCoverHovering = hovering
-                if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
-                    coverHoverDismissTask?.cancel()
-                    coverHoverDismissTask = nil
-                    withAnimation(.smooth(duration: 0.25)) {
-                        showCoverHoverMusicDetails = true
+                    // Gesture: swipe right → prev icon replaces cover
+                    if showGesturePrev {
+                        Image(systemName: "backward.fill")
+                            .font(.system(size: coverSize * 0.45, weight: .bold))
+                            .foregroundStyle(.white)
+                            .transition(.scale.combined(with: .opacity))
                     }
-                    // Show sneak peek from bottom (standard style)
-                    coordinator.toggleSneakPeek(
-                        status: true,
-                        type: .music,
-                        duration: 60
-                    )
-                } else if !hovering {
-                    // Dismiss sneak peek after a short delay
-                    coverHoverDismissTask?.cancel()
-                    coverHoverDismissTask = Task {
-                        try? await Task.sleep(for: .milliseconds(600))
-                        await MainActor.run {
-                            if !isCoverHovering {
-                                withAnimation(.smooth(duration: 0.25)) {
-                                    coordinator.toggleSneakPeek(status: false, type: .music, duration: 0.25)
-                                }
-
-                                Task { @MainActor in
-                                    try? await Task.sleep(for: .milliseconds(260))
-                                    withAnimation(.smooth(duration: 0.25)) {
-                                        showCoverHoverMusicDetails = false
-                                    }
-                                }
-                            }
+                }
+                .frame(width: coverSize, height: coverSize)
+                .contentShape(Rectangle())
+                .onHover { hovering in
+                    isCoverHovering = hovering
+                    if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
+                        coverHoverDismissTask?.cancel()
+                        coverHoverDismissTask = nil
+                        withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
+                            showCoverHoverMusicDetails = true
                         }
+                        coordinator.toggleSneakPeek(
+                            status: true,
+                            type: .music,
+                            duration: 60
+                        )
                     }
                 }
-            }
 
-            Rectangle()
-                .fill(Color.clear)
-                .overlay(
-                    HStack(alignment: .top) {
-                        if coordinator.expandingView.show
-                            && coordinator.expandingView.type == .music
-                        {
-                            MarqueeText(
-                                .constant(musicManager.songTitle),
-                                textColor: Defaults[.coloredSpectrogram]
-                                    ? Color(nsColor: musicManager.avgColor) : Color.gray,
-                                minDuration: 0.4,
-                                frameWidth: 100
-                            )
-                            .opacity(
-                                (coordinator.expandingView.show
-                                    && Defaults[.sneakPeekStyles] == .inline)
-                                    ? 1 : 0
-                            )
-                            Spacer(minLength: isCurrentDisplayIsland ? 64 : vm.closedNotchSize.width)
-                            // Song Artist
-                            Text(musicManager.artistName)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .foregroundStyle(
-                                    Defaults[.coloredSpectrogram]
-                                        ? Color(nsColor: musicManager.avgColor)
-                                        : Color.gray
+                Rectangle()
+                    .fill(Color.clear)
+                    .contentShape(Rectangle())
+                    .overlay(
+                        HStack(alignment: .top) {
+                            if coordinator.expandingView.show
+                                && coordinator.expandingView.type == .music
+                            {
+                                MarqueeText(
+                                    .constant(musicManager.songTitle),
+                                    textColor: Defaults[.coloredSpectrogram]
+                                        ? Color(nsColor: musicManager.avgColor) : Color.gray,
+                                    minDuration: 0.4,
+                                    frameWidth: 100
                                 )
                                 .opacity(
                                     (coordinator.expandingView.show
-                                        && coordinator.expandingView.type == .music
                                         && Defaults[.sneakPeekStyles] == .inline)
                                         ? 1 : 0
                                 )
+                                Spacer(minLength: isCurrentDisplayIsland ? 64 : vm.closedNotchSize.width)
+                                // Song Artist
+                                Text(musicManager.artistName)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .foregroundStyle(
+                                        Defaults[.coloredSpectrogram]
+                                            ? Color(nsColor: musicManager.avgColor)
+                                            : Color.gray
+                                    )
+                                    .opacity(
+                                        (coordinator.expandingView.show
+                                            && coordinator.expandingView.type == .music
+                                            && Defaults[.sneakPeekStyles] == .inline)
+                                            ? 1 : 0
+                                    )
+                            }
+                        }
+                    )
+                    .frame(
+                        width: (coordinator.expandingView.show
+                            && coordinator.expandingView.type == .music
+                            && Defaults[.sneakPeekStyles] == .inline)
+                            ? 380
+                            : defaultCenterSpacerWidth
+                    )
+
+                // MARK: Right side - Visualizer with gesture next icon & hover play/pause
+                ZStack {
+                    // Normal visualizer content
+                    HStack {
+                        if useMusicVisualizer {
+                            Rectangle()
+                                .fill(
+                                    musicManager.isPlaying
+                                        ? Color.white.opacity(0.85).gradient
+                                        : Color.gray.gradient
+                                )
+                                .frame(width: 50, alignment: .center)
+                                .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
+                                .mask {
+                                    AudioSpectrumView(isPlaying: $musicManager.isPlaying)
+                                        .frame(width: 16, height: 12)
+                                }
+                        } else {
+                            LottieAnimationContainer()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     }
-                )
-                .frame(
-                    width: (coordinator.expandingView.show
-                        && coordinator.expandingView.type == .music
-                        && Defaults[.sneakPeekStyles] == .inline)
-                        ? 380
-                        : (isCurrentDisplayIsland ? 64 : (vm.closedNotchSize.width - cornerRadiusInsets.closed.top))
-                )
+                    .opacity(showGestureNext || isVisualizerHovering ? 0 : 1)
+                    .animation(.easeOut(duration: 0.2), value: showGestureNext)
+                    .animation(.easeOut(duration: 0.2), value: isVisualizerHovering)
 
-            // MARK: Right side - Visualizer with gesture next icon & hover play/pause
-            ZStack {
-                // Normal visualizer content
-                HStack {
-                    if useMusicVisualizer {
-                        Rectangle()
-                            .fill(
-                                Defaults[.coloredSpectrogram]
-                                    ? Color(nsColor: musicManager.avgColor).gradient
-                                    : Color.gray.gradient
-                            )
-                            .frame(width: 50, alignment: .center)
-                            .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
-                            .mask {
-                                AudioSpectrumView(isPlaying: $musicManager.isPlaying)
-                                    .frame(width: 16, height: 12)
-                            }
-                    } else {
-                        LottieAnimationContainer()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                }
-                .opacity(showGestureNext || isVisualizerHovering ? 0 : 1)
-                .animation(.easeOut(duration: 0.2), value: showGestureNext)
-                .animation(.easeOut(duration: 0.2), value: isVisualizerHovering)
-
-                // Gesture: swipe left → next icon replaces visualizer
-                if showGestureNext {
-                    Image(systemName: "forward.fill")
-                        .font(.system(size: coverSize * 0.45, weight: .bold))
-                        .foregroundStyle(.white)
-                        .transition(.scale.combined(with: .opacity))
-                }
-
-                // Hover: play/pause icon replaces visualizer
-                if isVisualizerHovering && !showGestureNext {
-                    Button {
-                        MusicManager.shared.togglePlay()
-                    } label: {
-                        Image(systemName: musicManager.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: coverSize * 0.62, weight: .bold))
+                    // Gesture: swipe left → next icon replaces visualizer
+                    if showGestureNext {
+                        Image(systemName: "forward.fill")
+                            .font(.system(size: coverSize * 0.45, weight: .bold))
                             .foregroundStyle(.white)
-                            .shadow(color: .white.opacity(0.6), radius: 12)
-                            .shadow(color: .white.opacity(0.35), radius: 24)
-                            .padding(6)
-                            .background(
-                                Circle()
-                                    .fill(Color.white.opacity(0.12))
-                                    .blur(radius: 0.5)
-                            )
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                            .transition(.scale.combined(with: .opacity))
                     }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .transition(.opacity.animation(.easeInOut(duration: 0.2)))
+
+                    // Hover: play/pause icon replaces visualizer
+                    if isVisualizerHovering && !showGestureNext {
+                        Button {
+                            MusicManager.shared.togglePlay()
+                        } label: {
+                            Image(systemName: musicManager.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: coverSize * 0.62, weight: .bold))
+                                .foregroundStyle(.white)
+                                .shadow(color: .white.opacity(0.6), radius: 12)
+                                .shadow(color: .white.opacity(0.35), radius: 24)
+                                .padding(6)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(0.12))
+                                        .blur(radius: 0.5)
+                                )
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        .transition(.opacity.animation(.easeInOut(duration: 0.2)))
+                    }
+                }
+                .frame(
+                    width: max(
+                        0,
+                        vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? 10 : 12)
+                            + gestureProgress / 2
+                    ),
+                    height: max(
+                        0,
+                        vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? 10 : 12)
+                    ),
+                    alignment: .center
+                )
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isVisualizerHovering = hovering && !musicManager.isPlayerIdle && vm.notchState == .closed
+                    }
                 }
             }
+            .contentShape(Rectangle())
             .frame(
-                width: max(
-                    0,
-                    vm.effectiveClosedNotchHeight - 12
-                        + gestureProgress / 2
-                ),
-                height: max(
-                    0,
-                    vm.effectiveClosedNotchHeight - 12
-                ),
+                height: vm.effectiveClosedNotchHeight,
                 alignment: .center
             )
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isVisualizerHovering = hovering && !musicManager.isPlayerIdle && vm.notchState == .closed
+
+            // Centered Sneak Peek details row below cover & visualizer
+            if isShowingMusicSneakPeek {
+                HStack(alignment: .center, spacing: 4.5) {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 10, weight: .semibold))
+                    
+                    let songText = musicManager.artistName.isEmpty ? musicManager.songTitle : "\(musicManager.songTitle) • \(musicManager.artistName)"
+                    Text(songText)
+                        .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
+                .foregroundStyle(Defaults[.playerColorTinting] ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.6) : .white.opacity(0.88))
+                .frame(maxWidth: isCurrentDisplayIsland ? (islandSneakPeekWidth - 16) : (vm.closedNotchSize.width - 20), alignment: .center)
+                .padding(.horizontal, 4)
+                .padding(.bottom, isCurrentDisplayIsland ? 8 : 10)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                    removal: .opacity.combined(with: .scale(scale: 0.95))
+                ))
             }
         }
-        .frame(
-            height: vm.effectiveClosedNotchHeight,
-            alignment: .center
-        )
     }
 
     @ViewBuilder
@@ -992,6 +1068,36 @@ struct ContentView: View {
     }
 
     @ViewBuilder
+    func CalendarClosedNotchView() -> some View {
+        let itemSize = max(0, vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? 10 : 12))
+        let centerSpacerWidth: CGFloat = isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 76 : 50) : (vm.closedNotchSize.width - cornerRadiusInsets.closed.top)
+        HStack(spacing: 0) {
+            Image(systemName: "calendar")
+                .font(.system(size: isCurrentScreenBuiltin ? 14 : 13, weight: .semibold))
+                .foregroundStyle(Color.effectiveAccent)
+                .frame(width: itemSize, height: itemSize)
+
+            Rectangle()
+                .fill(Color.clear)
+                .frame(
+                    width: centerSpacerWidth,
+                    height: vm.effectiveClosedNotchHeight
+                )
+
+            Text("\(Calendar.current.component(.day, from: Date()))")
+                .font(.system(size: isCurrentScreenBuiltin ? 14 : 13, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(Color.effectiveAccent)
+                .frame(width: itemSize, height: itemSize)
+        }
+        .contentShape(Rectangle())
+        .frame(
+            height: vm.effectiveClosedNotchHeight,
+            alignment: .center
+        )
+    }
+
+    @ViewBuilder
     var dragDetector: some View {
         if Defaults[.boringShelf] && vm.notchState == .closed {
             Color.clear
@@ -1007,10 +1113,28 @@ struct ContentView: View {
         }
     }
 
+    private func handleTap() {
+        if vm.notchState == .open {
+            return
+        }
+        if hasActiveFeature {
+            doOpen()
+        } else {
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.52, blendDuration: 0)) {
+                emptyClickBounce = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.65, blendDuration: 0)) {
+                    emptyClickBounce = false
+                }
+            }
+        }
+    }
+
     private func doOpen() {
         withAnimation(animationSpring) {
             vm.open()
-            vm.notchSize = .init(width: desiredOpenNotchWidth, height: openNotchSize.height)
+            vm.notchSize = .init(width: desiredOpenNotchWidth, height: desiredOpenNotchHeight)
         }
     }
 
@@ -1033,6 +1157,7 @@ struct ContentView: View {
             
             guard vm.notchState == .closed,
                   !coordinator.sneakPeek.show,
+                  hasActiveFeature,
                   Defaults[.openNotchOnHover] else { return }
             
             hoverTask = Task {
@@ -1042,6 +1167,7 @@ struct ContentView: View {
                 await MainActor.run {
                     guard self.vm.notchState == .closed,
                           self.isHovering,
+                          self.hasActiveFeature,
                           !self.coordinator.sneakPeek.show else { return }
                     
                     self.doOpen()
@@ -1054,12 +1180,38 @@ struct ContentView: View {
                 guard !Task.isCancelled else { return }
                 
                 await MainActor.run {
-                    withAnimation(animationSpring) {
-                        self.isHovering = false
+                    if self.vm.notchState == .open && !self.vm.isBatteryPopoverActive && !SharingStateManager.shared.preventNotchClose {
+                        // 1. Morph open notch back to closed island pill
+                        self.vm.close()
+                        
+                        // 2. Allow collapse animation to complete and stay visible briefly, then retract up and disappear
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(750))
+                            guard !Task.isCancelled else { return }
+                            if self.vm.notchState == .closed {
+                                withAnimation(self.animationSpring) {
+                                    self.isHovering = false
+                                }
+                            }
+                        }
+                    } else {
+                        withAnimation(animationSpring) {
+                            self.isHovering = false
+                        }
                     }
                     
-                    if self.vm.notchState == .open && !self.vm.isBatteryPopoverActive && !SharingStateManager.shared.preventNotchClose {
-                        self.vm.close()
+                    if self.showCoverHoverMusicDetails {
+                        self.coverHoverDismissTask?.cancel()
+                        self.coverHoverDismissTask = Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(250))
+                            guard !Task.isCancelled else { return }
+                            if !self.isHovering {
+                                withAnimation(self.animationSpring) {
+                                    self.coordinator.toggleSneakPeek(status: false, type: .music, duration: 0.25)
+                                    self.showCoverHoverMusicDetails = false
+                                }
+                            }
+                        }
                     }
                 }
             }

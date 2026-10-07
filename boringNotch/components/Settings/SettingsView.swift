@@ -5181,6 +5181,43 @@ struct Media: View {
     }
 }
 
+struct KbdKeyView: View {
+    let key: String
+    @Environment(\.colorScheme) var colorScheme
+    
+    private var isDark: Bool {
+        colorScheme == .dark
+    }
+    
+    var body: some View {
+        Text(key)
+            .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+            .foregroundStyle(isDark ? Color.white.opacity(0.9) : Color.black.opacity(0.85))
+            .frame(width: 22, height: 22)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isDark ? Color(white: 0.22) : Color(white: 0.94))
+                    .shadow(color: Color.black.opacity(isDark ? 0.4 : 0.08), radius: 1, x: 0, y: 1)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.12), lineWidth: 0.8)
+            )
+    }
+}
+
+struct KbdShortcutBadge: View {
+    var keys: [String] = ["⌃", "⇧", "A"]
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(keys, id: \.self) { key in
+                KbdKeyView(key: key)
+            }
+        }
+    }
+}
+
 struct CalendarSettings: View {
     @ObservedObject private var calendarManager = CalendarManager.shared
     @Default(.showCalendar) var showCalendar: Bool
@@ -5190,96 +5227,128 @@ struct CalendarSettings: View {
 
     var body: some View {
         Form {
-            Defaults.Toggle(key: .showCalendar) {
-                Text("Show calendar")
+            calendarTogglesSection
+            calendarsSection
+            remindersSection
+        }
+        .accentColor(.effectiveAccent)
+        .navigationTitle("Calendar")
+        .onAppear {
+            Task {
+                await calendarManager.checkCalendarAuthorization()
+                await calendarManager.checkReminderAuthorization()
             }
-            Defaults.Toggle(key: .hideCompletedReminders) {
-                Text("Hide completed reminders")
-            }
-            Defaults.Toggle(key: .hideAllDayEvents) {
-                Text("Hide all-day events")
-            }
-            Defaults.Toggle(key: .autoScrollToNextEvent) {
-                Text("Auto-scroll to next event")
-            }
-            Defaults.Toggle(key: .showFullEventTitles) {
-                Text("Always show full event titles")
-            }
-            Section(header: Text("Calendars")) {
-                if calendarManager.calendarAuthorizationStatus != .fullAccess {
-                    Text("Calendar access is denied. Please enable it in System Settings.")
-                        .foregroundColor(.red)
-                        .multilineTextAlignment(.center)
-                        .padding()
-                    Button("Open Calendar Settings") {
-                        if let settingsURL = URL(
-                            string:
-                                "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
-                        ) {
-                            NSWorkspace.shared.open(settingsURL)
-                        }
-                    }
-                } else {
-                    List {
-                        ForEach(calendarManager.eventCalendars, id: \.id) { calendar in
-                            Toggle(
-                                isOn: Binding(
-                                    get: { calendarManager.getCalendarSelected(calendar) },
-                                    set: { isSelected in
-                                        Task {
-                                            await calendarManager.setCalendarSelected(
-                                                calendar, isSelected: isSelected)
-                                        }
-                                    }
-                                )
-                            ) {
-                                Text(calendar.title)
-                            }
-                            .accentColor(lighterColor(from: calendar.color))
-                            .disabled(!showCalendar)
-                        }
+        }
+    }
+
+    @ViewBuilder
+    private var calendarTogglesSection: some View {
+        HStack(alignment: .center) {
+            Text("Show calendar")
+            Spacer()
+            KbdShortcutBadge(keys: ["⌘", "⇧", "A"])
+            Toggle("", isOn: $showCalendar)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .tint(.effectiveAccent)
+                .onChange(of: showCalendar) { _, enabled in
+                    if !enabled && Defaults[.activeModule] == .calendar {
+                        Defaults[.activeModule] = .none
                     }
                 }
-            }
-            Section(header: Text("Reminders")) {
-                if calendarManager.reminderAuthorizationStatus != .fullAccess {
-                    Text("Reminder access is denied. Please enable it in System Settings.")
-                        .foregroundColor(.red)
-                        .multilineTextAlignment(.center)
-                        .padding()
-                    Button("Open Reminder Settings") {
-                        if let settingsURL = URL(
-                            string:
-                                "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders"
-                        ) {
-                            NSWorkspace.shared.open(settingsURL)
-                        }
+        }
+        Defaults.Toggle(key: .hideCompletedReminders) {
+            Text("Hide completed reminders")
+        }
+        Defaults.Toggle(key: .hideAllDayEvents) {
+            Text("Hide all-day events")
+        }
+        Defaults.Toggle(key: .autoScrollToNextEvent) {
+            Text("Auto-scroll to next event")
+        }
+        Defaults.Toggle(key: .showFullEventTitles) {
+            Text("Always show full event titles")
+        }
+    }
+
+    @ViewBuilder
+    private var calendarsSection: some View {
+        Section(header: Text("Calendars")) {
+            if calendarManager.calendarAuthorizationStatus != .fullAccess {
+                Text("Calendar access is denied. Please enable it in System Settings.")
+                    .foregroundColor(.red)
+                    .multilineTextAlignment(.center)
+                    .padding()
+                Button("Open Calendar Settings") {
+                    if let settingsURL = URL(
+                        string:
+                            "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
+                    ) {
+                        NSWorkspace.shared.open(settingsURL)
                     }
-                } else {
-                    List {
-                        ForEach(calendarManager.reminderLists, id: \.id) { calendar in
-                            Toggle(
-                                isOn: Binding(
-                                    get: { calendarManager.getCalendarSelected(calendar) },
-                                    set: { isSelected in
-                                        Task {
-                                            await calendarManager.setCalendarSelected(
-                                                calendar, isSelected: isSelected)
-                                        }
+                }
+            } else {
+                List {
+                    ForEach(calendarManager.eventCalendars, id: \.id) { calendar in
+                        Toggle(
+                            isOn: Binding(
+                                get: { calendarManager.getCalendarSelected(calendar) },
+                                set: { isSelected in
+                                    Task {
+                                        await calendarManager.setCalendarSelected(
+                                            calendar, isSelected: isSelected)
                                     }
-                                )
-                            ) {
-                                Text(calendar.title)
-                            }
-                            .accentColor(lighterColor(from: calendar.color))
-                            .disabled(!showCalendar)
+                                }
+                            )
+                        ) {
+                            Text(calendar.title)
                         }
+                        .accentColor(lighterColor(from: calendar.color))
+                        .disabled(!showCalendar)
                     }
                 }
             }
         }
-        .accentColor(.effectiveAccent)
-        .navigationTitle("Calendar")
+    }
+
+    @ViewBuilder
+    private var remindersSection: some View {
+        Section(header: Text("Reminders")) {
+            if calendarManager.reminderAuthorizationStatus != .fullAccess {
+                Text("Reminder access is denied. Please enable it in System Settings.")
+                    .foregroundColor(.red)
+                    .multilineTextAlignment(.center)
+                    .padding()
+                Button("Open Reminder Settings") {
+                    if let settingsURL = URL(
+                        string:
+                            "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders"
+                    ) {
+                        NSWorkspace.shared.open(settingsURL)
+                    }
+                }
+            } else {
+                List {
+                    ForEach(calendarManager.reminderLists, id: \.id) { calendar in
+                        Toggle(
+                            isOn: Binding(
+                                get: { calendarManager.getCalendarSelected(calendar) },
+                                set: { isSelected in
+                                    Task {
+                                        await calendarManager.setCalendarSelected(
+                                            calendar, isSelected: isSelected)
+                                    }
+                                }
+                            )
+                        ) {
+                            Text(calendar.title)
+                        }
+                        .accentColor(lighterColor(from: calendar.color))
+                        .disabled(!showCalendar)
+                    }
+                }
+            }
+        }
         .onAppear {
             Task {
                 await calendarManager.checkCalendarAuthorization()
@@ -6098,14 +6167,16 @@ struct Appearance: View {
                                     IslandStyleCard(style: .glass, selection: $islandStyle)
                                 }
 
-                                Text("Visibility")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.secondary)
-                                    .padding(.top, 4)
+                                if displaySelection == .external {
+                                    Text("Visibility")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                        .padding(.top, 4)
 
-                                HStack(spacing: 12) {
-                                    IslandVisibilityCard(visibility: .onHover, selection: $islandVisibility)
-                                    IslandVisibilityCard(visibility: .alwaysVisible, selection: $islandVisibility)
+                                    HStack(spacing: 12) {
+                                        IslandVisibilityCard(visibility: .onHover, selection: $islandVisibility)
+                                        IslandVisibilityCard(visibility: .alwaysVisible, selection: $islandVisibility)
+                                    }
                                 }
                             }
                             .transition(.opacity.combined(with: .move(edge: .top)))
@@ -6564,6 +6635,22 @@ struct Shortcuts: View {
                 .foregroundStyle(.secondary)
                 .font(.caption)
             }
+            Section {
+                KeyboardShortcuts.Recorder("Now Playing (Music):", name: .selectMusicModule)
+                KeyboardShortcuts.Recorder("Pomodoro Timer:", name: .selectPomodoroModule)
+                KeyboardShortcuts.Recorder("Calendar:", name: .selectCalendarModule)
+                KeyboardShortcuts.Recorder("Battery Status:", name: .selectBatteryModule)
+                KeyboardShortcuts.Recorder("Coding Activity:", name: .selectCodingModule)
+                KeyboardShortcuts.Recorder("Shelf (Upload):", name: .selectShelfModule)
+            } header: {
+                Text("Switch Active Module")
+            } footer: {
+                Text("Quickly switch what is shown in your Notch / Island using keyboard shortcuts.")
+                    .multilineTextAlignment(.trailing)
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
+
             Section {
                 KeyboardShortcuts.Recorder("Toggle Notch Open:", name: .toggleNotchOpen)
             }

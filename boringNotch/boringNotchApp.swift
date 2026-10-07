@@ -975,6 +975,59 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             }
         }
 
+        KeyboardShortcuts.onKeyDown(for: .selectMusicModule) { [weak self] in
+            Task { @MainActor in
+                Defaults[.activeModule] = .music
+                self?.coordinator.currentView = .home
+                NSSound(named: "Tink")?.play()
+            }
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .selectPomodoroModule) { [weak self] in
+            Task { @MainActor in
+                Defaults[.activeModule] = .pomodoro
+                self?.coordinator.currentView = .home
+                NSSound(named: "Tink")?.play()
+            }
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .selectCalendarModule) { [weak self] in
+            Task { @MainActor in
+                if Defaults[.activeModule] == .calendar {
+                    Defaults[.activeModule] = .none
+                } else {
+                    Defaults[.activeModule] = .calendar
+                    Defaults[.showCalendar] = true
+                }
+                self?.coordinator.currentView = .home
+                NSSound(named: "Tink")?.play()
+            }
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .selectBatteryModule) { [weak self] in
+            Task { @MainActor in
+                Defaults[.activeModule] = .battery
+                self?.coordinator.currentView = .home
+                NSSound(named: "Tink")?.play()
+            }
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .selectCodingModule) { [weak self] in
+            Task { @MainActor in
+                Defaults[.activeModule] = .coding
+                self?.coordinator.currentView = .home
+                NSSound(named: "Tink")?.play()
+            }
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .selectShelfModule) { [weak self] in
+            Task { @MainActor in
+                Defaults[.activeModule] = .shelf
+                self?.coordinator.currentView = .home
+                NSSound(named: "Tink")?.play()
+            }
+        }
+
         setupStrictModeObservers()
         setupScreenGlowObservers()
         setupStrictModeEscMonitors()
@@ -1081,12 +1134,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let targetScreens: [NSScreen] = {
             switch selection {
             case .builtin:
-                if let builtin = allScreens.first(where: { $0.safeAreaInsets.top > 0 }) ?? allScreens.first {
+                if let builtin = allScreens.first(where: { $0.isBuiltin }) ?? allScreens.first {
                     return [builtin]
                 }
                 return []
             case .external:
-                let externals = allScreens.filter { $0.safeAreaInsets.top == 0 }
+                let externals = allScreens.filter { !$0.isBuiltin }
                 guard !externals.isEmpty else {
                     return allScreens.count > 1 ? [allScreens.last!] : allScreens
                 }
@@ -1106,8 +1159,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                     return [externals.first!]
                 }
             case .both:
-                let builtin = allScreens.first(where: { $0.safeAreaInsets.top > 0 }) ?? allScreens.first
-                let externals = allScreens.filter { $0.safeAreaInsets.top == 0 }
+                let builtin = allScreens.first(where: { $0.isBuiltin }) ?? allScreens.first
+                let externals = allScreens.filter { !$0.isBuiltin }
                 switch showOn {
                 case .allDisplays:
                     return allScreens
