@@ -50,16 +50,79 @@ struct ContentView: View {
     @Default(.pomodoroEnabled) var pomodoroEnabled
     @Default(.pomodoroClosedNotchDisplayMode) var pomodoroClosedNotchDisplayMode
     @Default(.showMirror) var showMirror
-
     @Default(.showNotHumanFace) var showNotHumanFace
+    
+    // Displays & Island Mode
+    @Default(.displaySelection) var displaySelection
+    @Default(.builtinFormFactor) var builtinFormFactor
+    @Default(.externalFormFactor) var externalFormFactor
+    @Default(.islandStyle) var islandStyle
+    @Default(.islandVisibility) var islandVisibility
+    @Default(.displayShowOn) var displayShowOn
 
     // Shared interactive spring for movement/resizing to avoid conflicting animations
     private let animationSpring = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0)
 
     private let extendedHoverPadding: CGFloat = 30
     private let zeroHeightHoverPadding: CGFloat = 10
-    private let homeBaseOpenWidth: CGFloat = 420
+    private let homeBaseOpenWidth: CGFloat = 365
     private let pomodoroReplaceWidthExpansion: CGFloat = 104
+
+    private var isCurrentDisplayIsland: Bool {
+        let hasPhysicalNotch = (NSScreen.main?.safeAreaInsets.top ?? 0) > 0
+        switch displaySelection {
+        case .builtin:
+            return builtinFormFactor == .island
+        case .external:
+            return externalFormFactor == .island
+        case .both:
+            return hasPhysicalNotch ? (builtinFormFactor == .island) : (externalFormFactor == .island)
+        }
+    }
+
+    private var islandCornerRadius: CGFloat {
+        (vm.notchState == .open) ? 22 : 14
+    }
+
+    private var effectiveIslandVisibility: IslandVisibility {
+        let currentScreen = NSScreen.screens.first(where: { $0.displayUUID == vm.screenUUID }) ?? NSScreen.main
+        let hasPhysicalNotch = (currentScreen?.safeAreaInsets.top ?? 0) > 0
+        // Built-in display with physical notch/camera automatically behaves as .onHover
+        if hasPhysicalNotch {
+            return .onHover
+        } else {
+            return islandVisibility
+        }
+    }
+
+    private var islandYOffset: CGFloat {
+        guard isCurrentDisplayIsland else { return 0 }
+        let currentScreen = NSScreen.screens.first(where: { $0.displayUUID == vm.screenUUID }) ?? NSScreen.main
+        let physicalHeight = max(32, currentScreen?.safeAreaInsets.top ?? 38)
+        let menuBarHeight = max(24, (currentScreen?.frame.maxY ?? 0) - (currentScreen?.visibleFrame.maxY ?? 0))
+        let centeredMenuBarOffset = max(2, (menuBarHeight - 26) / 2)
+        
+        // Exact drop down offset below camera / menu bar with clean breathing space
+        let dropDownOffset = max(physicalHeight, menuBarHeight) + 8
+
+        if effectiveIslandVisibility == .onHover {
+            if isHovering || vm.notchState == .open {
+                return dropDownOffset
+            } else {
+                return -35 // Retracted and hidden up top
+            }
+        } else {
+            return centeredMenuBarOffset
+        }
+    }
+
+    private var islandOpacity: Double {
+        guard isCurrentDisplayIsland else { return 1.0 }
+        if effectiveIslandVisibility == .onHover {
+            return (isHovering || vm.notchState == .open) ? 1.0 : 0.0
+        }
+        return 1.0
+    }
 
     private var topCornerRadius: CGFloat {
        ((vm.notchState == .open) && Defaults[.cornerRadiusScaling])
@@ -76,7 +139,62 @@ struct ContentView: View {
         )
     }
 
+    @ViewBuilder
+    private var surfaceBackground: some View {
+        if isCurrentDisplayIsland {
+            if islandStyle == .glass {
+                ZStack {
+                    VisualEffectBackground(material: .hudWindow, blendingMode: .withinWindow)
+                    Color.black.opacity(0.32)
+                }
+            } else {
+                Color.black
+            }
+        } else {
+            Color.black
+        }
+    }
+
+    @ViewBuilder
+    private var surfaceOverlay: some View {
+        if isCurrentDisplayIsland {
+            if islandStyle == .glass {
+                RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.32), Color.white.opacity(0.08)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            } else {
+                RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
+            }
+        } else {
+            Rectangle()
+                .fill(.black)
+                .frame(height: 1)
+                .padding(.horizontal, topCornerRadius)
+        }
+    }
+
     private var computedChinWidth: CGFloat {
+        if isCurrentDisplayIsland {
+            if coordinator.expandingView.type == .battery && coordinator.expandingView.show && vm.notchState == .closed {
+                return 175
+            } else if isAntigravityActive {
+                return 165
+            } else if shouldShowPomodoroInlineClosedVisual {
+                return 190
+            } else if shouldShowMusicClosedVisual {
+                return 160
+            } else {
+                return 98
+            }
+        }
+
         var chinWidth: CGFloat = vm.closedNotchSize.width
 
         if coordinator.expandingView.type == .battery && coordinator.expandingView.show
@@ -87,8 +205,8 @@ struct ContentView: View {
             } else {
                 chinWidth = 640
             }
-        } else if ((coordinator.expandingView.type == .antigravity && coordinator.expandingView.show) || antigravityManager.isVisible) && antigravityManager.currentPhase != .idle && vm.notchState == .closed {
-            chinWidth = vm.closedNotchSize.width
+        } else if isAntigravityActive {
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
         } else if shouldShowPomodoroInlineClosedVisual {
             chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20 + pomodoroReplaceWidthExpansion)
         } else if shouldShowMusicClosedVisual {
@@ -101,6 +219,12 @@ struct ContentView: View {
         }
 
         return chinWidth
+    }
+
+    private var isAntigravityActive: Bool {
+        ((coordinator.expandingView.type == .antigravity && coordinator.expandingView.show) || antigravityManager.isVisible)
+            && antigravityManager.currentPhase != .idle
+            && vm.notchState == .closed
     }
 
     private var desiredOpenNotchWidth: CGFloat {
@@ -178,6 +302,16 @@ struct ContentView: View {
         }()
         
         ZStack(alignment: .top) {
+            if isCurrentDisplayIsland && effectiveIslandVisibility == .onHover {
+                // Continuous vertical hover bridge from menubar down to dropped island (height 95pt)
+                Color.clear
+                    .frame(width: max(180, vm.closedNotchSize.width + 40), height: 95)
+                    .contentShape(Rectangle())
+                    .onHover { hovering in
+                        handleHover(hovering)
+                    }
+            }
+
             VStack(spacing: 0) {
                 let mainLayout = NotchLayout()
                     .frame(alignment: .top)
@@ -190,17 +324,23 @@ struct ContentView: View {
                     )
                     .padding(.horizontal, vm.notchState == .open ? 12 : 0)
                     .padding(.bottom, vm.notchState == .open ? 12 : 0)
-                    .background(.black)
-                    .clipShape(currentNotchShape)
+                    .background(surfaceBackground)
+                    .conditionalModifier(isCurrentDisplayIsland) { view in
+                        view.clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+                    }
+                    .conditionalModifier(!isCurrentDisplayIsland) { view in
+                        view.clipShape(currentNotchShape)
+                    }
                     .overlay(alignment: .top) {
-                        Rectangle()
-                            .fill(.black)
-                            .frame(height: 1)
-                            .padding(.horizontal, topCornerRadius)
+                        surfaceOverlay
                     }
                     .shadow(
                         color: ((vm.notchState == .open || isHovering) && Defaults[.enableShadow])
-                            ? .black.opacity(0.7) : .clear, radius: Defaults[.cornerRadiusScaling] ? 6 : 4
+                            ? (isCurrentDisplayIsland ? Color.black.opacity(0.65) : Color.black.opacity(0.7))
+                            : (isCurrentDisplayIsland && Defaults[.enableShadow] ? Color.black.opacity(0.25) : .clear),
+                        radius: isCurrentDisplayIsland ? ((isHovering || vm.notchState == .open) ? 14 : 5) : (Defaults[.cornerRadiusScaling] ? 8 : 5),
+                        x: 0,
+                        y: isCurrentDisplayIsland ? ((isHovering || vm.notchState == .open) ? 6 : 2) : 0
                     )
                     .padding(
                         .bottom,
@@ -213,6 +353,16 @@ struct ContentView: View {
                         height: vm.notchState == .open ? vm.notchSize.height : nil,
                         alignment: .top
                     )
+                    .scaleEffect(
+                        x: (isCurrentDisplayIsland && isHovering && vm.notchState == .closed) ? 1.08 : 1.0,
+                        y: 1.0,
+                        anchor: .top
+                    )
+                    .offset(y: islandYOffset)
+                    .opacity(islandOpacity)
+                    .animation(.interactiveSpring(response: 0.32, dampingFraction: 0.68), value: isHovering)
+                    .animation(.interactiveSpring(response: 0.36, dampingFraction: 0.74), value: islandYOffset)
+                    .animation(.easeInOut(duration: 0.2), value: islandOpacity)
                     .conditionalModifier(true) { view in
                         let openAnimation = Animation.interactiveSpring(response: 0.4, dampingFraction: 0.82, blendDuration: 0)
                         let closeAnimation = Animation.interactiveSpring(response: 0.42, dampingFraction: 0.84, blendDuration: 0)
@@ -224,6 +374,7 @@ struct ContentView: View {
                             .animation(animationSpring, value: pomodoroClosedNotchDisplayMode)
                             .animation(animationSpring, value: shouldShowPomodoroInlineClosedVisual)
                             .animation(animationSpring, value: isShowingInlineMusicPlaybackPeek)
+                            .animation(animationSpring, value: isAntigravityActive)
                     }
                     .contentShape(Rectangle())
                     .onHover { hovering in
@@ -414,8 +565,8 @@ struct ContentView: View {
                                     .frame(width: itemSize, height: itemSize)
 
                                 Rectangle()
-                                    .fill(.black)
-                                    .frame(width: vm.closedNotchSize.width - cornerRadiusInsets.closed.top, height: vm.effectiveClosedNotchHeight)
+                                    .fill(Color.clear)
+                                    .frame(width: isCurrentDisplayIsland ? 64 : (vm.closedNotchSize.width - cornerRadiusInsets.closed.top), height: vm.effectiveClosedNotchHeight)
 
                                 Text("\(displayPercentage)")
                                     .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -433,8 +584,8 @@ struct ContentView: View {
                                 }
 
                                 Rectangle()
-                                    .fill(.black)
-                                    .frame(width: vm.closedNotchSize.width + 10)
+                                    .fill(Color.clear)
+                                    .frame(width: isCurrentDisplayIsland ? 64 : (vm.closedNotchSize.width + 10))
 
                                 HStack {
                                     BoringBatteryView(
@@ -450,10 +601,8 @@ struct ContentView: View {
                             }
                             .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
                         }
-                    } else if ((coordinator.expandingView.type == .antigravity && coordinator.expandingView.show) || antigravityManager.isVisible) && antigravityManager.currentPhase != .idle && vm.notchState == .closed {
-                        AntigravityInlineHUD()
-                            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
-                            .frame(minWidth: max(0, vm.closedNotchSize.width - 20))
+                    } else if isAntigravityActive {
+                        AntigravityLiveActivity()
                             .transition(.opacity)
                     } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && vm.notchState == .closed {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
@@ -512,7 +661,11 @@ struct ContentView: View {
 
                   }
               }
-              .conditionalModifier((coordinator.sneakPeek.show && (coordinator.sneakPeek.type == .music) && vm.notchState == .closed && !vm.hideOnClosed && (Defaults[.sneakPeekStyles] == .standard || showCoverHoverMusicDetails)) || (coordinator.sneakPeek.show && (coordinator.sneakPeek.type != .music) && (vm.notchState == .closed))) { view in
+              .conditionalModifier(
+                  (coordinator.sneakPeek.show && (coordinator.sneakPeek.type == .music) && vm.notchState == .closed && !vm.hideOnClosed && (Defaults[.sneakPeekStyles] == .standard || showCoverHoverMusicDetails))
+                  || (coordinator.sneakPeek.show && (coordinator.sneakPeek.type != .music) && (vm.notchState == .closed))
+                  || isAntigravityActive
+              ) { view in
                   view
                       .fixedSize()
               }
@@ -587,8 +740,8 @@ struct ContentView: View {
                         height: max(0, vm.effectiveClosedNotchHeight - 12)
                     )
                 Rectangle()
-                    .fill(.black)
-                    .frame(width: vm.closedNotchSize.width - 20)
+                    .fill(Color.clear)
+                    .frame(width: isCurrentDisplayIsland ? 64 : (vm.closedNotchSize.width - 20))
                 MinimalFaceFeatures()
             }
         }.frame(
@@ -664,7 +817,7 @@ struct ContentView: View {
             }
 
             Rectangle()
-                .fill(.black)
+                .fill(Color.clear)
                 .overlay(
                     HStack(alignment: .top) {
                         if coordinator.expandingView.show
@@ -682,7 +835,7 @@ struct ContentView: View {
                                     && Defaults[.sneakPeekStyles] == .inline)
                                     ? 1 : 0
                             )
-                            Spacer(minLength: vm.closedNotchSize.width)
+                            Spacer(minLength: isCurrentDisplayIsland ? 64 : vm.closedNotchSize.width)
                             // Song Artist
                             Text(musicManager.artistName)
                                 .lineLimit(1)
@@ -706,8 +859,7 @@ struct ContentView: View {
                         && coordinator.expandingView.type == .music
                         && Defaults[.sneakPeekStyles] == .inline)
                         ? 380
-                        : vm.closedNotchSize.width
-                            + -cornerRadiusInsets.closed.top
+                        : (isCurrentDisplayIsland ? 64 : (vm.closedNotchSize.width - cornerRadiusInsets.closed.top))
                 )
 
             // MARK: Right side - Visualizer with gesture next icon & hover play/pause
@@ -869,11 +1021,13 @@ struct ContentView: View {
         hoverTask?.cancel()
         
         if hovering {
+            let wasNotHovering = !isHovering
             withAnimation(animationSpring) {
                 isHovering = true
             }
             
-            if vm.notchState == .closed && Defaults[.enableHaptics] {
+            if wasNotHovering && Defaults[.enableHaptics] {
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
                 haptics.toggle()
             }
             
@@ -895,7 +1049,8 @@ struct ContentView: View {
             }
         } else {
             hoverTask = Task {
-                try? await Task.sleep(for: .milliseconds(100))
+                let delay = max(0.05, Defaults[.collapseDelay])
+                try? await Task.sleep(for: .seconds(delay))
                 guard !Task.isCancelled else { return }
                 
                 await MainActor.run {

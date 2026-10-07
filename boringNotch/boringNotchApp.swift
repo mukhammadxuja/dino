@@ -93,6 +93,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private let pomodoroActionAddOneMinute = "pomodoro.action.addOneMinute"
     private let pomodoroActionAddFiveMinutes = "pomodoro.action.addFiveMinutes"
     private let pomodoroActionSkipBreak = "pomodoro.action.skipBreak"
+    private var pointerMonitor: Any?
+    private var lastPointerScreenUUID: String?
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false
@@ -100,6 +102,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     func applicationWillTerminate(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self)
+        if let monitor = pointerMonitor {
+            NSEvent.removeMonitor(monitor)
+            pointerMonitor = nil
+        }
         if let observer = screenLockedObserver {
             DistributedNotificationCenter.default().removeObserver(observer)
             screenLockedObserver = nil
@@ -850,6 +856,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
 
         NotificationCenter.default.addObserver(
+            forName: Notification.Name.displaySettingsChanged, object: nil, queue: nil
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self else { return }
+                self.cleanupWindows(shouldInvert: true)
+                self.adjustWindowPosition(changeAlpha: true)
+                self.setupDragDetectors()
+                self.setupPointerTracking()
+            }
+        }
+
+        NotificationCenter.default.addObserver(
             forName: Notification.Name.expandedDragDetectionChanged, object: nil, queue: nil
         ) { [weak self] _ in
             Task { @MainActor in
@@ -1056,68 +1074,112 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     @objc func adjustWindowPosition(changeAlpha: Bool = false) {
-        if Defaults[.showOnAllDisplays] {
-            let currentScreenUUIDs = Set(NSScreen.screens.compactMap { $0.displayUUID })
-
-            // Remove windows for screens that no longer exist
-            for uuid in windows.keys where !currentScreenUUIDs.contains(uuid) {
-                if let window = windows[uuid] {
-                    window.close()
-                    NotchSpaceManager.shared.notchSpace.windows.remove(window)
-                    windows.removeValue(forKey: uuid)
-                    viewModels.removeValue(forKey: uuid)
+        let selection = Defaults[.displaySelection]
+        let showOn = Defaults[.displayShowOn]
+        let allScreens = NSScreen.screens
+        
+        let targetScreens: [NSScreen] = {
+            switch selection {
+            case .builtin:
+                if let builtin = allScreens.first(where: { $0.safeAreaInsets.top > 0 }) ?? allScreens.first {
+                    return [builtin]
                 }
-            }
-
-            // Create or update windows for all screens
-            for screen in NSScreen.screens {
-                guard let uuid = screen.displayUUID else { continue }
-                
-                if windows[uuid] == nil {
-                    let viewModel = BoringViewModel(screenUUID: uuid)
-                    let window = createBoringNotchWindow(for: screen, with: viewModel)
-
-                    windows[uuid] = window
-                    viewModels[uuid] = viewModel
+                return []
+            case .external:
+                let externals = allScreens.filter { $0.safeAreaInsets.top == 0 }
+                guard !externals.isEmpty else {
+                    return allScreens.count > 1 ? [allScreens.last!] : allScreens
                 }
-
-                if let window = windows[uuid], let viewModel = viewModels[uuid] {
-                    positionWindow(window, on: screen, changeAlpha: changeAlpha)
-
-                    if viewModel.notchState == .closed {
-                        viewModel.close()
+                switch showOn {
+                case .allDisplays:
+                    return externals
+                case .followPointer:
+                    let mouseLoc = NSEvent.mouseLocation
+                    if let pointerScreen = externals.first(where: { NSMouseInRect(mouseLoc, $0.frame, false) }) {
+                        return [pointerScreen]
                     }
+                    return [externals.first!]
+                case .automatic:
+                    if let main = NSScreen.main, externals.contains(main) {
+                        return [main]
+                    }
+                    return [externals.first!]
+                }
+            case .both:
+                let builtin = allScreens.first(where: { $0.safeAreaInsets.top > 0 }) ?? allScreens.first
+                let externals = allScreens.filter { $0.safeAreaInsets.top == 0 }
+                switch showOn {
+                case .allDisplays:
+                    return allScreens
+                case .followPointer:
+                    let mouseLoc = NSEvent.mouseLocation
+                    if let pointerScreen = allScreens.first(where: { NSMouseInRect(mouseLoc, $0.frame, false) }) {
+                        return [pointerScreen]
+                    }
+                    return allScreens
+                case .automatic:
+                    var result: [NSScreen] = []
+                    if let b = builtin { result.append(b) }
+                    if let ext = externals.first { result.append(ext) }
+                    return result.isEmpty ? allScreens : result
                 }
             }
-        } else {
-            let selectedScreen: NSScreen
+        }()
 
-            if let preferredScreen = NSScreen.screen(withUUID: coordinator.preferredScreenUUID ?? "") {
-                coordinator.selectedScreenUUID = coordinator.preferredScreenUUID ?? ""
-                selectedScreen = preferredScreen
-            } else if Defaults[.automaticallySwitchDisplay], let mainScreen = NSScreen.main,
-                      let mainUUID = mainScreen.displayUUID {
-                coordinator.selectedScreenUUID = mainUUID
-                selectedScreen = mainScreen
-            } else {
-                if let window = window {
-                    window.alphaValue = 0
+        let targetUUIDs = Set(targetScreens.compactMap { $0.displayUUID })
+
+        // Remove windows for screens that are no longer targeted
+        for uuid in windows.keys where !targetUUIDs.contains(uuid) {
+            if let window = windows[uuid] {
+                window.close()
+                NotchSpaceManager.shared.notchSpace.windows.remove(window)
+                windows.removeValue(forKey: uuid)
+                viewModels.removeValue(forKey: uuid)
+            }
+        }
+
+        // Create or update windows for targeted screens
+        for screen in targetScreens {
+            guard let uuid = screen.displayUUID else { continue }
+            
+            if windows[uuid] == nil {
+                let viewModel = BoringViewModel(screenUUID: uuid)
+                let window = createBoringNotchWindow(for: screen, with: viewModel)
+
+                windows[uuid] = window
+                viewModels[uuid] = viewModel
+            }
+
+            if let window = windows[uuid], let viewModel = viewModels[uuid] {
+                viewModel.screenUUID = uuid
+                viewModel.notchSize = getClosedNotchSize(screenUUID: uuid)
+                positionWindow(window, on: screen, changeAlpha: changeAlpha)
+
+                if viewModel.notchState == .closed {
+                    viewModel.close()
                 }
-                return
             }
+        }
+    }
 
-            vm.screenUUID = selectedScreen.displayUUID
-            vm.notchSize = getClosedNotchSize(screenUUID: selectedScreen.displayUUID)
+    func setupPointerTracking() {
+        if let monitor = pointerMonitor {
+            NSEvent.removeMonitor(monitor)
+            pointerMonitor = nil
+        }
 
-            if window == nil {
-                window = createBoringNotchWindow(for: selectedScreen, with: vm)
-            }
+        guard Defaults[.displayShowOn] == .followPointer else { return }
 
-            if let window = window {
-                positionWindow(window, on: selectedScreen, changeAlpha: changeAlpha)
+        pointerMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] _ in
+            guard let self = self else { return }
+            let mouseLoc = NSEvent.mouseLocation
+            let currentScreen = NSScreen.screens.first(where: { NSMouseInRect(mouseLoc, $0.frame, false) })
+            let currentUUID = currentScreen?.displayUUID
 
-                if vm.notchState == .closed {
-                    vm.close()
+            if let currentUUID = currentUUID, currentUUID != self.lastPointerScreenUUID {
+                self.lastPointerScreenUUID = currentUUID
+                Task { @MainActor in
+                    self.adjustWindowPosition()
                 }
             }
         }

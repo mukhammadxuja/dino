@@ -108,6 +108,82 @@ public enum AntigravityPhase: Equatable {
         }
     }
     
+    /// Short bold action label (e.g. "Thinking", "Reading", "Editing")
+    public var actionTitle: String {
+        switch self {
+        case .idle:
+            return "Antigravity"
+        case .working:
+            return "Working"
+        case .analyzing:
+            return "Analyzing"
+        case .analyzed:
+            return "Analyzed"
+        case .reading:
+            return "Reading"
+        case .read:
+            return "Read"
+        case .editing:
+            return "Editing"
+        case .edited:
+            return "Edited"
+        case .runningCommand:
+            return "Running"
+        case .commandFinished:
+            return "Command"
+        case .searchingWeb:
+            return "Searching"
+        case .planning:
+            return "Planning"
+        case .thinking:
+            return "Thinking"
+        case .askingPermission:
+            return "Permission"
+        case .waitingInput:
+            return "Waiting response"
+        case .taskCompleted:
+            return "Task Completed"
+        }
+    }
+    
+    /// Target file name, command or detail to display with 50% opacity next to action
+    public var targetDetail: String? {
+        switch self {
+        case .idle:
+            return nil
+        case .working(let task):
+            return task.isEmpty ? nil : task
+        case .analyzing(let query):
+            return query.isEmpty ? nil : query
+        case .analyzed(let summary):
+            return summary.isEmpty ? nil : summary
+        case .reading(let file, _):
+            return (file as NSString).lastPathComponent
+        case .read(let file):
+            return (file as NSString).lastPathComponent
+        case .editing(let file, _):
+            return (file as NSString).lastPathComponent
+        case .edited(let file):
+            return (file as NSString).lastPathComponent
+        case .runningCommand(let command):
+            return command.isEmpty ? nil : command
+        case .commandFinished(let summary):
+            return summary.isEmpty ? nil : summary
+        case .searchingWeb(let query):
+            return query.isEmpty ? nil : query
+        case .planning(let step):
+            return step.isEmpty ? nil : step
+        case .thinking(let thought):
+            return thought.isEmpty ? nil : thought
+        case .askingPermission(let action):
+            return action.isEmpty ? nil : action
+        case .waitingInput(let question):
+            return question.isEmpty ? nil : question
+        case .taskCompleted(let summary):
+            return summary.isEmpty || summary == "Done" || summary == "Task completed successfully" ? nil : summary
+        }
+    }
+    
     /// Vibrant Accent Colors for Pixel Snake Loading Animation
     public var accentColor: Color {
         switch self {

@@ -49,6 +49,25 @@ enum MusicPlayerImageSizes {
 
     // Check if the screen is available
     if let screen = selectedScreen {
+        let hasPhysicalNotch = screen.safeAreaInsets.top > 0
+        let isIsland: Bool = {
+            switch Defaults[.displaySelection] {
+            case .builtin:
+                return Defaults[.builtinFormFactor] == .island
+            case .external:
+                return Defaults[.externalFormFactor] == .island
+            case .both:
+                return hasPhysicalNotch ? (Defaults[.builtinFormFactor] == .island) : (Defaults[.externalFormFactor] == .island)
+            }
+        }()
+
+        if isIsland {
+            // Island is a compact floating pill
+            notchWidth = 98
+            notchHeight = 26
+            return .init(width: notchWidth, height: notchHeight)
+        }
+
         // Calculate and set the exact width of the notch
         if let topLeftNotchpadding: CGFloat = screen.auxiliaryTopLeftArea?.width,
            let topRightNotchpadding: CGFloat = screen.auxiliaryTopRightArea?.width
@@ -57,7 +76,7 @@ enum MusicPlayerImageSizes {
         }
 
         // Check if the Mac has a notch
-        if screen.safeAreaInsets.top > 0 {
+        if hasPhysicalNotch {
             // This is a display WITH a notch - use notch height settings
             notchHeight = Defaults[.notchHeight]
             if Defaults[.notchHeightMode] == .matchRealNotchSize {

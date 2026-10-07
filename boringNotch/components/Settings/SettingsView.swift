@@ -259,30 +259,17 @@ struct SettingsView: View {
 }
 
 struct GeneralSettings: View {
-    @State private var screens: [(uuid: String, name: String)] = NSScreen.screens.compactMap { screen in
-        guard let uuid = screen.displayUUID else { return nil }
-        return (uuid, screen.localizedName)
-    }
     @EnvironmentObject var vm: BoringViewModel
     @ObservedObject var coordinator = BoringViewCoordinator.shared
 
-    @Default(.mirrorShape) var mirrorShape
-    @Default(.showEmojis) var showEmojis
     @Default(.gestureSensitivity) var gestureSensitivity
-    @Default(.minimumHoverDuration) var minimumHoverDuration
-    @Default(.nonNotchHeight) var nonNotchHeight
-    @Default(.nonNotchHeightMode) var nonNotchHeightMode
-    @Default(.notchHeight) var notchHeight
-    @Default(.notchHeightMode) var notchHeightMode
-    @Default(.showOnAllDisplays) var showOnAllDisplays
-    @Default(.automaticallySwitchDisplay) var automaticallySwitchDisplay
     @Default(.enableGestures) var enableGestures
     @Default(.openNotchOnHover) var openNotchOnHover
-    
 
     var body: some View {
         Form {
             Section {
+                LaunchAtLogin.Toggle("Launch at login")
                 Toggle(isOn: Binding(
                     get: { Defaults[.menubarIcon] },
                     set: { Defaults[.menubarIcon] = $0 }
@@ -290,107 +277,11 @@ struct GeneralSettings: View {
                     Text("Show menu bar icon")
                 }
                 .tint(.effectiveAccent)
-                LaunchAtLogin.Toggle("Launch at login")
-                Defaults.Toggle(key: .showOnAllDisplays) {
-                    Text("Show on all displays")
-                }
-                .onChange(of: showOnAllDisplays) {
-                    NotificationCenter.default.post(
-                        name: Notification.Name.showOnAllDisplaysChanged, object: nil)
-                }
-                Picker("Preferred display", selection: $coordinator.preferredScreenUUID) {
-                    ForEach(screens, id: \.uuid) { screen in
-                        Text(screen.name).tag(screen.uuid as String?)
-                    }
-                }
-                .onChange(of: NSScreen.screens) {
-                    screens = NSScreen.screens.compactMap { screen in
-                        guard let uuid = screen.displayUUID else { return nil }
-                        return (uuid, screen.localizedName)
-                    }
-                }
-                .disabled(showOnAllDisplays)
                 
-                Defaults.Toggle(key: .automaticallySwitchDisplay) {
-                    Text("Automatically switch displays")
-                }
-                    .onChange(of: automaticallySwitchDisplay) {
-                        NotificationCenter.default.post(
-                            name: Notification.Name.automaticallySwitchDisplayChanged, object: nil)
-                    }
-                    .disabled(showOnAllDisplays)
+                Toggle("Remember last active tab", isOn: $coordinator.openLastTabByDefault)
             } header: {
-                Text("System features")
+                Text("System")
             }
-
-            Section {
-                Picker(
-                    selection: $notchHeightMode,
-                    label:
-                        Text("Notch height on notch displays")
-                ) {
-                    Text("Match real notch height")
-                        .tag(WindowHeightMode.matchRealNotchSize)
-                    Text("Match menu bar height")
-                        .tag(WindowHeightMode.matchMenuBar)
-                    Text("Custom height")
-                        .tag(WindowHeightMode.custom)
-                }
-                .onChange(of: notchHeightMode) {
-                    switch notchHeightMode {
-                    case .matchRealNotchSize:
-                        notchHeight = 38
-                    case .matchMenuBar:
-                        notchHeight = 44
-                    case .custom:
-                        notchHeight = 38
-                    }
-                    NotificationCenter.default.post(
-                        name: Notification.Name.notchHeightChanged, object: nil)
-                }
-                if notchHeightMode == .custom {
-                    Slider(value: $notchHeight, in: 15...45, step: 1) {
-                        Text("Custom notch size - \(notchHeight, specifier: "%.0f")")
-                    }
-                    .onChange(of: notchHeight) {
-                        NotificationCenter.default.post(
-                            name: Notification.Name.notchHeightChanged, object: nil)
-                    }
-                }
-                Picker("Notch height on non-notch displays", selection: $nonNotchHeightMode) {
-                    Text("Match menubar height")
-                        .tag(WindowHeightMode.matchMenuBar)
-                    Text("Match real notch height")
-                        .tag(WindowHeightMode.matchRealNotchSize)
-                    Text("Custom height")
-                        .tag(WindowHeightMode.custom)
-                }
-                .onChange(of: nonNotchHeightMode) {
-                    switch nonNotchHeightMode {
-                    case .matchMenuBar:
-                        nonNotchHeight = 24
-                    case .matchRealNotchSize:
-                        nonNotchHeight = 32
-                    case .custom:
-                        nonNotchHeight = 32
-                    }
-                    NotificationCenter.default.post(
-                        name: Notification.Name.notchHeightChanged, object: nil)
-                }
-                if nonNotchHeightMode == .custom {
-                    Slider(value: $nonNotchHeight, in: 0...40, step: 1) {
-                        Text("Custom notch size - \(nonNotchHeight, specifier: "%.0f")")
-                    }
-                    .onChange(of: nonNotchHeight) {
-                        NotificationCenter.default.post(
-                            name: Notification.Name.notchHeightChanged, object: nil)
-                    }
-                }
-            } header: {
-                Text("Notch sizing")
-            }
-
-            NotchBehaviour()
 
             gestureControls()
         }
@@ -402,11 +293,6 @@ struct GeneralSettings: View {
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("General")
-        .onChange(of: openNotchOnHover) {
-            if !openNotchOnHover {
-                enableGestures = true
-            }
-        }
     }
 
     @ViewBuilder
@@ -447,35 +333,6 @@ struct GeneralSettings: View {
             .multilineTextAlignment(.trailing)
             .foregroundStyle(.secondary)
             .font(.caption)
-        }
-    }
-
-    @ViewBuilder
-    func NotchBehaviour() -> some View {
-        Section {
-            Defaults.Toggle(key: .openNotchOnHover) {
-                Text("Open notch on hover")
-            }
-            Defaults.Toggle(key: .enableHaptics) {
-                    Text("Enable haptic feedback")
-            }
-            Toggle("Remember last tab", isOn: $coordinator.openLastTabByDefault)
-            if openNotchOnHover {
-                Slider(value: $minimumHoverDuration, in: 0...1, step: 0.1) {
-                    HStack {
-                        Text("Hover delay")
-                        Spacer()
-                        Text("\(minimumHoverDuration, specifier: "%.1f")s")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .onChange(of: minimumHoverDuration) {
-                    NotificationCenter.default.post(
-                        name: Notification.Name.notchHeightChanged, object: nil)
-                }
-            }
-        } header: {
-            Text("Notch behavior")
         }
     }
 }
@@ -5981,304 +5838,405 @@ struct PomodoroSettings: View {
 //    }
 //}
 
+// MARK: - Custom Stepped Hover Delay Slider
+struct HoverDelaySlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "hare.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            GeometryReader { geo in
+                let width = geo.size.width
+                let clamped = min(max(value, range.lowerBound), range.upperBound)
+                let pct = CGFloat((clamped - range.lowerBound) / (range.upperBound - range.lowerBound))
+                let knobX = pct * max(1, width - 16)
+
+                ZStack(alignment: .leading) {
+                    // Base background track
+                    Capsule()
+                        .fill(Color.primary.opacity(0.12))
+                        .frame(height: 4)
+
+                    // Active filled track
+                    Capsule()
+                        .fill(Color.effectiveAccent)
+                        .frame(width: max(0, knobX + 8), height: 4)
+
+                    // Tick dots
+                    HStack {
+                        ForEach(0..<4, id: \.self) { _ in
+                            Circle()
+                                .fill(Color.white.opacity(0.8))
+                                .frame(width: 3.5, height: 3.5)
+                            Spacer()
+                        }
+                    }
+                    .padding(.horizontal, 6)
+
+                    // Draggable White Knob
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 16, height: 16)
+                        .shadow(color: Color.black.opacity(0.2), radius: 2.5, y: 1)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.black.opacity(0.08), lineWidth: 0.5)
+                        )
+                        .offset(x: knobX)
+                }
+                .frame(maxHeight: .infinity, alignment: .center)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { gesture in
+                            let fraction = max(0, min(1, gesture.location.x / width))
+                            let raw = range.lowerBound + Double(fraction) * (range.upperBound - range.lowerBound)
+                            let stepped = (raw / step).rounded() * step
+                            value = min(max(stepped, range.lowerBound), range.upperBound)
+                        }
+                )
+            }
+            .frame(width: 130, height: 20)
+
+            Image(systemName: "tortoise.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            Text(String(format: "%.1fs", value).replacingOccurrences(of: ".", with: ","))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.primary)
+                .frame(width: 36, alignment: .trailing)
+        }
+    }
+}
+
 struct Appearance: View {
     @ObservedObject var coordinator = BoringViewCoordinator.shared
-    @Default(.mirrorShape) var mirrorShape
-    @Default(.sliderColor) var sliderColor
-    @Default(.showOnLockScreen) var showOnLockScreen
-    @Default(.useMusicVisualizer) var useMusicVisualizer
-    @Default(.lockScreenPlayerBackgroundStyle) var lockScreenPlayerBackgroundStyle
-    @Default(.customVisualizers) var customVisualizers
-    @Default(.selectedVisualizer) var selectedVisualizer
-
-    let icons: [String] = ["logo2"]
-    @State private var selectedIcon: String = "logo2"
-    @State private var selectedListVisualizer: CustomVisualizer? = nil
-    @State private var isPresented: Bool = false
-    @State private var name: String = ""
-    @State private var url: String = ""
-    @State private var speed: CGFloat = 1.0
+    
+    // Displays & Island Settings
+    @Default(.displaySelection) var displaySelection
+    @Default(.builtinFormFactor) var builtinFormFactor
+    @Default(.externalFormFactor) var externalFormFactor
+    @Default(.islandStyle) var islandStyle
+    @Default(.islandVisibility) var islandVisibility
+    @Default(.displayShowOn) var displayShowOn
+    
+    // Hover & Interaction
+    @Default(.openNotchOnHover) var openNotchOnHover
+    @Default(.minimumHoverDuration) var minimumHoverDuration
+    @Default(.collapseDelay) var collapseDelay
+    @Default(.enableHaptics) var enableHaptics
+    
     var body: some View {
-        Form {
-            Section {
-                Toggle("Always show tabs", isOn: $coordinator.alwaysShowTabs)
-                Defaults.Toggle(key: .settingsIconInNotch) {
-                    Text("Show settings icon in notch")
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                
+                // MARK: - 1. Hover Section (Redesigned UI)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Hover")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.secondary)
 
-            } header: {
-                Text("General")
-            }
-
-            Section {
-                Defaults.Toggle(key: .coloredSpectrogram) {
-                    Text("Colored spectrogram")
-                }
-                Defaults
-                    .Toggle("Player tinting", key: .playerColorTinting)
-                Defaults.Toggle(key: .lightingEffect) {
-                    Text("Enable blur effect behind album art")
-                }
-                Picker("Slider color", selection: $sliderColor) {
-                    ForEach(SliderColorEnum.allCases, id: \.self) { option in
-                        Text(option.rawValue)
-                    }
-                }
-            } header: {
-                Text("Media")
-            }
-
-            Section {
-                Toggle(
-                    "Use music visualizer spectrogram",
-                    isOn: $useMusicVisualizer.animation()
-                )
-                .disabled(true)
-                if !useMusicVisualizer {
-                    if customVisualizers.count > 0 {
-                        Picker(
-                            "Selected animation",
-                            selection: $selectedVisualizer
-                        ) {
-                            ForEach(
-                                customVisualizers,
-                                id: \.self
-                            ) { visualizer in
-                                Text(visualizer.name)
-                                    .tag(visualizer)
+                    VStack(spacing: 0) {
+                        // Row 1: Expand on hover
+                        HStack(alignment: .center) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Expand on hover")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.primary)
+                                Text("Open the expanded view without clicking")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
                             }
-                        }
-                    } else {
-                        HStack {
-                            Text("Selected animation")
                             Spacer()
-                            Text("No custom animation available")
-                                .foregroundStyle(.secondary)
+                            Toggle("", isOn: $openNotchOnHover)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .tint(Color.effectiveAccent)
                         }
-                    }
-                }
-            } header: {
-                HStack {
-                    Text("Custom music live activity animation")
-                    customBadge(text: "Coming soon")
-                }
-            }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
 
-            Section {
-                List {
-                    ForEach(customVisualizers, id: \.self) { visualizer in
-                        HStack {
-                            LottieView(
-                                url: visualizer.url, speed: visualizer.speed,
-                                loopMode: .loop
-                            )
-                            .frame(width: 30, height: 30, alignment: .center)
-                            Text(visualizer.name)
-                            Spacer(minLength: 0)
-                            if selectedVisualizer == visualizer {
-                                Text("selected")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.trailing, 8)
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        .padding(.vertical, 2)
-                        .background(
-                            selectedListVisualizer != nil
-                                ? selectedListVisualizer == visualizer
-                                    ? Color.effectiveAccent : Color.clear : Color.clear,
-                            in: RoundedRectangle(cornerRadius: 5)
-                        )
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            if selectedListVisualizer == visualizer {
-                                selectedListVisualizer = nil
-                                return
-                            }
-                            selectedListVisualizer = visualizer
-                        }
-                    }
-                }
-                .safeAreaPadding(
-                    EdgeInsets(top: 5, leading: 0, bottom: 5, trailing: 0)
-                )
-                .frame(minHeight: 120)
-                .actionBar {
-                    HStack(spacing: 5) {
-                        Button {
-                            name = ""
-                            url = ""
-                            speed = 1.0
-                            isPresented.toggle()
-                        } label: {
-                            Image(systemName: "plus")
-                                .foregroundStyle(.secondary)
-                                .contentShape(Rectangle())
-                        }
                         Divider()
-                        Button {
-                            if selectedListVisualizer != nil {
-                                let visualizer = selectedListVisualizer!
-                                selectedListVisualizer = nil
-                                customVisualizers.remove(
-                                    at: customVisualizers.firstIndex(of: visualizer)!)
-                                if visualizer == selectedVisualizer && customVisualizers.count > 0 {
-                                    selectedVisualizer = customVisualizers[0]
+                            .padding(.horizontal, 16)
+
+                        // Row 2: Expand delay
+                        HStack(alignment: .center) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Expand delay")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.primary)
+                                Text("Hover time\nbefore expanding")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            HoverDelaySlider(value: $minimumHoverDuration, range: 0.1...1.0, step: 0.05)
+                                .opacity(openNotchOnHover ? 1.0 : 0.45)
+                                .disabled(!openNotchOnHover)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+
+                        Divider()
+                            .padding(.horizontal, 16)
+
+                        // Row 3: Collapse delay
+                        HStack(alignment: .center) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Collapse delay")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.primary)
+                                Text("After the pointer leaves")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            HoverDelaySlider(value: $collapseDelay, range: 0.1...1.0, step: 0.05)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+
+                        Divider()
+                            .padding(.horizontal, 16)
+
+                        // Row 4: Haptic feedback on hover
+                        HStack(alignment: .center) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Haptic feedback on hover")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.primary)
+                                Text("Vibrate trackpad when pointer touches notch or island")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $enableHaptics)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .tint(Color.effectiveAccent)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.75))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
+                }
+                
+                // MARK: - 2. Displays Top Selector
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Displays")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.primary)
+
+                    HStack(spacing: 12) {
+                        ForEach(DisplaySelection.allCases) { type in
+                            DisplaySelectionCard(type: type, selection: $displaySelection)
+                        }
+                    }
+                }
+
+                // MARK: - 3. Dynamic Configuration Based on Selection
+                if displaySelection == .builtin {
+                    // BUILT-IN DISPLAY SETTINGS
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 12) {
+                            FormFactorCard(factor: .notch, selection: $builtinFormFactor)
+                            FormFactorCard(factor: .island, selection: $builtinFormFactor)
+                        }
+
+                        if builtinFormFactor == .island {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Island")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.primary)
+                                    .padding(.top, 4)
+
+                                Text("Style")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.secondary)
+
+                                HStack(spacing: 12) {
+                                    IslandStyleCard(style: .dark, selection: $islandStyle)
+                                    IslandStyleCard(style: .glass, selection: $islandStyle)
                                 }
                             }
-                        } label: {
-                            Image(systemName: "minus")
-                                .foregroundStyle(.secondary)
-                                .contentShape(Rectangle())
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
-                }
-                .controlSize(.small)
-                .buttonStyle(PlainButtonStyle())
-                .overlay {
-                    if customVisualizers.isEmpty {
-                        Text("No custom visualizer")
-                            .foregroundStyle(Color(.secondaryLabelColor))
-                            .padding(.bottom, 22)
-                    }
-                }
-                .sheet(isPresented: $isPresented) {
-                    VStack(alignment: .leading) {
-                        Text("Add new visualizer")
-                            .font(.largeTitle.bold())
-                            .padding(.vertical)
-                        TextField("Name", text: $name)
-                        TextField("Lottie JSON URL", text: $url)
-                        HStack {
-                            Text("Speed")
-                            Spacer(minLength: 80)
-                            Text("\(speed, specifier: "%.1f")s")
-                                .multilineTextAlignment(.trailing)
-                                .foregroundStyle(.secondary)
-                            Slider(value: $speed, in: 0...2, step: 0.1)
+                } else if displaySelection == .external {
+                    // EXTERNAL DISPLAY SETTINGS
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(spacing: 12) {
+                            FormFactorCard(factor: .notch, selection: $externalFormFactor)
+                            FormFactorCard(factor: .island, selection: $externalFormFactor)
                         }
-                        .padding(.vertical)
-                        HStack {
-                            Button {
-                                isPresented.toggle()
-                            } label: {
-                                Text("Cancel")
-                                    .frame(maxWidth: .infinity, alignment: .center)
-                            }
 
-                            Button {
-                                let visualizer: CustomVisualizer = .init(
-                                    UUID: UUID(),
-                                    name: name,
-                                    url: URL(string: url)!,
-                                    speed: speed
-                                )
+                        if externalFormFactor == .island {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Island")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.primary)
 
-                                if !customVisualizers.contains(visualizer) {
-                                    customVisualizers.append(visualizer)
+                                Text("Style")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.secondary)
+
+                                HStack(spacing: 12) {
+                                    IslandStyleCard(style: .dark, selection: $islandStyle)
+                                    IslandStyleCard(style: .glass, selection: $islandStyle)
                                 }
 
-                                isPresented.toggle()
-                            } label: {
-                                Text("Add")
-                                    .frame(maxWidth: .infinity, alignment: .center)
+                                Text("Visibility")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.secondary)
+                                    .padding(.top, 4)
+
+                                HStack(spacing: 12) {
+                                    IslandVisibilityCard(visibility: .onHover, selection: $islandVisibility)
+                                    IslandVisibilityCard(visibility: .alwaysVisible, selection: $islandVisibility)
+                                }
                             }
-                            .buttonStyle(BorderedProminentButtonStyle())
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+
+                        // Show On Section
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Show on")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.primary)
+
+                            HStack(spacing: 12) {
+                                ForEach(DisplayShowOn.allCases) { target in
+                                    DisplayShowOnCard(target: target, selection: $displayShowOn)
+                                }
+                            }
+
+                            Text(displayShowOn.subtitle)
+                                .font(.system(size: 11.5))
+                                .foregroundColor(.secondary)
+                                .padding(.top, 2)
                         }
                     }
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .controlSize(.extraLarge)
-                    .padding()
-                }
-            } header: {
-                HStack(spacing: 0) {
-                    Text("Custom vizualizers (Lottie)")
-                    if !Defaults[.customVisualizers].isEmpty {
-                        Text(" – \(Defaults[.customVisualizers].count)")
-                            .foregroundStyle(.secondary)
+                } else {
+                    // BOTH DISPLAYS SETTINGS
+                    VStack(alignment: .leading, spacing: 16) {
+                        // Built-in group
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "laptopcomputer")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.secondary)
+                                Text("Built-in")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.primary)
+                            }
+
+                            HStack(spacing: 12) {
+                                FormFactorCard(factor: .notch, selection: $builtinFormFactor)
+                                FormFactorCard(factor: .island, selection: $builtinFormFactor)
+                            }
+                        }
+
+                        // External group
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "display")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.secondary)
+                                Text("External")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.primary)
+                            }
+
+                            HStack(spacing: 12) {
+                                FormFactorCard(factor: .notch, selection: $externalFormFactor)
+                                FormFactorCard(factor: .island, selection: $externalFormFactor)
+                            }
+                        }
+
+                        // Island Sub-options if either uses Island
+                        if builtinFormFactor == .island || externalFormFactor == .island {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Island")
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.primary)
+
+                                Text("Style")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.secondary)
+
+                                HStack(spacing: 12) {
+                                    IslandStyleCard(style: .dark, selection: $islandStyle)
+                                    IslandStyleCard(style: .glass, selection: $islandStyle)
+                                }
+
+                                if externalFormFactor == .island {
+                                    Text("Visibility")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                        .padding(.top, 4)
+
+                                    HStack(spacing: 12) {
+                                        IslandVisibilityCard(visibility: .onHover, selection: $islandVisibility)
+                                        IslandVisibilityCard(visibility: .alwaysVisible, selection: $islandVisibility)
+                                    }
+                                }
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+
+                        // Show On Section
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Show on")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.primary)
+
+                            HStack(spacing: 12) {
+                                ForEach(DisplayShowOn.allCases) { target in
+                                    DisplayShowOnCard(target: target, selection: $displayShowOn)
+                                }
+                            }
+
+                            Text(displayShowOn.subtitle)
+                                .font(.system(size: 11.5))
+                                .foregroundColor(.secondary)
+                                .padding(.top, 2)
+                        }
                     }
                 }
+                
+                Spacer(minLength: 20)
             }
-
-            Section {
-                Defaults.Toggle(key: .showMirror) {
-                    Text("Enable boring mirror")
-                }
-                    .disabled(!checkVideoInput())
-                Picker("Mirror shape", selection: $mirrorShape) {
-                    Text("Circle")
-                        .tag(MirrorShapeEnum.circle)
-                    Text("Square")
-                        .tag(MirrorShapeEnum.rectangle)
-                }
-                Defaults.Toggle(key: .showNotHumanFace) {
-                    Text("Show cool face animation while inactive")
-                }
-            } header: {
-                HStack {
-                    Text("Additional features")
-                }
-            }
-
-            Section {
-                Defaults.Toggle(key: .lockScreenPlayerEnabled) {
-                    Text("Enable lock screen player")
-                }
-
-                Picker("Lock screen player background", selection: $lockScreenPlayerBackgroundStyle) {
-                    Text("Glass/Blur")
-                        .tag(LockScreenPlayerBackgroundStyle.glassBlur)
-                    Text("Liquid glass")
-                        .tag(LockScreenPlayerBackgroundStyle.liquidGlass)
-                    Text("Solid")
-                        .tag(LockScreenPlayerBackgroundStyle.solid)
-                }
-                .disabled(!Defaults[.lockScreenPlayerEnabled])
-
-                Defaults.Toggle(key: .lockScreenSoundEnabled) {
-                    Text("Lock/unlock screen sound")
-                }
-
-                if Defaults[.lockScreenSoundEnabled] {
-                    HStack {
-                        Image(systemName: "speaker.fill")
-                            .foregroundStyle(.secondary)
-                        Slider(
-                            value: Binding(
-                                get: { Double(Defaults[.lockScreenSoundVolume]) },
-                                set: { Defaults[.lockScreenSoundVolume] = Float($0) }
-                            ),
-                            in: 0.0...1.0,
-                            step: 0.05
-                        )
-                        Image(systemName: "speaker.wave.3.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Defaults.Toggle(key: .showOnLockScreen) {
-                    Text("Show notch on lock screen")
-                }
-            } header: {
-                Text("Lock screen")
-            } footer: {
-                Text("Lock screen player appears above the passcode area while your Mac is locked.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            .padding(24)
         }
-        .accentColor(.effectiveAccent)
         .navigationTitle("Appearance")
-    }
-
-    func checkVideoInput() -> Bool {
-        if AVCaptureDevice.default(for: .video) != nil {
-            return true
+        .onChange(of: displaySelection) {
+            NotificationCenter.default.post(name: .displaySettingsChanged, object: nil)
         }
-
-        return false
+        .onChange(of: builtinFormFactor) {
+            NotificationCenter.default.post(name: .displaySettingsChanged, object: nil)
+        }
+        .onChange(of: externalFormFactor) {
+            NotificationCenter.default.post(name: .displaySettingsChanged, object: nil)
+        }
+        .onChange(of: islandVisibility) {
+            NotificationCenter.default.post(name: .displaySettingsChanged, object: nil)
+        }
+        .onChange(of: displayShowOn) {
+            NotificationCenter.default.post(name: .displaySettingsChanged, object: nil)
+        }
     }
 }
 

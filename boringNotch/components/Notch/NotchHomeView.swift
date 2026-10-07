@@ -80,7 +80,7 @@ struct MusicControlsView: View {
     @Default(.musicControlSlotLimit) private var slotLimit
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 8) {
             topInfoRow
             progressRow
             slotToolbar
@@ -90,26 +90,26 @@ struct MusicControlsView: View {
     }
 
     private var topInfoRow: some View {
-        HStack(alignment: .center) {
-            HStack(alignment: .center, spacing: 12) {
-                AlbumArtView(vm: vm, albumArtNamespace: albumArtNamespace)
-                    .frame(width: 66, height: 66)
+        HStack(alignment: .center, spacing: 12) {
+            AlbumArtView(vm: vm, albumArtNamespace: albumArtNamespace)
+                .frame(width: 52, height: 52)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                GeometryReader { geo in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Spacer(minLength: 0)
-                        songInfo(width: geo.size.width)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            GeometryReader { geo in
+                VStack(alignment: .leading, spacing: 2) {
+                    Spacer(minLength: 0)
+                    songInfo(width: geo.size.width)
+                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             }
-            .frame(height: 66)
 
-            Spacer(minLength: 10)
+            Spacer(minLength: 6)
 
             visualizerView
-                .frame(width: 28, height: 28, alignment: .trailing)
+                .frame(width: 22, height: 22, alignment: .trailing)
         }
+        .frame(height: 52)
     }
 
     private var visualizerView: some View {
@@ -119,11 +119,11 @@ struct MusicControlsView: View {
                     .fill(
                         Defaults[.coloredSpectrogram]
                             ? Color(nsColor: musicManager.avgColor).gradient
-                            : Color.gray.gradient
+                            : Color.white.opacity(0.85).gradient
                     )
                     .mask {
                         AudioSpectrumView(isPlaying: $musicManager.isPlaying)
-                            .frame(width: 18, height: 14)
+                            .frame(width: 20, height: 16)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
             } else {
@@ -135,12 +135,15 @@ struct MusicControlsView: View {
 
     private var progressRow: some View {
         TimelineView(.animation(minimumInterval: musicManager.playbackRate > 0 ? 0.1 : nil)) { timeline in
-            HStack(alignment: .center, spacing: 0.5) {
+            let remaining = max(0, musicManager.songDuration - sliderValue)
+            HStack(alignment: .center, spacing: 6) {
                 Text(timeString(from: sliderValue))
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
-                    .frame(width: 38, alignment: .leading)
+                    .foregroundColor(.white.opacity(0.6))
+                    .frame(width: 32, alignment: .leading)
 
                 CustomSlider(
                     value: $sliderValue,
@@ -158,21 +161,17 @@ struct MusicControlsView: View {
                     }
                 )
                 .frame(maxWidth: .infinity)
-                .frame(height: 10)
+                .frame(height: 5)
 
-                Text(timeString(from: musicManager.songDuration))
+                Text("-" + timeString(from: remaining))
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
+                    .foregroundColor(.white.opacity(0.6))
                     .frame(width: 38, alignment: .trailing)
             }
-            .font(.caption)
-            .fontWeight(.medium)
-            .foregroundColor(
-                Defaults[.playerColorTinting]
-                    ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.6)
-                    : .gray
-            )
+            .padding(.top, 2)
             .onChange(of: timeline.date) {
                 guard !dragging, musicManager.timestampDate.timeIntervalSince(lastDragged) > -1 else { return }
                 sliderValue = MusicManager.shared.estimatedPlaybackPosition(at: timeline.date)
@@ -181,20 +180,23 @@ struct MusicControlsView: View {
     }
 
     private func songInfo(width: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 1) {
             MarqueeText(
-                $musicManager.songTitle, font: .headline, nsFont: .headline, textColor: .white,
-                frameWidth: width)
-            MarqueeText(
-                $musicManager.artistName,
-                font: .headline,
+                $musicManager.songTitle,
+                font: .system(size: 15, weight: .bold, design: .default),
                 nsFont: .headline,
-                textColor: Defaults[.playerColorTinting]
-                    ? Color(nsColor: musicManager.avgColor)
-                        .ensureMinimumBrightness(factor: 0.6) : .gray,
+                textColor: .white,
                 frameWidth: width
             )
-            .fontWeight(.medium)
+            MarqueeText(
+                $musicManager.artistName,
+                font: .system(size: 13, weight: .medium, design: .default),
+                nsFont: .subheadline,
+                textColor: Defaults[.playerColorTinting]
+                    ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.6)
+                    : Color.white.opacity(0.65),
+                frameWidth: width
+            )
             if Defaults[.enableLyrics] {
                 TimelineView(.animation(minimumInterval: 0.25)) { timeline in
                     let currentElapsed: Double = {
@@ -209,23 +211,24 @@ struct MusicControlsView: View {
                             return musicManager.lyricLine(at: currentElapsed)
                         }
                         let trimmed = musicManager.currentLyrics.trimmingCharacters(in: .whitespacesAndNewlines)
-                        return trimmed.isEmpty ? "No lyrics found" : trimmed.replacingOccurrences(of: "\n", with: " ")
+                        return trimmed.isEmpty ? "" : trimmed.replacingOccurrences(of: "\n", with: " ")
                     }()
-                    let isPersian = line.unicodeScalars.contains { scalar in
-                        let v = scalar.value
-                        return v >= 0x0600 && v <= 0x06FF
+                    if !line.isEmpty {
+                        let isPersian = line.unicodeScalars.contains { scalar in
+                            let v = scalar.value
+                            return v >= 0x0600 && v <= 0x06FF
+                        }
+                        MarqueeText(
+                            .constant(line),
+                            font: isPersian ? .custom("Vazirmatn-Regular", size: 11) : .system(size: 11, weight: .regular),
+                            nsFont: .caption1,
+                            textColor: Color.white.opacity(0.5),
+                            frameWidth: width
+                        )
+                        .lineLimit(1)
+                        .opacity(musicManager.isPlaying ? 1 : 0)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
-                    MarqueeText(
-                        .constant(line),
-                        font: .subheadline,
-                        nsFont: .subheadline,
-                        textColor: musicManager.isFetchingLyrics ? .gray.opacity(0.7) : .gray,
-                        frameWidth: width
-                    )
-                    .font(isPersian ? .custom("Vazirmatn-Regular", size: NSFont.preferredFont(forTextStyle: .subheadline).pointSize) : .subheadline)
-                    .lineLimit(1)
-                    .opacity(musicManager.isPlaying ? 1 : 0)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
         }
@@ -247,20 +250,21 @@ struct MusicControlsView: View {
             ) { newValue in
                 MusicManager.shared.seek(to: newValue)
             }
-            .padding(.top, 5)
-            .frame(height: 36)
+            .padding(.top, 4)
+            .frame(height: 32)
         }
     }
 
     private var slotToolbar: some View {
         let slots = activeSlots
-        return HStack(spacing: 6) {
+        return HStack(spacing: 24) {
             ForEach(Array(slots.enumerated()), id: \.offset) { index, slot in
                 slotView(for: slot)
                     .frame(alignment: .center)
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.top, 2)
     }
 
     private func timeString(from seconds: Double) -> String {
@@ -526,8 +530,8 @@ struct NotchHomeView: View {
     }
 
     private let headerReplacementTopPadding: CGFloat = 10
-    private let otherPagesTopPadding: CGFloat = 40
-    private let playerTopPadding: CGFloat = 20
+    private let otherPagesTopPadding: CGFloat = 30
+    private let playerTopPadding: CGFloat = 8
 
     private var enabledPages: [Int] {
         var pages = [0]

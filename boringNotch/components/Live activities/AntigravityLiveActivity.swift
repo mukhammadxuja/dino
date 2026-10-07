@@ -11,6 +11,7 @@ import SwiftUI
 
 public struct PixelSnakeLoader: View {
     public let accentColor: Color
+    public let size: CGFloat
     @State private var step: Int = 0
     @State private var timer: Timer? = nil
     
@@ -22,32 +23,36 @@ public struct PixelSnakeLoader: View {
         (1, 0)
     ]
     
-    public init(accentColor: Color = Color(red: 1.0, green: 0.50, blue: 0.40)) {
+    public init(accentColor: Color = Color(red: 1.0, green: 0.50, blue: 0.40), size: CGFloat = 13.5) {
         self.accentColor = accentColor
+        self.size = size
     }
+    
+    private var cellSize: CGFloat { size * 0.25 }
+    private var cellSpacing: CGFloat { size * 0.08 }
     
     public var body: some View {
         ZStack {
             // Ambient Radial Glow Behind Pixel Grid
             Circle()
                 .fill(accentColor)
-                .frame(width: 9, height: 9)
-                .blur(radius: 2.5)
+                .frame(width: size * 0.9, height: size * 0.9)
+                .blur(radius: size * 0.22)
                 .opacity(0.7)
             
-            // 3x3 Pixel Grid (Compact, refined)
-            VStack(spacing: 0.8) {
+            // 3x3 Pixel Grid
+            VStack(spacing: cellSpacing) {
                 ForEach(0..<3, id: \.self) { r in
-                    HStack(spacing: 0.8) {
+                    HStack(spacing: cellSpacing) {
                         ForEach(0..<3, id: \.self) { c in
                             pixelCell(row: r, col: c)
                         }
                     }
                 }
             }
-            .frame(width: 8.5, height: 8.5)
+            .frame(width: size * 0.9, height: size * 0.9)
         }
-        .frame(width: 10, height: 10)
+        .frame(width: size, height: size)
         .onAppear {
             startSnakeAnimation()
         }
@@ -61,10 +66,10 @@ public struct PixelSnakeLoader: View {
     private func pixelCell(row: Int, col: Int) -> some View {
         let opacity = calculatePixelOpacity(row: row, col: col)
         
-        RoundedRectangle(cornerRadius: 0.4, style: .continuous)
+        RoundedRectangle(cornerRadius: 0.6, style: .continuous)
             .fill(accentColor.opacity(opacity))
-            .frame(width: 2.0, height: 2.0)
-            .shadow(color: accentColor.opacity(opacity > 0.6 ? 0.8 : 0), radius: 0.6, x: 0, y: 0)
+            .frame(width: cellSize, height: cellSize)
+            .shadow(color: accentColor.opacity(opacity > 0.6 ? 0.8 : 0), radius: 0.8, x: 0, y: 0)
     }
     
     private func calculatePixelOpacity(row: Int, col: Int) -> Double {
@@ -103,19 +108,148 @@ public struct PixelSnakeLoader: View {
     }
 }
 
-// MARK: - Animated 3-Dots Component for Waiting States
+// MARK: - Sunburst Radiating Checkmark for Completed State (Matching loader size with sun rays)
 
-public struct AnimatedCyclingDots: View {
-    @State private var dotCount: Int = 1
+public struct SunburstCheckmark: View {
+    public let size: CGFloat
+    @State private var rayScale: CGFloat = 0.5
+    @State private var rayOpacity: Double = 0.3
+    @State private var rotation: Double = 0.0
+    
+    public init(size: CGFloat = 13.5) {
+        self.size = size
+    }
+    
+    public var body: some View {
+        ZStack {
+            // Radiating Sunburst Rays (Short radiating lines expanding outward)
+            ForEach(0..<8, id: \.self) { i in
+                Capsule()
+                    .fill(Color(red: 0.20, green: 0.95, blue: 0.45))
+                    .frame(width: max(1.2, size * 0.10), height: size * 0.36)
+                    .offset(y: -size * 0.76)
+                    .rotationEffect(.degrees(Double(i) * 45.0 + rotation))
+                    .opacity(rayOpacity)
+                    .scaleEffect(rayScale)
+            }
+            
+            // Central Soft Glow
+            Circle()
+                .fill(Color(red: 0.20, green: 0.95, blue: 0.45))
+                .frame(width: size * 1.1, height: size * 1.1)
+                .blur(radius: size * 0.25)
+                .opacity(0.6)
+            
+            // Circled Checkmark
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: size, weight: .bold))
+                .foregroundColor(Color(red: 0.20, green: 0.95, blue: 0.45))
+                .shadow(color: Color(red: 0.20, green: 0.95, blue: 0.45).opacity(0.7), radius: 2.0)
+        }
+        .frame(width: size * 1.8, height: size * 1.8)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
+                rayScale = 1.15
+                rayOpacity = 0.95
+                rotation = 22.5
+            }
+        }
+    }
+}
+
+// MARK: - Binary Matrix Rain Animation (Vertical drifting 0 and 1 streams with alternating speeds)
+
+public struct BinaryMatrixRainView: View {
+    @State private var phase: CGFloat = 0
     @State private var timer: Timer? = nil
+    
+    private let columns: [[String]] = [
+        ["0", "1", "0", "0", "1", "1", "0", "1"],
+        ["1", "0", "1", "1", "0", "0", "1", "0"],
+        ["0", "0", "1", "0", "1", "1", "0", "1"],
+        ["1", "1", "0", "1", "0", "0", "1", "1"],
+        ["0", "1", "1", "0", "1", "0", "0", "0"],
+        ["1", "0", "0", "1", "0", "1", "1", "0"],
+        ["0", "1", "0", "1", "1", "0", "1", "0"],
+        ["1", "1", "0", "0", "1", "0", "0", "1"],
+        ["0", "0", "1", "1", "0", "1", "0", "1"],
+        ["1", "0", "1", "0", "0", "1", "1", "0"],
+        ["0", "1", "1", "0", "1", "0", "0", "1"],
+        ["1", "0", "0", "1", "1", "0", "1", "0"]
+    ]
     
     public init() {}
     
     public var body: some View {
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                ForEach(0..<columns.count, id: \.self) { colIndex in
+                    let col = columns[colIndex]
+                    // Alternating speeds: Even columns move faster, odd columns move slower
+                    let isFast = (colIndex % 2 == 0)
+                    let speedFactor: CGFloat = isFast ? 1.75 : 0.85
+                    let initialOffset: CGFloat = CGFloat((colIndex * 17) % 50)
+                    
+                    VStack(spacing: 4) {
+                        ForEach(0..<col.count * 3, id: \.self) { itemIndex in
+                            let char = col[itemIndex % col.count]
+                            Text(char)
+                                .font(.system(size: 9.2, weight: .bold, design: .monospaced))
+                                .foregroundColor(Color.white.opacity(0.30))
+                        }
+                    }
+                    // Moving upward continuously
+                    .offset(y: -((phase * speedFactor + initialOffset).truncatingRemainder(dividingBy: 60)))
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+            .clipped()
+            .mask(
+                // Vignette mask: binary matrix is 30% visible on sides, masked out in the middle behind text for readability
+                LinearGradient(
+                    stops: [
+                        .init(color: .white.opacity(0.95), location: 0.0),
+                        .init(color: .white.opacity(0.40), location: 0.16),
+                        .init(color: .clear, location: 0.35),
+                        .init(color: .clear, location: 0.65),
+                        .init(color: .white.opacity(0.40), location: 0.84),
+                        .init(color: .white.opacity(0.95), location: 1.0)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+        }
+        .onAppear {
+            timer?.invalidate()
+            timer = Timer.scheduledTimer(withTimeInterval: 0.04, repeats: true) { _ in
+                phase += 1.0
+            }
+        }
+        .onDisappear {
+            timer?.invalidate()
+            timer = nil
+        }
+    }
+}
+
+// MARK: - Animated 3-Dots Component for Waiting States
+
+public struct AnimatedCyclingDots: View {
+    public let fontSize: CGFloat
+    @State private var dotCount: Int = 1
+    @State private var timer: Timer? = nil
+    
+    public init(fontSize: CGFloat = 13.5) {
+        self.fontSize = fontSize
+    }
+    
+    public var body: some View {
         Text(String(repeating: ".", count: dotCount))
-            .font(.system(size: 9.5, weight: .bold, design: .rounded))
+            .font(.system(size: fontSize, weight: .bold, design: .rounded))
             .foregroundColor(.white)
-            .frame(width: 12, alignment: .leading)
+            .frame(width: fontSize * 1.2, alignment: .leading)
             .onAppear {
                 timer?.invalidate()
                 timer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: true) { _ in
@@ -129,55 +263,131 @@ public struct AnimatedCyclingDots: View {
     }
 }
 
-// MARK: - Progressive 3-Segment Subtitle View (50% action, 65% target, 80% detail)
+// MARK: - Antigravity Dynamic Live Activity View (Matrix Rain Background + Inline [Loading] [State] [File])
 
-public struct FormattedSubtitleView: View {
-    public let text: String
+public struct AntigravityLiveActivity: View {
+    @ObservedObject var manager = AntigravityManager.shared
+    @EnvironmentObject var vm: BoringViewModel
     
-    public init(_ text: String) {
-        self.text = text
-    }
+    public init() {}
     
     public var body: some View {
-        let segments = parseSegments(text)
-        HStack(spacing: 3.5) {
-            if segments.count == 3 {
-                Text(segments[0])
-                    .foregroundColor(Color.white.opacity(0.50))
-                Text(segments[1])
-                    .foregroundColor(Color.white.opacity(0.65))
-                Text(segments[2])
-                    .foregroundColor(Color.white.opacity(0.80))
-            } else if segments.count == 2 {
-                Text(segments[0])
-                    .foregroundColor(Color.white.opacity(0.50))
-                Text(segments[1])
-                    .foregroundColor(Color.white.opacity(0.80))
-            } else {
-                Text(text)
-                    .foregroundColor(Color.white.opacity(0.60))
+        ZStack {
+            // MARK: - Background Matrix Binary Streams (0 & 1 with masked center)
+            BinaryMatrixRainView()
+                .opacity(manager.currentPhase != .idle ? 1.0 : 0.0)
+                .allowsHitTesting(false)
+            
+            // MARK: - Foreground Content
+            VStack(spacing: 0) {
+                // Safe spacer for MacBook physical camera notch
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(
+                        width: max(0, vm.closedNotchSize.width - 20),
+                        height: vm.effectiveClosedNotchHeight
+                    )
+                
+                // Unified Status Row: [Loader / SunburstCheckmark] [Action Title] [Target File / Detail]
+                HStack(alignment: .center, spacing: 6.5) {
+                    switch manager.currentPhase {
+                    case .idle:
+                        EmptyView()
+                        
+                    case .working(let task):
+                        PixelSnakeLoader(accentColor: manager.currentPhase.accentColor, size: 13.5)
+                        
+                        Text("Working")
+                            .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .fixedSize()
+                        
+                        if !task.isEmpty {
+                            Text(task)
+                                .font(.system(size: 12.0, weight: .regular, design: .rounded))
+                                .foregroundColor(Color.white.opacity(0.50))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        } else {
+                            AnimatedCyclingDots(fontSize: 13.5)
+                        }
+                        
+                    case .waitingInput(let question):
+                        PixelSnakeLoader(accentColor: manager.currentPhase.accentColor, size: 13.5)
+                        
+                        Text("Waiting response")
+                            .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .fixedSize()
+                        
+                        if !question.isEmpty {
+                            Text(question)
+                                .font(.system(size: 12.0, weight: .regular, design: .rounded))
+                                .foregroundColor(Color.white.opacity(0.50))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        } else {
+                            AnimatedCyclingDots(fontSize: 13.5)
+                        }
+                        
+                    case .askingPermission(let action):
+                        PixelSnakeLoader(accentColor: manager.currentPhase.accentColor, size: 13.5)
+                        
+                        Text("Permission")
+                            .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .fixedSize()
+                        
+                        if !action.isEmpty {
+                            Text(action)
+                                .font(.system(size: 12.0, weight: .regular, design: .rounded))
+                                .foregroundColor(Color.white.opacity(0.50))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        } else {
+                            AnimatedCyclingDots(fontSize: 13.5)
+                        }
+                        
+                    case .taskCompleted(let summary):
+                        SunburstCheckmark(size: 13.5)
+                        
+                        Text(summary.isEmpty || summary == "Done" || summary == "Task completed successfully" ? "Task Completed Successfully" : summary)
+                            .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .fixedSize()
+                        
+                    default:
+                        PixelSnakeLoader(accentColor: manager.currentPhase.accentColor, size: 13.5)
+                        
+                        Text(manager.currentPhase.actionTitle)
+                            .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                            .fixedSize()
+                        
+                        if let detail = manager.currentPhase.targetDetail {
+                            Text(detail)
+                                .font(.system(size: 12.0, weight: .regular, design: .rounded))
+                                .foregroundColor(Color.white.opacity(0.50))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 9)
             }
         }
-        .font(.system(size: 8.0, weight: .regular, design: .rounded))
-        .lineLimit(1)
-        .truncationMode(.middle)
-    }
-    
-    private func parseSegments(_ input: String) -> [String] {
-        let parts = input.components(separatedBy: " ").filter { !$0.isEmpty }
-        guard parts.count >= 3 else {
-            if parts.count == 2 { return [parts[0], parts[1]] }
-            return [input]
-        }
-        
-        let first = parts[0]
-        let middle = parts[1]
-        let last = parts[2...].joined(separator: " ")
-        return [first, middle, last]
+        .animation(.spring(response: 0.38, dampingFraction: 0.8), value: manager.currentPhase)
     }
 }
 
-// MARK: - Centered 2-Line Dynamic Notch View (Zero Height Expansion, Scaled Safe Insets)
+// MARK: - Centered Inline HUD fallback
 
 public struct AntigravityInlineHUD: View {
     @ObservedObject var manager = AntigravityManager.shared
@@ -185,138 +395,7 @@ public struct AntigravityInlineHUD: View {
     public init() {}
     
     public var body: some View {
-        Group {
-            switch manager.currentPhase {
-            case .idle:
-                EmptyView()
-                
-            case .taskCompleted(let summary):
-                // Done / Completion State: Centered checkmark circle + "Done"
-                HStack(spacing: 5) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 11.5, weight: .bold))
-                        .foregroundColor(Color(red: 0.20, green: 0.92, blue: 0.42))
-                        .shadow(color: Color(red: 0.20, green: 0.92, blue: 0.42).opacity(0.5), radius: 2.5)
-                    
-                    VStack(alignment: .center, spacing: 0.5) {
-                        Text("Done")
-                            .font(.system(size: 9.5, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                        
-                        if !summary.isEmpty && summary != "Done" && summary != "Task completed successfully" {
-                            Text(summary)
-                                .font(.system(size: 8.0, weight: .regular, design: .rounded))
-                                .foregroundColor(Color.white.opacity(0.80))
-                                .lineLimit(1)
-                        }
-                    }
-                }
-                .transition(.scale(scale: 0.9).combined(with: .opacity))
-                
-            case .working:
-                // Immediate working state when prompt is sent
-                VStack(alignment: .center, spacing: 0.8) {
-                    FormattedSubtitleView(manager.currentPhase.subtitle)
-                    
-                    HStack(spacing: 3.5) {
-                        PixelSnakeLoader(accentColor: manager.currentPhase.accentColor)
-                        
-                        Text("Working")
-                            .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                        
-                        AnimatedCyclingDots()
-                    }
-                }
-                .transition(.opacity)
-                
-            case .waitingInput, .askingPermission:
-                // Waiting for user response / permission state with animated 3 dots
-                VStack(alignment: .center, spacing: 0.8) {
-                    FormattedSubtitleView(manager.currentPhase.subtitle)
-                    
-                    HStack(spacing: 3.5) {
-                        PixelSnakeLoader(accentColor: manager.currentPhase.accentColor)
-                        
-                        Text("Waiting your response")
-                            .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                        
-                        AnimatedCyclingDots()
-                    }
-                }
-                .transition(.opacity)
-                
-            default:
-                // Standard 2-Line Active Progress State (Centered items, compact sizes)
-                VStack(alignment: .center, spacing: 0.8) {
-                    // Row 1: Progressive 3-segment formatted subtitle (e.g. "Read", "Sidebar.jsx", "44 lines")
-                    FormattedSubtitleView(manager.currentPhase.subtitle)
-                    
-                    // Row 2: Pixel Snake Loading Animation + State Name (White, semibold)
-                    HStack(spacing: 4.0) {
-                        PixelSnakeLoader(accentColor: manager.currentPhase.accentColor)
-                        
-                        Text(manager.currentPhase.title)
-                            .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                    }
-                }
-                .transition(.opacity)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 1)
-        .fixedSize(horizontal: true, vertical: false)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: manager.currentPhase)
-    }
-}
-
-// MARK: - Open Notch Floating View
-
-public struct AntigravityOpenNotchView: View {
-    @ObservedObject var manager = AntigravityManager.shared
-    
-    public init() {}
-    
-    public var body: some View {
-        VStack(spacing: 6) {
-            // Row 1: Muted subtitle
-            Text(manager.currentPhase.subtitle)
-                .font(.system(size: 11.5, weight: .regular, design: .rounded))
-                .foregroundColor(Color.white.opacity(0.60))
-                .lineLimit(1)
-                .truncationMode(.middle)
-            
-            // Row 2: Pixel snake + Main Title
-            HStack(spacing: 8) {
-                if case .taskCompleted = manager.currentPhase {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(Color(red: 0.20, green: 0.92, blue: 0.42))
-                } else {
-                    PixelSnakeLoader(accentColor: manager.currentPhase.accentColor)
-                        .scaleEffect(1.2)
-                }
-                
-                Text(manager.currentPhase.title)
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(
-            Capsule()
-                .fill(Color.black)
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                )
-        )
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: manager.currentPhase)
+        AntigravityLiveActivity()
     }
 }
 
@@ -329,19 +408,9 @@ public struct AntigravityDemoView: View {
     
     public var body: some View {
         VStack(spacing: 16) {
-            Text("Antigravity 2-Line Dynamic Notch Demo")
+            Text("Antigravity Dynamic Notch Demo")
                 .font(.headline)
                 .foregroundColor(.white)
-            
-            // Simulated Notch Preview (Strict fixed height ~32px)
-            ZStack {
-                Capsule()
-                    .fill(Color.black)
-                    .frame(height: 32)
-                
-                AntigravityInlineHUD()
-            }
-            .padding(.horizontal, 30)
             
             // Trigger Buttons
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 110))], spacing: 8) {
@@ -352,7 +421,7 @@ public struct AntigravityDemoView: View {
                 btn(title: "Planning", phase: .planning(step: "Phase 2: UI implementation"))
                 btn(title: "Thinking", phase: .thinking(thought: "Optimizing layout parameters"))
                 btn(title: "Wait Response", phase: .waitingInput(question: "Select option 1 or 2"))
-                btn(title: "Done (5s)", phase: .taskCompleted(summary: "All changes committed"))
+                btn(title: "Done (5s)", phase: .taskCompleted(summary: "Task Completed Successfully"))
             }
             .padding(.horizontal)
             
@@ -384,36 +453,5 @@ public struct AntigravityDemoView: View {
                 .padding(.vertical, 4)
         }
         .buttonStyle(.bordered)
-    }
-}
-
-// MARK: - Preview
-
-#Preview("2-Line Antigravity Notch") {
-    ZStack {
-        Color.gray.opacity(0.3).ignoresSafeArea()
-        
-        VStack(spacing: 30) {
-            // Simulated macOS Notch bar
-            HStack {
-                Spacer()
-                ZStack {
-                    Capsule()
-                        .fill(Color.black)
-                        .frame(width: 220, height: 32)
-                    
-                    AntigravityInlineHUD()
-                }
-                Spacer()
-            }
-            .frame(height: 32)
-            .background(Color.black.opacity(0.8))
-            
-            AntigravityDemoView()
-        }
-    }
-    .frame(width: 500, height: 440)
-    .onAppear {
-        AntigravityManager.shared.setPhase(.reading(file: "_app.tsx", lines: 55))
     }
 }
