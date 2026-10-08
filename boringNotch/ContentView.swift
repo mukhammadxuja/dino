@@ -56,6 +56,8 @@ struct ContentView: View {
     @Default(.activeModule) var activeModule
     
     @State private var emptyClickBounce: Bool = false
+    @State private var isSongDetailsHovered: Bool = false
+    @State private var showCopiedFeedback: Bool = false
     
     // Displays & Island Mode
     @Default(.displaySelection) var displaySelection
@@ -102,7 +104,13 @@ struct ContentView: View {
     }
 
     private var islandCornerRadius: CGFloat {
-        (vm.notchState == .open) ? 36 : (isCurrentScreenBuiltin ? 16 : 12)
+        if vm.notchState == .open {
+            return 36
+        } else if isShowingMusicSneakPeek {
+            return isCurrentScreenBuiltin ? 18 : 14
+        } else {
+            return isCurrentScreenBuiltin ? 18 : 14
+        }
     }
 
     private var effectiveIslandVisibility: IslandVisibility {
@@ -184,7 +192,7 @@ struct ContentView: View {
                 RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
                     .stroke(
                         LinearGradient(
-                            colors: [Color.white.opacity(0.32), Color.white.opacity(0.08)],
+                            colors: [Color.white.opacity(0.38), Color.white.opacity(0.14)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
@@ -192,7 +200,7 @@ struct ContentView: View {
                     )
             } else {
                 RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
+                    .stroke(Color.white.opacity(0.18), lineWidth: 0.9)
             }
         } else {
             Rectangle()
@@ -209,17 +217,17 @@ struct ContentView: View {
     private var computedChinWidth: CGFloat {
         if isCurrentDisplayIsland {
             if isShowingMusicSneakPeek {
-                return isCurrentScreenBuiltin ? 175 : 145
+                return isCurrentScreenBuiltin ? 150 : 130
             } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show && vm.notchState == .closed {
-                return isCurrentScreenBuiltin ? 180 : 145
+                return isCurrentScreenBuiltin ? 170 : 145
             } else if isAntigravityActive {
                 return isCurrentScreenBuiltin ? 190 : 160
             } else if shouldShowPomodoroInlineClosedVisual {
-                return isCurrentScreenBuiltin ? 165 : 135
+                return isCurrentScreenBuiltin ? 160 : 135
             } else if shouldShowMusicClosedVisual {
-                return isCurrentScreenBuiltin ? 175 : 145
+                return isCurrentScreenBuiltin ? 150 : 130
             } else if shouldShowCalendarClosedVisual {
-                return isCurrentScreenBuiltin ? 140 : 114
+                return isCurrentScreenBuiltin ? 140 : 115
             } else {
                 return isCurrentScreenBuiltin ? 88 : 70
             }
@@ -228,7 +236,7 @@ struct ContentView: View {
         var chinWidth: CGFloat = vm.closedNotchSize.width + (2 * topCornerRadius) + 8
 
         if isShowingMusicSneakPeek {
-            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
+            chinWidth += 16
         } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show
             && vm.notchState == .closed
         {
@@ -390,10 +398,10 @@ struct ContentView: View {
                         .horizontal,
                         vm.notchState == .open
                             ? (isCurrentDisplayIsland ? 22 : (topCornerRadius + 14))
-                            : (isCurrentDisplayIsland ? 10 : (topCornerRadius + 6))
+                            : (isCurrentDisplayIsland ? (isShowingMusicSneakPeek ? 10 : 8) : (topCornerRadius + 6))
                     )
-                    .padding(.top, vm.notchState == .open ? 18 : 0)
-                    .padding(.bottom, vm.notchState == .open ? 18 : 0)
+                    .padding(.top, vm.notchState == .open ? 18 : (isCurrentDisplayIsland && isShowingMusicSneakPeek ? 4 : 0))
+                    .padding(.bottom, vm.notchState == .open ? 18 : (isCurrentDisplayIsland && isShowingMusicSneakPeek ? 6 : 0))
                     .background(surfaceBackground)
                     .conditionalModifier(isCurrentDisplayIsland) { view in
                         view.clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
@@ -815,13 +823,13 @@ struct ContentView: View {
 
     @ViewBuilder
     func MusicLiveActivity() -> some View {
-        let coverSize = max(0, vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? 10 : 12))
+        let coverSize = max(0, vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? (isShowingMusicSneakPeek ? 6 : 8) : 12))
         let showGesturePrev = mediaGestureDirection == .right && mediaGestureIconVisible && musicManager.isPlaying
         let showGestureNext = mediaGestureDirection == .left && mediaGestureIconVisible && musicManager.isPlaying
-        let islandSneakPeekWidth: CGFloat = isCurrentScreenBuiltin ? 170 : 145
+        let islandSneakPeekWidth: CGFloat = isCurrentScreenBuiltin ? 150 : 130
         let defaultCenterSpacerWidth: CGFloat = isCurrentDisplayIsland
-            ? (isShowingMusicSneakPeek ? max(20, islandSneakPeekWidth - (coverSize * 2)) : (isCurrentScreenBuiltin ? 76 : 50))
-            : (vm.closedNotchSize.width + 14)
+            ? (isShowingMusicSneakPeek ? max(10, islandSneakPeekWidth - (coverSize * 2) - 16) : (isCurrentScreenBuiltin ? 76 : 54))
+            : (vm.closedNotchSize.width - 10)
 
         VStack(spacing: isShowingMusicSneakPeek ? 4 : 0) {
             HStack(spacing: 0) {
@@ -833,7 +841,7 @@ struct ContentView: View {
                         .frame(width: coverSize, height: coverSize)
                         .clipShape(
                             RoundedRectangle(
-                                cornerRadius: isCurrentDisplayIsland ? 5 : MusicPlayerImageSizes.cornerRadiusInset.closed,
+                                cornerRadius: isCurrentDisplayIsland ? (isShowingMusicSneakPeek ? 6.5 : 5) : MusicPlayerImageSizes.cornerRadiusInset.closed,
                                 style: .continuous
                             )
                         )
@@ -926,17 +934,18 @@ struct ContentView: View {
                                         ? Color.white.opacity(0.85).gradient
                                         : Color.gray.gradient
                                 )
-                                .frame(width: 50, alignment: .center)
+                                .frame(width: coverSize, height: coverSize, alignment: .center)
                                 .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
                                 .mask {
                                     AudioSpectrumView(isPlaying: $musicManager.isPlaying)
-                                        .frame(width: 16, height: 12)
+                                        .frame(width: 14, height: 11)
                                 }
                         } else {
                             LottieAnimationContainer()
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                         }
                     }
+                    .frame(width: coverSize, height: coverSize, alignment: .center)
                     .opacity(showGestureNext || isVisualizerHovering ? 0 : 1)
                     .animation(.easeOut(duration: 0.2), value: showGestureNext)
                     .animation(.easeOut(duration: 0.2), value: isVisualizerHovering)
@@ -973,15 +982,8 @@ struct ContentView: View {
                     }
                 }
                 .frame(
-                    width: max(
-                        0,
-                        vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? 10 : 12)
-                            + gestureProgress / 2
-                    ),
-                    height: max(
-                        0,
-                        vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? 10 : 12)
-                    ),
+                    width: coverSize,
+                    height: coverSize,
                     alignment: .center
                 )
                 .onHover { hovering in
@@ -998,20 +1000,77 @@ struct ContentView: View {
 
             // Centered Sneak Peek details row below cover & visualizer
             if isShowingMusicSneakPeek {
-                HStack(alignment: .center, spacing: 4.5) {
-                    Image(systemName: "music.note")
-                        .font(.system(size: 10, weight: .semibold))
-                    
-                    let songText = musicManager.artistName.isEmpty ? musicManager.songTitle : "\(musicManager.songTitle) • \(musicManager.artistName)"
-                    Text(songText)
-                        .font(.system(size: 11.5, weight: .medium, design: .rounded))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                let songTitleAndArtist = musicManager.artistName.isEmpty
+                    ? musicManager.songTitle
+                    : "\(musicManager.songTitle) - \(musicManager.artistName)"
+                let songText = musicManager.artistName.isEmpty
+                    ? "♪ \(musicManager.songTitle)"
+                    : "♪ \(musicManager.songTitle) • \(musicManager.artistName)"
+                let textAvailableWidth = isCurrentDisplayIsland ? (islandSneakPeekWidth - 28) : (vm.closedNotchSize.width - 20)
+                let textColor = Defaults[.playerColorTinting]
+                    ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.6)
+                    : .white.opacity(0.9)
+
+                Group {
+                    if showCopiedFeedback {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 9.5, weight: .bold))
+                            Text("Copied to clipboard")
+                                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                        }
+                        .foregroundColor(.green)
+                        .frame(height: 16)
+                        .transition(.scale.combined(with: .opacity))
+                    } else {
+                        MarqueeText(
+                            .constant(songText),
+                            font: .system(size: 11, weight: .medium, design: .rounded),
+                            textColor: textColor.opacity(isSongDetailsHovered ? 1.0 : 0.85),
+                            minDuration: 1.5,
+                            frameWidth: textAvailableWidth
+                        )
+                        .frame(width: textAvailableWidth, height: 16)
+                        .mask(
+                            LinearGradient(
+                                gradient: Gradient(stops: [
+                                    .init(color: .clear, location: 0),
+                                    .init(color: .black, location: 0.08),
+                                    .init(color: .black, location: 0.92),
+                                    .init(color: .clear, location: 1.0)
+                                ]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                    }
                 }
-                .foregroundStyle(Defaults[.playerColorTinting] ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.6) : .white.opacity(0.88))
-                .frame(maxWidth: isCurrentDisplayIsland ? (islandSneakPeekWidth - 16) : (vm.closedNotchSize.width - 20), alignment: .center)
+                .contentShape(Rectangle())
+                .onHover { hov in
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isSongDetailsHovered = hov
+                    }
+                    if hov {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                .onTapGesture {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(songTitleAndArtist, forType: .string)
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                        showCopiedFeedback = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                            showCopiedFeedback = false
+                        }
+                    }
+                }
+                .frame(width: textAvailableWidth, alignment: .center)
                 .padding(.horizontal, 4)
-                .padding(.bottom, isCurrentDisplayIsland ? 8 : 10)
+                .padding(.bottom, isCurrentDisplayIsland ? 6 : 8)
                 .transition(.asymmetric(
                     insertion: .opacity.combined(with: .scale(scale: 0.95)),
                     removal: .opacity.combined(with: .scale(scale: 0.95))

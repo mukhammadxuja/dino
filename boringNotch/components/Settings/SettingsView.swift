@@ -433,19 +433,19 @@ struct GeneralSettings: View {
                     Button(role: .destructive) {
                         NSApp.terminate(nil)
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 5) {
                             Image(systemName: "power")
-                                .font(.system(size: 12, weight: .semibold))
-                            Text("Quit BoringNotch")
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("Quit Dino")
+                                .font(.system(size: 12, weight: .medium))
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
                     }
                     .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .tint(.red)
+                    Spacer()
                 }
-                .padding(.top, 4)
+                .padding(.top, 6)
             }
             .padding(20)
         }

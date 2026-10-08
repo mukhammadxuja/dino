@@ -27,11 +27,11 @@ class AudioSpectrum: NSView {
     }
 
     private func setupBars() {
-        let barWidth: CGFloat = 2
-        let barCount = 4
-        let spacing: CGFloat = barWidth
-        let totalWidth = CGFloat(barCount) * (barWidth + spacing)
-        let totalHeight: CGFloat = 14
+        let barWidth: CGFloat = 1.35
+        let barCount = 6
+        let spacing: CGFloat = 0.9
+        let totalWidth = CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * spacing
+        let totalHeight: CGFloat = 12.5
         frame.size = CGSize(width: totalWidth, height: totalHeight)
 
         for i in 0 ..< barCount {
