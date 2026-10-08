@@ -13,6 +13,7 @@ class AudioSpectrum: NSView {
     private var barScales: [CGFloat] = []
     private var isPlaying: Bool = true
     private var animationTimer: Timer?
+    private var barColor: NSColor = .white
     
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -24,6 +25,18 @@ class AudioSpectrum: NSView {
         super.init(coder: coder)
         wantsLayer = true
         setupBars()
+    }
+
+    func setColor(_ color: NSColor) {
+        guard barColor != color else { return }
+        barColor = color
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for barLayer in barLayers {
+            barLayer.fillColor = color.cgColor
+            barLayer.backgroundColor = color.cgColor
+        }
+        CATransaction.commit()
     }
 
     private func setupBars() {
@@ -40,8 +53,8 @@ class AudioSpectrum: NSView {
             barLayer.frame = CGRect(x: xPosition, y: 0, width: barWidth, height: totalHeight)
             barLayer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
             barLayer.position = CGPoint(x: xPosition + barWidth / 2, y: totalHeight / 2)
-            barLayer.fillColor = NSColor.white.cgColor
-            barLayer.backgroundColor = NSColor.white.cgColor
+            barLayer.fillColor = barColor.cgColor
+            barLayer.backgroundColor = barColor.cgColor
             barLayer.allowsGroupOpacity = false
             barLayer.masksToBounds = true
             let path = NSBezierPath(roundedRect: CGRect(x: 0, y: 0, width: barWidth, height: totalHeight),
@@ -106,14 +119,17 @@ class AudioSpectrum: NSView {
 
 struct AudioSpectrumView: NSViewRepresentable {
     @Binding var isPlaying: Bool
+    var color: NSColor = .white
     
     func makeNSView(context: Context) -> AudioSpectrum {
         let spectrum = AudioSpectrum()
+        spectrum.setColor(color)
         spectrum.setPlaying(isPlaying)
         return spectrum
     }
     
     func updateNSView(_ nsView: AudioSpectrum, context: Context) {
+        nsView.setColor(color)
         nsView.setPlaying(isPlaying)
     }
 }

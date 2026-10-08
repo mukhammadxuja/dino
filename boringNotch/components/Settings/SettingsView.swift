@@ -5390,6 +5390,7 @@ struct Media: View {
     @Default(.hideNotchOption) var hideNotchOption
     @Default(.enableSneakPeek) private var enableSneakPeek
     @Default(.sneakPeekStyles) var sneakPeekStyles
+    @Default(.playerColorTinting) var playerColorTinting
     @Default(.enableLyrics) var enableLyrics
 
     var body: some View {
@@ -5532,6 +5533,22 @@ struct Media: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
+                }
+
+                cardDivider
+
+                // Artwork Color Tinting Row
+                mediaRow(
+                    icon: "paintpalette.fill",
+                    iconColor: .pink,
+                    title: "Match player colors to album artwork",
+                    subtitle: "Tint the song title, artist text, and playing visualizer to artwork color"
+                ) {
+                    Toggle("", isOn: $playerColorTinting)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .tint(.effectiveAccent)
                 }
 
                 cardDivider

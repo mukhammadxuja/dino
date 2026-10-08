@@ -43,6 +43,8 @@ struct ContentView: View {
     @State private var isVisualizerHovering: Bool = false
     @State private var showCoverHoverMusicDetails: Bool = false
     @State private var coverHoverDismissTask: Task<Void, Never>?
+    @State private var isIslandTransientlyVisible: Bool = false
+    @State private var transientVisibilityTask: Task<Void, Never>?
     @State private var coverRotationY: Double = 0
 
     @Namespace var albumArtNamespace
@@ -135,7 +137,7 @@ struct ContentView: View {
         let dropDownOffset = max(physicalHeight, menuBarHeight) + 8
 
         if effectiveIslandVisibility == .onHover {
-            if isHovering {
+            if isHovering || isShowingMusicSneakPeek || isIslandTransientlyVisible {
                 return dropDownOffset
             } else {
                 return -40 // Retracted and hidden up top
@@ -149,7 +151,7 @@ struct ContentView: View {
         guard isCurrentDisplayIsland else { return 1.0 }
         if vm.notchState == .open { return 1.0 }
         if effectiveIslandVisibility == .onHover {
-            return isHovering ? 1.0 : 0.0
+            return (isHovering || isShowingMusicSneakPeek || isIslandTransientlyVisible) ? 1.0 : 0.0
         }
         return 1.0
     }
@@ -211,7 +213,10 @@ struct ContentView: View {
     }
 
     private var isShowingMusicSneakPeek: Bool {
-        (coordinator.sneakPeek.show && coordinator.sneakPeek.type == .music && vm.notchState == .closed && !vm.hideOnClosed && (Defaults[.sneakPeekStyles] == .standard || showCoverHoverMusicDetails))
+        (showCoverHoverMusicDetails || (coordinator.sneakPeek.show && coordinator.sneakPeek.type == .music))
+            && vm.notchState == .closed
+            && !vm.hideOnClosed
+            && (Defaults[.sneakPeekStyles] == .standard || showCoverHoverMusicDetails)
     }
 
     private var computedChinWidth: CGFloat {
@@ -531,6 +536,22 @@ struct ContentView: View {
                             withAnimation(.spring(response: 0.55, dampingFraction: 0.72)) {
                                 coverRotationY -= 180
                             }
+                            transientVisibilityTask?.cancel()
+                            withAnimation(animationSpring) {
+                                isIslandTransientlyVisible = true
+                            }
+                        } else if !isShowing && isIslandTransientlyVisible {
+                            transientVisibilityTask?.cancel()
+                            transientVisibilityTask = Task { @MainActor in
+                                let delay = max(0.25, Defaults[.collapseDelay])
+                                try? await Task.sleep(for: .seconds(delay))
+                                guard !Task.isCancelled else { return }
+                                if !self.isHovering && !self.isShowingMusicSneakPeek {
+                                    withAnimation(self.animationSpring) {
+                                        self.isIslandTransientlyVisible = false
+                                    }
+                                }
+                            }
                         }
                     }
                     .onChange(of: vm.isBatteryPopoverActive) {
@@ -823,12 +844,22 @@ struct ContentView: View {
 
     @ViewBuilder
     func MusicLiveActivity() -> some View {
-        let coverSize = max(0, vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? (isShowingMusicSneakPeek ? 6 : 8) : 12))
+        let coverSize: CGFloat = {
+            if isCurrentDisplayIsland {
+                if isCurrentScreenBuiltin {
+                    return isShowingMusicSneakPeek ? 18 : 17
+                } else {
+                    return isShowingMusicSneakPeek ? 18.5 : 18
+                }
+            } else {
+                return max(0, vm.effectiveClosedNotchHeight - 12)
+            }
+        }()
         let showGesturePrev = mediaGestureDirection == .right && mediaGestureIconVisible && musicManager.isPlaying
         let showGestureNext = mediaGestureDirection == .left && mediaGestureIconVisible && musicManager.isPlaying
         let islandSneakPeekWidth: CGFloat = isCurrentScreenBuiltin ? 190 : 165
         let defaultCenterSpacerWidth: CGFloat = isCurrentDisplayIsland
-            ? (isShowingMusicSneakPeek ? max(10, islandSneakPeekWidth - (coverSize * 2) - 20) : (isCurrentScreenBuiltin ? 76 : 54))
+            ? (isShowingMusicSneakPeek ? max(10, islandSneakPeekWidth - (coverSize * 2) - 20) : (isCurrentScreenBuiltin ? 68 : 50))
             : (vm.closedNotchSize.width - 10)
 
         VStack(spacing: isShowingMusicSneakPeek ? 4 : 0) {
@@ -841,7 +872,7 @@ struct ContentView: View {
                         .frame(width: coverSize, height: coverSize)
                         .clipShape(
                             RoundedRectangle(
-                                cornerRadius: isCurrentDisplayIsland ? (isShowingMusicSneakPeek ? 6.5 : 5) : MusicPlayerImageSizes.cornerRadiusInset.closed,
+                                cornerRadius: isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 4.5 : 4.8) : MusicPlayerImageSizes.cornerRadiusInset.closed,
                                 style: .continuous
                             )
                         )
@@ -864,15 +895,9 @@ struct ContentView: View {
                     isCoverHovering = hovering
                     if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
                         coverHoverDismissTask?.cancel()
-                        coverHoverDismissTask = nil
                         withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
                             showCoverHoverMusicDetails = true
                         }
-                        coordinator.toggleSneakPeek(
-                            status: true,
-                            type: .music,
-                            duration: 60
-                        )
                     }
                 }
 
@@ -895,7 +920,7 @@ struct ContentView: View {
                                     (coordinator.expandingView.show
                                         && Defaults[.sneakPeekStyles] == .inline)
                                         ? 1 : 0
-                                )
+                                 )
                                 Spacer(minLength: isCurrentDisplayIsland ? 64 : vm.closedNotchSize.width)
                                 // Song Artist
                                 Text(musicManager.artistName)
@@ -928,17 +953,23 @@ struct ContentView: View {
                     // Normal visualizer content
                     HStack {
                         if useMusicVisualizer {
+                            let spectrumFillColor: Color = Defaults[.playerColorTinting]
+                                ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)
+                                : Color.white.opacity(0.85)
                             Rectangle()
                                 .fill(
                                     musicManager.isPlaying
-                                        ? Color.white.opacity(0.85).gradient
+                                        ? spectrumFillColor.gradient
                                         : Color.gray.gradient
                                 )
                                 .frame(width: coverSize, height: coverSize, alignment: .center)
                                 .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
                                 .mask {
-                                    AudioSpectrumView(isPlaying: $musicManager.isPlaying)
-                                        .frame(width: 14, height: 11)
+                                    AudioSpectrumView(
+                                        isPlaying: $musicManager.isPlaying,
+                                        color: Defaults[.playerColorTinting] ? NSColor(Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)) : .white
+                                    )
+                                    .frame(width: 14, height: 11)
                                 }
                         } else {
                             LottieAnimationContainer()

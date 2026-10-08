@@ -115,11 +115,17 @@ struct MusicControlsView: View {
     private var visualizerView: some View {
         Group {
             if Defaults[.useMusicVisualizer] {
+                let tintColor = Defaults[.playerColorTinting]
+                    ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)
+                    : Color.white.opacity(0.85)
                 Rectangle()
-                    .fill(Color.white.opacity(0.85).gradient)
+                    .fill(tintColor.gradient)
                     .mask {
-                        AudioSpectrumView(isPlaying: $musicManager.isPlaying)
-                            .frame(width: 22, height: 16)
+                        AudioSpectrumView(
+                            isPlaying: $musicManager.isPlaying,
+                            color: Defaults[.playerColorTinting] ? NSColor(Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)) : .white
+                        )
+                        .frame(width: 22, height: 16)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
             } else {

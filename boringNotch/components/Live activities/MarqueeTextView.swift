@@ -30,12 +30,22 @@ struct MarqueeText: View {
     var backgroundColor: Color = .clear
     var minDuration: Double = 3.0
     var frameWidth: CGFloat = 200
+    var alignment: Alignment = .center
     
     @State private var animate = false
     @State private var textSize: CGSize = .zero
     @State private var offset: CGFloat = 0
     
-    init(_ text: Binding<String>, font: Font = .body, nsFont: NSFont.TextStyle = .body, textColor: Color = .primary, backgroundColor: Color = .clear, minDuration: Double = 3.0, frameWidth: CGFloat = 200) {
+    init(
+        _ text: Binding<String>,
+        font: Font = .body,
+        nsFont: NSFont.TextStyle = .body,
+        textColor: Color = .primary,
+        backgroundColor: Color = .clear,
+        minDuration: Double = 3.0,
+        frameWidth: CGFloat = 200,
+        alignment: Alignment = .center
+    ) {
         _text = text
         self.font = font
         self.nsFont = nsFont
@@ -43,6 +53,7 @@ struct MarqueeText: View {
         self.backgroundColor = backgroundColor
         self.minDuration = minDuration
         self.frameWidth = frameWidth
+        self.alignment = alignment
     }
     
     private var needsScrolling: Bool {
@@ -51,42 +62,54 @@ struct MarqueeText: View {
     
     var body: some View {
         GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                HStack(spacing: 20) {
+            ZStack(alignment: needsScrolling ? .leading : alignment) {
+                if needsScrolling {
+                    HStack(spacing: 24) {
+                        Text(text)
+                        Text(text)
+                    }
+                    .id(text)
+                    .font(font)
+                    .foregroundColor(textColor)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .offset(x: self.animate ? offset : 0)
+                    .animation(
+                        self.animate ?
+                            .linear(duration: Double(max(1, textSize.width) / 28))
+                            .delay(minDuration)
+                            .repeatForever(autoreverses: false) : .none,
+                        value: self.animate
+                    )
+                } else {
                     Text(text)
-                    Text(text)
-                        .opacity(needsScrolling ? 1 : 0)
+                        .id(text)
+                        .font(font)
+                        .foregroundColor(textColor)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(maxWidth: .infinity, alignment: alignment)
                 }
-                .id(text)
-                .font(font)
-                .foregroundColor(textColor)
-                .fixedSize(horizontal: true, vertical: false)
-                .offset(x: self.animate ? offset : 0)
-                .animation(
-                    self.animate ?
-                        .linear(duration: Double(textSize.width / 30))
-                        .delay(minDuration)
-                        .repeatForever(autoreverses: false) : .none,
-                    value: self.animate
-                )
-                .background(backgroundColor)
-                .modifier(MeasureSizeModifier())
-                .onPreferenceChange(SizePreferenceKey.self) { size in
-                    self.textSize = CGSize(width: size.width / 2, height: NSFont.preferredFont(forTextStyle: nsFont).pointSize)
-                    self.animate = false
-                    self.offset = 0
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01){
-                        if needsScrolling {
-                            self.animate = true
-                            self.offset = -(textSize.width + 10)
-                            
-                        }
+            }
+            .background(
+                Text(text)
+                    .font(font)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .hidden()
+                    .modifier(MeasureSizeModifier())
+            )
+            .onPreferenceChange(SizePreferenceKey.self) { size in
+                self.textSize = CGSize(width: size.width, height: NSFont.preferredFont(forTextStyle: nsFont).pointSize)
+                self.animate = false
+                self.offset = 0
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                    if size.width > frameWidth {
+                        self.animate = true
+                        self.offset = -(size.width + 24)
                     }
                 }
             }
-            .frame(width: frameWidth, alignment: .leading)
+            .frame(width: frameWidth, alignment: needsScrolling ? .leading : alignment)
             .clipped()
         }
-        .frame(height: textSize.height * 1.3)
+        .frame(height: max(14, textSize.height * 1.3))
     }
 }
