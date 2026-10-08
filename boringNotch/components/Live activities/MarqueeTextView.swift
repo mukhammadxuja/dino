@@ -28,13 +28,14 @@ struct MarqueeText: View {
     var nsFont: NSFont.TextStyle = .body
     var textColor: Color = .primary
     var backgroundColor: Color = .clear
-    var minDuration: Double = 3.0
+    var minDuration: Double = 1.5
     var frameWidth: CGFloat = 200
-    var alignment: Alignment = .center
+    var alignment: Alignment = .leading
+    var fadeMaskWhenScrolling: Bool = false
     
-    @State private var animate = false
-    @State private var textSize: CGSize = .zero
-    @State private var offset: CGFloat = 0
+    @State private var animate: Bool = false
+    @State private var textWidth: CGFloat = 0
+    @State private var restartTask: Task<Void, Never>?
     
     init(
         _ text: Binding<String>,
@@ -42,9 +43,10 @@ struct MarqueeText: View {
         nsFont: NSFont.TextStyle = .body,
         textColor: Color = .primary,
         backgroundColor: Color = .clear,
-        minDuration: Double = 3.0,
+        minDuration: Double = 1.5,
         frameWidth: CGFloat = 200,
-        alignment: Alignment = .center
+        alignment: Alignment = .leading,
+        fadeMaskWhenScrolling: Bool = false
     ) {
         _text = text
         self.font = font
@@ -54,62 +56,97 @@ struct MarqueeText: View {
         self.minDuration = minDuration
         self.frameWidth = frameWidth
         self.alignment = alignment
+        self.fadeMaskWhenScrolling = fadeMaskWhenScrolling
+        
+        let initialWidth = Self.measureWidth(text.wrappedValue, nsFont: nsFont)
+        _textWidth = State(initialValue: initialWidth)
+    }
+    
+    static func measureWidth(_ str: String, nsFont: NSFont.TextStyle) -> CGFloat {
+        guard !str.isEmpty else { return 0 }
+        let pointSize = NSFont.preferredFont(forTextStyle: nsFont).pointSize
+        let font = NSFont.systemFont(ofSize: pointSize > 0 ? pointSize : 11, weight: .medium)
+        let size = (str as NSString).size(withAttributes: [.font: font])
+        return ceil(size.width)
     }
     
     private var needsScrolling: Bool {
-        textSize.width > frameWidth
+        textWidth > frameWidth && textWidth > 0
     }
     
+    private let spacing: CGFloat = 28
+    
     var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: needsScrolling ? .leading : alignment) {
-                if needsScrolling {
-                    HStack(spacing: 24) {
-                        Text(text)
-                        Text(text)
-                    }
-                    .id(text)
-                    .font(font)
-                    .foregroundColor(textColor)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .offset(x: self.animate ? offset : 0)
-                    .animation(
-                        self.animate ?
-                            .linear(duration: Double(max(1, textSize.width) / 28))
-                            .delay(minDuration)
-                            .repeatForever(autoreverses: false) : .none,
-                        value: self.animate
-                    )
-                } else {
-                    Text(text)
-                        .id(text)
-                        .font(font)
-                        .foregroundColor(textColor)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .frame(maxWidth: .infinity, alignment: alignment)
-                }
-            }
-            .background(
+        let scrollDist = textWidth + spacing
+        let scrollDuration = Double(max(1, textWidth) / 26)
+        let effectiveAlignment: Alignment = needsScrolling ? .leading : alignment
+        
+        ZStack(alignment: effectiveAlignment) {
+            HStack(spacing: spacing) {
                 Text(text)
-                    .font(font)
+                    .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
-                    .hidden()
-                    .modifier(MeasureSizeModifier())
-            )
-            .onPreferenceChange(SizePreferenceKey.self) { size in
-                self.textSize = CGSize(width: size.width, height: NSFont.preferredFont(forTextStyle: nsFont).pointSize)
-                self.animate = false
-                self.offset = 0
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-                    if size.width > frameWidth {
-                        self.animate = true
-                        self.offset = -(size.width + 24)
-                    }
+                if needsScrolling {
+                    Text(text)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
             }
-            .frame(width: frameWidth, alignment: needsScrolling ? .leading : alignment)
-            .clipped()
+            .id(text)
+            .font(font)
+            .foregroundColor(textColor)
+            .offset(x: (needsScrolling && animate) ? -scrollDist : 0)
+            .animation(
+                (needsScrolling && animate)
+                    ? Animation.linear(duration: scrollDuration)
+                        .delay(minDuration)
+                        .repeatForever(autoreverses: false)
+                    : nil,
+                value: animate
+            )
         }
-        .frame(height: max(14, textSize.height * 1.3))
+        .frame(width: frameWidth, alignment: effectiveAlignment)
+        .clipped()
+        .conditionalModifier(fadeMaskWhenScrolling && needsScrolling) { content in
+            content.mask(
+                LinearGradient(
+                    gradient: Gradient(stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: 0.05),
+                        .init(color: .black, location: 0.95),
+                        .init(color: .clear, location: 1.0)
+                    ]),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+        }
+        .onChange(of: text) { _, newText in
+            self.textWidth = Self.measureWidth(newText, nsFont: nsFont)
+            triggerAnimation()
+        }
+        .onAppear {
+            if textWidth == 0 {
+                textWidth = Self.measureWidth(text, nsFont: nsFont)
+            }
+            triggerAnimation()
+        }
+        .onDisappear {
+            restartTask?.cancel()
+            animate = false
+        }
+    }
+    
+    private func triggerAnimation() {
+        restartTask?.cancel()
+        animate = false
+        
+        guard textWidth > frameWidth else { return }
+        
+        restartTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
+            self.animate = true
+        }
     }
 }

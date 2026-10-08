@@ -437,7 +437,7 @@ struct ContentView: View {
                         alignment: .top
                     )
                     .scaleEffect(
-                        x: emptyClickBounce ? 0.94 : ((isHovering && vm.notchState == .closed) ? 1.05 : 1.0),
+                        x: emptyClickBounce ? 0.94 : ((isHovering && vm.notchState == .closed && !isShowingMusicSneakPeek) ? 1.02 : 1.0),
                         y: emptyClickBounce ? 0.94 : 1.0,
                         anchor: .top
                     )
@@ -1044,43 +1044,41 @@ struct ContentView: View {
 
                 Group {
                     if showCopiedFeedback {
+                        let feedbackColor: Color = {
+                            if Defaults[.playerColorTinting] {
+                                return Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.7)
+                            } else if islandStyle == .glass && isCurrentDisplayIsland {
+                                return .white.opacity(0.9)
+                            } else {
+                                return .white.opacity(0.85)
+                            }
+                        }()
+
                         HStack(spacing: 4) {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 9.5, weight: .bold))
+                                .font(.system(size: 8.5, weight: .bold))
                             Text("Copied to clipboard")
-                                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
                         }
-                        .foregroundColor(.green)
+                        .foregroundColor(feedbackColor)
                         .frame(height: 16)
                         .transition(.scale.combined(with: .opacity))
                     } else {
                         MarqueeText(
                             .constant(songText),
                             font: .system(size: 11, weight: .medium, design: .rounded),
-                            textColor: textColor.opacity(isSongDetailsHovered ? 1.0 : 0.85),
+                            textColor: textColor,
                             minDuration: 1.5,
-                            frameWidth: textAvailableWidth
+                            frameWidth: textAvailableWidth - 12,
+                            alignment: .center,
+                            fadeMaskWhenScrolling: true
                         )
-                        .frame(width: textAvailableWidth, height: 16)
-                        .mask(
-                            LinearGradient(
-                                gradient: Gradient(stops: [
-                                    .init(color: .clear, location: 0),
-                                    .init(color: .black, location: 0.08),
-                                    .init(color: .black, location: 0.92),
-                                    .init(color: .clear, location: 1.0)
-                                ]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        .opacity(isSongDetailsHovered ? 1.0 : 0.85)
                     }
                 }
                 .contentShape(Rectangle())
                 .onHover { hov in
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        isSongDetailsHovered = hov
-                    }
+                    isSongDetailsHovered = hov
                     if hov {
                         NSCursor.pointingHand.push()
                     } else {
