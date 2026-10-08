@@ -59,6 +59,8 @@ struct ContentView: View {
     
     @State private var emptyClickBounce: Bool = false
     @State private var isSongDetailsHovered: Bool = false
+    @State private var isScaleHovered: Bool = false
+    @State private var scaleHoverTask: Task<Void, Never>?
     @State private var showCopiedFeedback: Bool = false
     
     // Displays & Island Mode
@@ -437,12 +439,13 @@ struct ContentView: View {
                         alignment: .top
                     )
                     .scaleEffect(
-                        x: emptyClickBounce ? 0.94 : ((isHovering && vm.notchState == .closed && !isShowingMusicSneakPeek) ? 1.02 : 1.0),
+                        x: emptyClickBounce ? 0.94 : ((isScaleHovered && vm.notchState == .closed && !isShowingMusicSneakPeek) ? 1.02 : 1.0),
                         y: emptyClickBounce ? 0.94 : 1.0,
                         anchor: .top
                     )
                     .offset(y: islandYOffset)
                     .opacity(islandOpacity)
+                    .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: isScaleHovered)
                     .animation(.interactiveSpring(response: 0.42, dampingFraction: 0.80), value: isHovering)
                     .animation(.interactiveSpring(response: 0.44, dampingFraction: 0.82), value: islandYOffset)
                     .animation(.easeInOut(duration: 0.28), value: islandOpacity)
@@ -503,6 +506,8 @@ struct ContentView: View {
                         }
                     }
                     .onChange(of: vm.notchState) { _, newState in
+                        showCoverHoverMusicDetails = false
+                        coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
                         if newState == .open {
                             updateOpenNotchWidth()
                         }
@@ -1221,6 +1226,8 @@ struct ContentView: View {
     }
 
     private func doOpen() {
+        showCoverHoverMusicDetails = false
+        coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
         withAnimation(animationSpring) {
             vm.open()
             vm.notchSize = .init(width: desiredOpenNotchWidth, height: desiredOpenNotchHeight)
@@ -1234,6 +1241,10 @@ struct ContentView: View {
         hoverTask?.cancel()
         
         if hovering {
+            scaleHoverTask?.cancel()
+            withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.82)) {
+                isScaleHovered = true
+            }
             let wasNotHovering = !isHovering
             withAnimation(animationSpring) {
                 isHovering = true
@@ -1263,6 +1274,15 @@ struct ContentView: View {
                 }
             }
         } else {
+            scaleHoverTask?.cancel()
+            scaleHoverTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+                withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.82)) {
+                    self.isScaleHovered = false
+                }
+            }
+            
             hoverTask = Task {
                 let delay = max(0.20, Defaults[.collapseDelay])
                 try? await Task.sleep(for: .seconds(delay))
@@ -1270,6 +1290,8 @@ struct ContentView: View {
                 
                 await MainActor.run {
                     if self.vm.notchState == .open && !self.vm.isBatteryPopoverActive && !SharingStateManager.shared.preventNotchClose {
+                        self.showCoverHoverMusicDetails = false
+                        self.coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
                         // 1. Morph open notch back to closed island pill
                         self.vm.close()
                         
