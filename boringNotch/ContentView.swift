@@ -217,7 +217,7 @@ struct ContentView: View {
     private var computedChinWidth: CGFloat {
         if isCurrentDisplayIsland {
             if isShowingMusicSneakPeek {
-                return isCurrentScreenBuiltin ? 150 : 130
+                return isCurrentScreenBuiltin ? 190 : 165
             } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show && vm.notchState == .closed {
                 return isCurrentScreenBuiltin ? 170 : 145
             } else if isAntigravityActive {
@@ -236,7 +236,7 @@ struct ContentView: View {
         var chinWidth: CGFloat = vm.closedNotchSize.width + (2 * topCornerRadius) + 8
 
         if isShowingMusicSneakPeek {
-            chinWidth += 16
+            chinWidth += 32
         } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show
             && vm.notchState == .closed
         {
@@ -826,9 +826,9 @@ struct ContentView: View {
         let coverSize = max(0, vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? (isShowingMusicSneakPeek ? 6 : 8) : 12))
         let showGesturePrev = mediaGestureDirection == .right && mediaGestureIconVisible && musicManager.isPlaying
         let showGestureNext = mediaGestureDirection == .left && mediaGestureIconVisible && musicManager.isPlaying
-        let islandSneakPeekWidth: CGFloat = isCurrentScreenBuiltin ? 150 : 130
+        let islandSneakPeekWidth: CGFloat = isCurrentScreenBuiltin ? 190 : 165
         let defaultCenterSpacerWidth: CGFloat = isCurrentDisplayIsland
-            ? (isShowingMusicSneakPeek ? max(10, islandSneakPeekWidth - (coverSize * 2) - 16) : (isCurrentScreenBuiltin ? 76 : 54))
+            ? (isShowingMusicSneakPeek ? max(10, islandSneakPeekWidth - (coverSize * 2) - 20) : (isCurrentScreenBuiltin ? 76 : 54))
             : (vm.closedNotchSize.width - 10)
 
         VStack(spacing: isShowingMusicSneakPeek ? 4 : 0) {
