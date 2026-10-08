@@ -262,78 +262,238 @@ struct GeneralSettings: View {
     @EnvironmentObject var vm: BoringViewModel
     @ObservedObject var coordinator = BoringViewCoordinator.shared
 
+    @Default(.menubarIcon) var menubarIcon
+    @Default(.hideNotchOption) var hideNotchOption
+    @Default(.hideFromScreenRecording) var hideFromScreenRecording
     @Default(.gestureSensitivity) var gestureSensitivity
     @Default(.enableGestures) var enableGestures
+    @Default(.changeMediaWithGesture) var changeMediaWithGesture
+    @Default(.closeGestureEnabled) var closeGestureEnabled
     @Default(.openNotchOnHover) var openNotchOnHover
 
     var body: some View {
-        Form {
-            Section {
-                LaunchAtLogin.Toggle("Launch at login")
-                Toggle(isOn: Binding(
-                    get: { Defaults[.menubarIcon] },
-                    set: { Defaults[.menubarIcon] = $0 }
-                )) {
-                    Text("Show menu bar icon")
-                }
-                .tint(.effectiveAccent)
-                
-                Toggle("Remember last active tab", isOn: $coordinator.openLastTabByDefault)
-            } header: {
-                Text("System")
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // MARK: - 1. System Settings Card
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("System")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.secondary)
 
-            gestureControls()
-        }
-        .toolbar {
-            Button("Quit app") {
-                NSApp.terminate(self)
+                    VStack(spacing: 0) {
+                        // Row 1: Launch at startup
+                        settingRow(
+                            icon: "power.circle.fill",
+                            iconColor: Color.blue,
+                            title: "Launch at startup",
+                            subtitle: "Open BoringNotch automatically when you log in to your Mac",
+                            isOn: Binding(
+                                get: { LaunchAtLogin.isEnabled },
+                                set: { LaunchAtLogin.isEnabled = $0 }
+                            )
+                        )
+
+                        cardDivider
+
+                        // Row 2: Show menu bar icon
+                        settingRow(
+                            icon: "menubar.rectangle",
+                            iconColor: Color.purple,
+                            title: "Show menu bar icon",
+                            subtitle: "Display BoringNotch icon in the macOS menu bar for quick access",
+                            isOn: $menubarIcon
+                        )
+
+                        cardDivider
+
+                        // Row 3: Show in full screen
+                        settingRow(
+                            icon: "arrow.up.left.and.arrow.down.right.rectangle",
+                            iconColor: Color.teal,
+                            title: "Show in full screen",
+                            subtitle: "Keep the notch and island visible over full screen applications",
+                            isOn: Binding(
+                                get: { hideNotchOption == .never },
+                                set: { hideNotchOption = $0 ? .never : .nowPlayingOnly }
+                            )
+                        )
+
+                        cardDivider
+
+                        // Row 4: Remember last active tab
+                        settingRow(
+                            icon: "clock.arrow.circlepath",
+                            iconColor: Color.orange,
+                            title: "Remember last active tab",
+                            subtitle: "Reopen the notch to your last used tab (Home, Shelf, or Calendar) instead of resetting to Home",
+                            isOn: $coordinator.openLastTabByDefault
+                        )
+
+                        cardDivider
+
+                        // Row 5: Display in screenshot
+                        settingRow(
+                            icon: "camera.viewfinder",
+                            iconColor: Color.green,
+                            title: "Display in screenshots",
+                            subtitle: "Include BoringNotch in screen recordings and screenshots",
+                            isOn: Binding(
+                                get: { !hideFromScreenRecording },
+                                set: { hideFromScreenRecording = !$0 }
+                            )
+                        )
+                    }
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                    )
+                }
+
+                // MARK: - 2. Gesture Control Card
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Gesture control")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.secondary)
+                        customBadge(text: "Beta")
+                    }
+
+                    VStack(spacing: 0) {
+                        settingRow(
+                            icon: "hand.draw.fill",
+                            iconColor: Color.indigo,
+                            title: "Enable gestures",
+                            subtitle: "Trackpad swipe gestures on the notch or island",
+                            isOn: $enableGestures
+                        )
+
+                        if enableGestures {
+                            cardDivider
+
+                            settingRow(
+                                icon: "arrow.left.and.right.square.fill",
+                                iconColor: Color.blue,
+                                title: "Change media with horizontal gestures",
+                                subtitle: "Swipe left or right on trackpad to skip tracks",
+                                isOn: $changeMediaWithGesture
+                            )
+
+                            cardDivider
+
+                            settingRow(
+                                icon: "chevron.up.circle.fill",
+                                iconColor: Color.pink,
+                                title: "Close gesture",
+                                subtitle: "Two-finger swipe up to close the expanded notch",
+                                isOn: $closeGestureEnabled
+                            )
+
+                            cardDivider
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text("Gesture sensitivity")
+                                        .font(.system(size: 13.5, weight: .medium))
+                                    Spacer()
+                                    Text(
+                                        gestureSensitivity == 100
+                                            ? "High" : gestureSensitivity == 200 ? "Medium" : "Low"
+                                    )
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                }
+
+                                Slider(value: $gestureSensitivity, in: 100...300, step: 100)
+                                    .tint(.effectiveAccent)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                        }
+                    }
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                    )
+
+                    Text(
+                        "Two-finger swipe up on notch to close, two-finger swipe down on notch to open when **Open notch on hover** option is disabled."
+                    )
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                }
+
+                // MARK: - 3. App Quit Section
+                HStack {
+                    Spacer()
+                    Button(role: .destructive) {
+                        NSApp.terminate(nil)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "power")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("Quit BoringNotch")
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                }
+                .padding(.top, 4)
             }
-            .controlSize(.extraLarge)
+            .padding(20)
         }
-        .accentColor(.effectiveAccent)
         .navigationTitle("General")
     }
 
+    private var cardDivider: some View {
+        Divider()
+            .padding(.horizontal, 16)
+    }
+
     @ViewBuilder
-    func gestureControls() -> some View {
-        Section {
-            Defaults.Toggle(key: .enableGestures) {
-                Text("Enable gestures")
+    private func settingRow(
+        icon: String,
+        iconColor: Color,
+        title: String,
+        subtitle: String,
+        isOn: Binding<Bool>
+    ) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(iconColor.opacity(0.12))
+                    .frame(width: 28, height: 28)
+                Image(systemName: icon)
+                    .font(.system(size: 13))
+                    .foregroundStyle(iconColor)
             }
-                .disabled(!openNotchOnHover)
-            if enableGestures {
-                Defaults.Toggle(key: .changeMediaWithGesture) {
-                    Text("Change media with horizontal gestures")
-                }
-                Defaults.Toggle(key: .closeGestureEnabled) {
-                    Text("Close gesture")
-                }
-                Slider(value: $gestureSensitivity, in: 100...300, step: 100) {
-                    HStack {
-                        Text("Gesture sensitivity")
-                        Spacer()
-                        Text(
-                            Defaults[.gestureSensitivity] == 100
-                                ? "High" : Defaults[.gestureSensitivity] == 200 ? "Medium" : "Low"
-                        )
-                        .foregroundStyle(.secondary)
-                    }
-                }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13.5, weight: .medium))
+                    .foregroundColor(.primary)
+                Text(subtitle)
+                    .font(.system(size: 11.5))
+                    .foregroundColor(.secondary)
             }
-        } header: {
-            HStack {
-                Text("Gesture control")
-                customBadge(text: "Beta")
-            }
-        } footer: {
-            Text(
-                "Two-finger swipe up on notch to close, two-finger swipe down on notch to open when **Open notch on hover** option is disabled"
-            )
-            .multilineTextAlignment(.trailing)
-            .foregroundStyle(.secondary)
-            .font(.caption)
+
+            Spacer()
+
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .tint(.effectiveAccent)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }
 
@@ -412,7 +572,7 @@ struct BatteryAlertsSettingsView: View {
                 Toggle("", isOn: $batteryAlertsEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
-                    .controlSize(.regular)
+                    .controlSize(.small)
                     .tint(.effectiveAccent)
             }
         }
@@ -943,7 +1103,7 @@ struct LowBatteryAlertCardView: View {
                             Toggle("", isOn: $alert.borderGlow)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
-                                .controlSize(.regular)
+                                .controlSize(.small)
                                 .tint(.effectiveAccent)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1200,7 +1360,7 @@ struct ChargedAlertCardView: View {
                             Toggle("", isOn: $glowEnabled)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
-                                .controlSize(.regular)
+                                .controlSize(.small)
                                 .tint(.effectiveAccent)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -3204,7 +3364,7 @@ struct BatteryChargingSettingsView: View {
                         Toggle("", isOn: $chargeLimitEnabled)
                             .labelsHidden()
                             .toggleStyle(.switch)
-                            .controlSize(.regular)
+                            .controlSize(.small)
                             .tint(.effectiveAccent)
                     }
 
@@ -3290,7 +3450,7 @@ struct BatteryChargingSettingsView: View {
                             Toggle("", isOn: $showCableChargeStatus)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
-                                .controlSize(.regular)
+                                .controlSize(.small)
                                 .tint(.effectiveAccent)
                         }
 
@@ -3366,7 +3526,7 @@ struct BatteryChargingSettingsView: View {
                         Toggle("", isOn: $sailingModeEnabled)
                             .labelsHidden()
                             .toggleStyle(.switch)
-                            .controlSize(.regular)
+                            .controlSize(.small)
                             .tint(.effectiveAccent)
                     }
 
@@ -3448,7 +3608,7 @@ struct BatteryChargingSettingsView: View {
                     Toggle("", isOn: $heatProtectionEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .controlSize(.regular)
+                        .controlSize(.small)
                         .tint(.effectiveAccent)
                 }
                 .padding(.horizontal, 16)
@@ -3499,7 +3659,7 @@ struct BatteryChargingSettingsView: View {
                     Toggle("", isOn: $sleepPreventionEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .controlSize(.regular)
+                        .controlSize(.small)
                         .tint(.effectiveAccent)
                 }
                 .padding(.horizontal, 16)
@@ -3559,7 +3719,7 @@ struct BatteryChargingSettingsView: View {
                     Toggle("", isOn: $automaticDischargeEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
-                        .controlSize(.regular)
+                        .controlSize(.small)
                         .tint(.effectiveAccent)
                 }
                 .padding(.horizontal, 16)
@@ -4960,7 +5120,7 @@ struct HUD: View {
                     Defaults.Toggle("", key: .hudReplacement)
                     .labelsHidden()
                     .toggleStyle(.switch)
-                    .controlSize(.large)
+                    .controlSize(.small)
                     .disabled(!accessibilityAuthorized)
                 }
                 
@@ -5064,6 +5224,165 @@ struct HUD: View {
     }
 }
 
+// MARK: - Media Source Radio Selection Card
+struct MediaSourceCard: View {
+    let source: MediaControllerType
+    @Binding var selection: MediaControllerType
+    @State private var isHovered = false
+
+    var isSelected: Bool {
+        selection == source
+    }
+
+    private var iconName: String {
+        switch source {
+        case .nowPlaying:
+            return "waveform"
+        case .appleMusic:
+            return "apple.logo"
+        case .spotify:
+            return "dot.radiowaves.left.and.right"
+        case .youtubeMusic:
+            return "play.rectangle.fill"
+        }
+    }
+
+    private var iconColor: Color {
+        switch source {
+        case .nowPlaying:
+            return .purple
+        case .appleMusic:
+            return .pink
+        case .spotify:
+            return Color(red: 0.11, green: 0.84, blue: 0.38)
+        case .youtubeMusic:
+            return .red
+        }
+    }
+
+    var body: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                selection = source
+                NotificationCenter.default.post(
+                    name: Notification.Name.mediaControllerChanged,
+                    object: nil
+                )
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: iconName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(isSelected ? iconColor : (isHovered ? .primary : .secondary))
+
+                Text(source.rawValue)
+                    .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                    .foregroundColor(isSelected ? .primary : .secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(
+                        isSelected
+                            ? Color.effectiveAccent.opacity(0.12)
+                            : (isHovered ? Color.primary.opacity(0.06) : Color.primary.opacity(0.03))
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(
+                        isSelected ? Color.effectiveAccent : Color.primary.opacity(0.08),
+                        lineWidth: isSelected ? 1.5 : 1
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hov in
+            isHovered = hov
+        }
+    }
+}
+
+// MARK: - Sneak Peek Style Radio Selection Card
+struct SneakPeekStyleCard: View {
+    let style: SneakPeekStyle
+    @Binding var selection: SneakPeekStyle
+    @State private var isHovered = false
+
+    var isSelected: Bool {
+        selection == style
+    }
+
+    private var iconName: String {
+        switch style {
+        case .standard:
+            return "rectangle.topthird.inset.filled"
+        case .inline:
+            return "text.line.first.and.arrowtriangle.forward"
+        }
+    }
+
+    private var description: String {
+        switch style {
+        case .standard:
+            return "Rich card popup"
+        case .inline:
+            return "Compact banner"
+        }
+    }
+
+    var body: some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                selection = style
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: iconName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(isSelected ? Color.effectiveAccent : (isHovered ? .primary : .secondary))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(style.rawValue)
+                        .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                        .foregroundColor(isSelected ? .primary : .secondary)
+                    Text(description)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(
+                        isSelected
+                            ? Color.effectiveAccent.opacity(0.12)
+                            : (isHovered ? Color.primary.opacity(0.06) : Color.primary.opacity(0.03))
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(
+                        isSelected ? Color.effectiveAccent : Color.primary.opacity(0.08),
+                        lineWidth: isSelected ? 1.5 : 1
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hov in
+            isHovered = hov
+        }
+    }
+}
+
+// MARK: - Media Settings View
 struct Media: View {
     @Default(.waitInterval) var waitInterval
     @Default(.mediaController) var mediaController
@@ -5071,104 +5390,291 @@ struct Media: View {
     @Default(.hideNotchOption) var hideNotchOption
     @Default(.enableSneakPeek) private var enableSneakPeek
     @Default(.sneakPeekStyles) var sneakPeekStyles
-
     @Default(.enableLyrics) var enableLyrics
 
     var body: some View {
-        Form {
-            Section {
-                Picker("Music Source", selection: $mediaController) {
-                    ForEach(availableMediaControllers) { controller in
-                        Text(controller.rawValue).tag(controller)
-                    }
-                }
-                .onChange(of: mediaController) { _, _ in
-                    NotificationCenter.default.post(
-                        name: Notification.Name.mediaControllerChanged,
-                        object: nil
-                    )
-                }
-            } header: {
-                Text("Media Source")
-            } footer: {
-                if MusicManager.shared.isNowPlayingDeprecated {
-                    HStack {
-                        Text("YouTube Music requires this third-party app to be installed: ")
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                        Link(
-                            "https://github.com/pear-devs/pear-desktop",
-                            destination: URL(string: "https://github.com/pear-devs/pear-desktop")!
-                        )
-                        .font(.caption)
-                        .foregroundColor(.blue)  // Ensures it's visibly a link
-                    }
-                } else {
-                    Text(
-                        "'Now Playing' was the only option on previous versions and works with all media apps."
-                    )
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-                }
-            }
-            
-            Section {
-                Toggle(
-                    "Show music live activity",
-                    isOn: $coordinator.musicLiveActivityEnabled.animation()
-                )
-                Toggle("Show sneak peek on playback changes", isOn: $enableSneakPeek)
-                Picker("Sneak Peek Style", selection: $sneakPeekStyles) {
-                    ForEach(SneakPeekStyle.allCases) { style in
-                        Text(style.rawValue).tag(style)
-                    }
-                }
-                HStack {
-                    Stepper(value: $waitInterval, in: 0...10, step: 1) {
-                        HStack {
-                            Text("Media inactivity timeout")
-                            Spacer()
-                            Text("\(Defaults[.waitInterval], specifier: "%.0f") seconds")
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                Picker(
-                    selection: $hideNotchOption,
-                    label:
-                        HStack {
-                            Text("Full screen behavior")
-                            customBadge(text: "Beta")
-                        }
-                ) {
-                    Text("Hide for all apps").tag(HideNotchOption.always)
-                    Text("Hide for media app only").tag(
-                        HideNotchOption.nowPlayingOnly)
-                    Text("Never hide").tag(HideNotchOption.never)
-                }
-            } header: {
-                Text("Media playback live activity")
-            }
-            
-            Section {
-                MusicSlotConfigurationView()
-                Defaults.Toggle(key: .enableLyrics) {
-                    HStack {
-                        Text("Show lyrics below artist name")
-                        customBadge(text: "Beta")
-                    }
-                }
-            } header: {
-                Text("Media controls")
-            }  footer: {
-                Text("Customize which controls appear in the music player. Volume expands when active.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // MARK: - 1. Master Live Activity Card
+                masterLiveActivityCard
 
+                // MARK: - 2. Music Source (Radio Cards)
+                musicSourceSection
+
+                // MARK: - 3. Playback Live Activity Card
+                playbackLiveActivityCard
+
+                // MARK: - 4. Media Controls Card
+                mediaControlsCard
+            }
+            .padding(20)
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("Media")
+    }
+
+    // MARK: - 1. Master Live Activity Card
+    private var masterLiveActivityCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.pink.opacity(0.12))
+                        .frame(width: 28, height: 28)
+                    Image(systemName: "music.note")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.pink)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Show music live activity")
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundColor(.primary)
+                    Text("Display current track info and playback controls in BoringNotch")
+                        .font(.system(size: 11.5))
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                KbdShortcutBadge(keys: ["⌘", "⇧", "P"])
+                    .padding(.trailing, 4)
+
+                Toggle("", isOn: $coordinator.musicLiveActivityEnabled.animation())
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .tint(.effectiveAccent)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+            )
+        }
+    }
+
+    // MARK: - 2. Music Source Section
+    private var musicSourceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Music Source")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.secondary)
+
+            HStack(spacing: 8) {
+                ForEach(availableMediaControllers) { controller in
+                    MediaSourceCard(source: controller, selection: $mediaController)
+                }
+            }
+
+            if MusicManager.shared.isNowPlayingDeprecated {
+                HStack(spacing: 4) {
+                    Text("YouTube Music requires this third-party app to be installed: ")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11))
+                    Link(
+                        "pear-desktop",
+                        destination: URL(string: "https://github.com/pear-devs/pear-desktop")!
+                    )
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.effectiveAccent)
+                }
+                .padding(.horizontal, 4)
+                .padding(.top, 2)
+            } else {
+                Text("'Now Playing' automatically connects to Apple Music, Spotify, browsers, and all macOS media players.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 2)
+            }
+        }
+    }
+
+    // MARK: - 3. Playback Live Activity Card
+    private var playbackLiveActivityCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Playback Live Activity")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.secondary)
+
+            VStack(spacing: 0) {
+                // Sneak Peek Toggle Row
+                mediaRow(
+                    icon: "sparkles.rectangle.stack.fill",
+                    iconColor: .indigo,
+                    title: "Show sneak peek on playback changes",
+                    subtitle: "Briefly pop open track info and album art when a new song starts"
+                ) {
+                    Toggle("", isOn: $enableSneakPeek)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .tint(.effectiveAccent)
+                }
+
+                if enableSneakPeek {
+                    cardDivider
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Sneak Peek Style")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondary)
+
+                        HStack(spacing: 8) {
+                            ForEach(SneakPeekStyle.allCases) { style in
+                                SneakPeekStyleCard(style: style, selection: $sneakPeekStyles)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+
+                cardDivider
+
+                // Inactivity Timeout Row
+                mediaRow(
+                    icon: "timer",
+                    iconColor: .orange,
+                    title: "Media inactivity timeout",
+                    subtitle: "Automatically hide player after media has remained paused"
+                ) {
+                    HStack(spacing: 8) {
+                        Text("\(Int(waitInterval))s")
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(minWidth: 28, alignment: .trailing)
+
+                        Stepper("", value: $waitInterval, in: 0...10, step: 1)
+                            .labelsHidden()
+                            .controlSize(.small)
+                    }
+                }
+
+                cardDivider
+
+                // Full Screen Behavior Row
+                mediaRow(
+                    icon: "arrow.up.left.and.arrow.down.right.rectangle",
+                    iconColor: .teal,
+                    title: "Full screen behavior",
+                    subtitle: "Control media notch visibility in full screen apps",
+                    badge: "Beta"
+                ) {
+                    Picker("", selection: $hideNotchOption) {
+                        Text("Hide for all apps").tag(HideNotchOption.always)
+                        Text("Hide for media app only").tag(HideNotchOption.nowPlayingOnly)
+                        Text("Never hide").tag(HideNotchOption.never)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(width: 170)
+                }
+            }
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+            )
+        }
+    }
+
+    // MARK: - 4. Media Controls Card
+    private var mediaControlsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Media Controls")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.secondary)
+
+            VStack(spacing: 0) {
+                // Drag & Drop Configuration
+                VStack(alignment: .leading, spacing: 10) {
+                    MusicSlotConfigurationView()
+                }
+                .padding(16)
+
+                cardDivider
+
+                // Lyrics Toggle Row
+                mediaRow(
+                    icon: "quote.bubble.fill",
+                    iconColor: .purple,
+                    title: "Show lyrics below artist name",
+                    subtitle: "Display real-time lyrics under the track artist when available",
+                    badge: "Beta"
+                ) {
+                    Toggle("", isOn: $enableLyrics)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .tint(.effectiveAccent)
+                }
+            }
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+            )
+
+            Text("Customize which controls appear in the music player. Volume expands when active.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+                .padding(.top, 2)
+        }
+    }
+
+    private var cardDivider: some View {
+        Divider()
+            .padding(.horizontal, 16)
+    }
+
+    @ViewBuilder
+    private func mediaRow<TrailingContent: View>(
+        icon: String,
+        iconColor: Color,
+        title: String,
+        subtitle: String,
+        badge: String? = nil,
+        @ViewBuilder trailing: () -> TrailingContent
+    ) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(iconColor.opacity(0.12))
+                    .frame(width: 28, height: 28)
+                Image(systemName: icon)
+                    .font(.system(size: 13))
+                    .foregroundStyle(iconColor)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 13.5, weight: .medium))
+                        .foregroundColor(.primary)
+
+                    if let badge = badge {
+                        customBadge(text: badge)
+                    }
+                }
+                Text(subtitle)
+                    .font(.system(size: 11.5))
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer(minLength: 16)
+
+            trailing()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
     // Only show controller options that are available on this macOS version
@@ -5250,6 +5756,7 @@ struct CalendarSettings: View {
             Toggle("", isOn: $showCalendar)
                 .labelsHidden()
                 .toggleStyle(.switch)
+                .controlSize(.small)
                 .tint(.effectiveAccent)
                 .onChange(of: showCalendar) { _, enabled in
                     if !enabled && Defaults[.activeModule] == .calendar {
@@ -6026,6 +6533,7 @@ struct Appearance: View {
                             Toggle("", isOn: $openNotchOnHover)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
+                                .controlSize(.small)
                                 .tint(Color.effectiveAccent)
                         }
                         .padding(.horizontal, 16)
@@ -6088,6 +6596,7 @@ struct Appearance: View {
                             Toggle("", isOn: $enableHaptics)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
+                                .controlSize(.small)
                                 .tint(Color.effectiveAccent)
                         }
                         .padding(.horizontal, 16)

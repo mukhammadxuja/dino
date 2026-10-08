@@ -298,6 +298,8 @@ struct ContentView: View {
             && (musicManager.isPlaying || !musicManager.isPlayerIdle || isShowingMusicSneakPeek)
             && coordinator.musicLiveActivityEnabled
             && !vm.hideOnClosed
+            && (activeModule != .calendar || isShowingMusicSneakPeek)
+            && (activeModule != .pomodoro || isShowingMusicSneakPeek || !pomodoroManager.hasActiveSession)
     }
 
     private var shouldShowCalendarClosedVisual: Bool {
@@ -305,8 +307,7 @@ struct ContentView: View {
             && activeModule == .calendar
             && vm.notchState == .closed
             && !vm.hideOnClosed
-            && !shouldShowMusicClosedVisual
-            && !shouldShowPomodoroInlineClosedVisual
+            && !isShowingMusicSneakPeek
             && !isAntigravityActive
             && !coordinator.expandingView.show
     }
@@ -317,7 +318,7 @@ struct ContentView: View {
         if shouldShowMusicClosedVisual { return true }
         if shouldShowPomodoroInlineClosedVisual { return true }
         if shouldShowCalendarClosedVisual { return true }
-        if activeModule != .none && activeModule != .music && activeModule != .calendar && activeModule != .coding { return true }
+        if activeModule != .none && activeModule != .music && activeModule != .coding { return true }
         if activeModule == .calendar && showCalendar { return true }
         if !musicManager.isPlayerIdle || musicManager.isPlaying { return true }
         return false
@@ -1070,7 +1071,7 @@ struct ContentView: View {
     @ViewBuilder
     func CalendarClosedNotchView() -> some View {
         let itemSize = max(0, vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? 10 : 12))
-        let centerSpacerWidth: CGFloat = isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 76 : 50) : (vm.closedNotchSize.width - cornerRadiusInsets.closed.top)
+        let centerSpacerWidth: CGFloat = isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 76 : 50) : (vm.closedNotchSize.width + 14)
         HStack(spacing: 0) {
             Image(systemName: "calendar")
                 .font(.system(size: isCurrentScreenBuiltin ? 14 : 13, weight: .semibold))
@@ -1175,7 +1176,7 @@ struct ContentView: View {
             }
         } else {
             hoverTask = Task {
-                let delay = max(0.05, Defaults[.collapseDelay])
+                let delay = max(0.20, Defaults[.collapseDelay])
                 try? await Task.sleep(for: .seconds(delay))
                 guard !Task.isCancelled else { return }
                 
@@ -1195,7 +1196,7 @@ struct ContentView: View {
                             }
                         }
                     } else {
-                        withAnimation(animationSpring) {
+                        withAnimation(self.animationSpring) {
                             self.isHovering = false
                         }
                     }

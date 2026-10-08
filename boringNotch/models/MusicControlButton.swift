@@ -34,14 +34,11 @@ enum MusicControlButton: String, CaseIterable, Identifiable, Codable, Defaults.S
 
     static let pickerOptions: [MusicControlButton] = [
         .shuffle,
-        .previous,
-        .playPause,
-        .next,
+        .goBackward,
+        .goForward,
         .repeatMode,
         .favorite,
-        .volume,
-        .goBackward,
-        .goForward
+        .volume
     ]
 
     var label: String {

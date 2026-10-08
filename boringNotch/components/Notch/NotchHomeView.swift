@@ -546,13 +546,28 @@ struct NotchHomeView: View {
     }
 
     private var effectiveActiveModule: ActiveNotchModule {
+        if activeModule == .calendar && Defaults[.showCalendar] {
+            return .calendar
+        }
+        if activeModule == .pomodoro && Defaults[.pomodoroEnabled] {
+            return .pomodoro
+        }
+        if activeModule == .battery {
+            return .battery
+        }
+        if activeModule == .coding {
+            return .coding
+        }
+        if activeModule == .shelf {
+            return .shelf
+        }
+        if activeModule == .music {
+            return .music
+        }
         if musicManager.isPlaying || !musicManager.isPlayerIdle {
             return .music
         }
-        if activeModule == .calendar && !Defaults[.showCalendar] {
-            return .none
-        }
-        return activeModule
+        return .music
     }
 
     private var shouldShowCamera: Bool {
