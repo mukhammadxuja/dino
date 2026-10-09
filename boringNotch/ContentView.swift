@@ -72,7 +72,7 @@ struct ContentView: View {
     @Default(.displayShowOn) var displayShowOn
 
     // Shared interactive spring for movement/resizing to avoid conflicting animations
-    private let animationSpring = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0)
+    private let animationSpring = Animation.interactiveSpring(response: 0.36, dampingFraction: 0.68, blendDuration: 0)
 
     private let extendedHoverPadding: CGFloat = 30
     private let zeroHeightHoverPadding: CGFloat = 10
@@ -430,40 +430,7 @@ struct ContentView: View {
             }
 
             VStack(spacing: 0) {
-                let mainLayout = NotchLayout()
-                    .frame(alignment: .top)
-                    .padding(
-                        .horizontal,
-                        vm.notchState == .open
-                            ? (isCurrentDisplayIsland ? 22 : (topCornerRadius + 14))
-                            : (isCurrentDisplayIsland ? (isShowingMusicSneakPeek ? 10 : 8) : (topCornerRadius + 6))
-                    )
-                    .padding(.top, vm.notchState == .open ? 18 : (isCurrentDisplayIsland && isShowingMusicSneakPeek ? 4 : 0))
-                    .padding(.bottom, vm.notchState == .open ? 18 : (isCurrentDisplayIsland && isShowingMusicSneakPeek ? 6 : 0))
-                    .background(surfaceBackground)
-                    .conditionalModifier(isCurrentDisplayIsland) { view in
-                        view.clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
-                    }
-                    .conditionalModifier(!isCurrentDisplayIsland) { view in
-                        view.clipShape(currentNotchShape)
-                    }
-                    .overlay(alignment: .top) {
-                        surfaceOverlay
-                    }
-                    .shadow(
-                        color: ((vm.notchState == .open || isHovering) && Defaults[.enableShadow])
-                            ? (isCurrentDisplayIsland ? Color.black.opacity(0.65) : Color.black.opacity(0.7))
-                            : (isCurrentDisplayIsland && Defaults[.enableShadow] ? Color.black.opacity(0.25) : .clear),
-                        radius: isCurrentDisplayIsland ? ((isHovering || vm.notchState == .open) ? 14 : 5) : (Defaults[.cornerRadiusScaling] ? 8 : 5),
-                        x: 0,
-                        y: isCurrentDisplayIsland ? ((isHovering || vm.notchState == .open) ? 6 : 2) : 0
-                    )
-                    .padding(
-                        .bottom,
-                        vm.effectiveClosedNotchHeight == 0 ? 10 : 0
-                    )
-                
-                mainLayout
+                islandContainerView
                     .frame(
                         width: vm.notchState == .open ? vm.notchSize.width : nil,
                         height: vm.notchState == .open ? vm.notchSize.height : nil,
@@ -481,8 +448,8 @@ struct ContentView: View {
                     .animation(.interactiveSpring(response: 0.44, dampingFraction: 0.82), value: islandYOffset)
                     .animation(.easeInOut(duration: 0.28), value: islandOpacity)
                     .conditionalModifier(true) { view in
-                        let openAnimation = Animation.interactiveSpring(response: 0.4, dampingFraction: 0.82, blendDuration: 0)
-                        let closeAnimation = Animation.interactiveSpring(response: 0.42, dampingFraction: 0.84, blendDuration: 0)
+                        let openAnimation = Animation.interactiveSpring(response: 0.36, dampingFraction: 0.68, blendDuration: 0)
+                        let closeAnimation = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.74, blendDuration: 0)
                         
                         return view
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
@@ -685,6 +652,69 @@ struct ContentView: View {
     }
 
     @ViewBuilder
+    private var mainPillView: some View {
+        NotchLayout()
+            .frame(alignment: .top)
+            .padding(
+                .horizontal,
+                vm.notchState == .open
+                    ? (isCurrentDisplayIsland ? 22 : (topCornerRadius + 14))
+                    : (isCurrentDisplayIsland ? (isShowingMusicSneakPeek ? 10 : 8) : (topCornerRadius + 6))
+            )
+            .padding(.top, vm.notchState == .open ? 18 : (isCurrentDisplayIsland && isShowingMusicSneakPeek ? 4 : 0))
+            .padding(.bottom, vm.notchState == .open ? 18 : (isCurrentDisplayIsland && isShowingMusicSneakPeek ? 6 : 0))
+            .background(surfaceBackground)
+            .conditionalModifier(isCurrentDisplayIsland) { view in
+                view.clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+            }
+            .conditionalModifier(!isCurrentDisplayIsland) { view in
+                view.clipShape(currentNotchShape)
+            }
+            .overlay(alignment: .top) {
+                surfaceOverlay
+            }
+            .shadow(
+                color: ((vm.notchState == .open || isHovering) && Defaults[.enableShadow])
+                    ? (isCurrentDisplayIsland ? Color.black.opacity(0.65) : Color.black.opacity(0.7))
+                    : (isCurrentDisplayIsland && Defaults[.enableShadow] ? Color.black.opacity(0.25) : .clear),
+                radius: isCurrentDisplayIsland ? ((isHovering || vm.notchState == .open) ? 14 : 5) : (Defaults[.cornerRadiusScaling] ? 8 : 5),
+                x: 0,
+                y: isCurrentDisplayIsland ? ((isHovering || vm.notchState == .open) ? 6 : 2) : 0
+            )
+            .padding(
+                .bottom,
+                vm.effectiveClosedNotchHeight == 0 ? 10 : 0
+            )
+    }
+
+    @ViewBuilder
+    private var islandContainerView: some View {
+        HStack(spacing: 8) {
+            mainPillView
+                .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+                .onTapGesture {
+                    if vm.notchState == .closed {
+                        openMusicWithSpring()
+                    }
+                }
+
+            if isCurrentDisplayIsland && isDualActivityActive && vm.notchState == .closed {
+                pomodoroCompanionCircleView
+                    .transition(
+                        .asymmetric(
+                            insertion: .scale(scale: 0.5).combined(with: .opacity),
+                            removal: .scale(scale: 0.5).combined(with: .opacity)
+                        )
+                    )
+                    .contentShape(Circle())
+                    .onTapGesture {
+                        openPomodoroWithSpring()
+                    }
+            }
+        }
+    }
+
+    @ViewBuilder
     func NotchLayout() -> some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
@@ -763,8 +793,13 @@ struct ContentView: View {
                               .frame(width: isCurrentDisplayIsland ? 110 : (vm.closedNotchSize.width + 10), height: vm.effectiveClosedNotchHeight)
                               .transition(.opacity)
                       } else if isDualActivityActive {
-                          DualActivityClosedView()
-                              .transition(.opacity)
+                          if isCurrentDisplayIsland {
+                              MusicLiveActivity()
+                                  .frame(alignment: .center)
+                          } else {
+                              DualActivityClosedView()
+                                  .transition(.opacity)
+                          }
                       } else if shouldShowPomodoroInlineClosedVisual {
                           PomodoroClosedNotchView()
                               .transition(.opacity)
@@ -1272,6 +1307,61 @@ struct ContentView: View {
     }
 
     @ViewBuilder
+    private var pomodoroCompanionCircleView: some View {
+        let diameter: CGFloat = vm.effectiveClosedNotchHeight
+        let ringColor: Color = pomodoroManager.isBreakPhase
+            ? Color(red: 0.2, green: 0.85, blue: 0.4)
+            : Color(red: 243/255.0, green: 164/255.0, blue: 28/255.0)
+        // Match exact Pomodoro closed button sizing (20pt Built-in, 15.5pt External)
+        let ringSize: CGFloat = isCurrentScreenBuiltin ? 20.0 : 15.5
+        let ringLineWidth: CGFloat = isCurrentScreenBuiltin ? 2.0 : 1.6
+
+        ZStack {
+            PomodoroDetachedTickRingView(
+                progress: Double(pomodoroManager.progress),
+                ringColor: ringColor,
+                size: ringSize,
+                lineWidth: ringLineWidth
+            )
+            .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: pomodoroManager.progress)
+        }
+        .frame(width: diameter, height: diameter)
+        .background(surfaceBackground)
+        .clipShape(Circle())
+        .overlay(companionCircleOverlay)
+        .shadow(
+            color: ((vm.notchState == .open || isHovering) && Defaults[.enableShadow])
+                ? Color.black.opacity(0.65)
+                : (Defaults[.enableShadow] ? Color.black.opacity(0.25) : .clear),
+            radius: (isHovering || vm.notchState == .open) ? 14 : 5,
+            x: 0,
+            y: (isHovering || vm.notchState == .open) ? 6 : 2
+        )
+        .contentShape(Circle())
+        .onTapGesture {
+            openPomodoroWithSpring()
+        }
+    }
+
+    @ViewBuilder
+    private var companionCircleOverlay: some View {
+        if islandStyle == .glass {
+            Circle()
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.38), Color.white.opacity(0.14)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        } else {
+            Circle()
+                .stroke(Color.white.opacity(0.18), lineWidth: 0.9)
+        }
+    }
+
+    @ViewBuilder
     func CalendarClosedNotchView() -> some View {
         let itemSize = max(0, vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? 10 : 12))
         let centerSpacerWidth: CGFloat = isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 76 : 50) : (vm.closedNotchSize.width + 14)
@@ -1317,6 +1407,27 @@ struct ContentView: View {
         }
     }
 
+    private func openMusicWithSpring() {
+        if Defaults[.enableHaptics] {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            haptics.toggle()
+        }
+        Defaults[.activeModule] = .music
+        coordinator.currentView = .home
+        doOpen()
+    }
+
+    private func openPomodoroWithSpring() {
+        if Defaults[.enableHaptics] {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            haptics.toggle()
+        }
+        Defaults[.activeModule] = .pomodoro
+        Defaults[.pomodoroEnabled] = true
+        coordinator.currentView = .home
+        doOpen()
+    }
+
     private func handleTap() {
         if vm.notchState == .open {
             return
@@ -1324,12 +1435,11 @@ struct ContentView: View {
         if hasActiveFeature {
             if isDualActivityActive {
                 if activeModule == .pomodoro || DinoCoordinator.shared.activeSlot == .pomodoro {
-                    Defaults[.activeModule] = .pomodoro
-                    Defaults[.pomodoroEnabled] = true
+                    openPomodoroWithSpring()
                 } else {
-                    Defaults[.activeModule] = .music
+                    openMusicWithSpring()
                 }
-                coordinator.currentView = .home
+                return
             } else if shouldShowPomodoroInlineClosedVisual || DinoCoordinator.shared.activeSlot == .pomodoro {
                 Defaults[.activeModule] = .pomodoro
                 Defaults[.pomodoroEnabled] = true
@@ -1613,6 +1723,60 @@ struct GeneralDropTargetDelegate: DropDelegate {
 
     func performDrop(info: DropInfo) -> Bool {
         return false
+    }
+}
+
+// MARK: - Pomodoro Detached Tick Ring View
+struct PomodoroDetachedTickRingView: View {
+    var progress: Double
+    var ringColor: Color
+    var size: CGFloat
+    var lineWidth: CGFloat
+
+    var body: some View {
+        let radius = size / 2.0
+        let clampedProgress = max(0.01, min(1.0, progress))
+        let endAngleDegrees = -90.0 + (clampedProgress * 360.0)
+        let angleRad = (endAngleDegrees * .pi) / 180.0
+
+        // Clean gap between outer circular arc and inner tick line
+        let outerGap: CGFloat = lineWidth * 0.85 + 1.2
+        let tickOuterR = max(2.0, radius - outerGap)
+        let tickInnerR = max(1.0, radius * 0.28)
+        let cosA = CGFloat(cos(angleRad))
+        let sinA = CGFloat(sin(angleRad))
+        let center = CGPoint(x: radius, y: radius)
+        let tickStart = CGPoint(x: center.x + tickInnerR * cosA, y: center.y + tickInnerR * sinA)
+        let tickEnd = CGPoint(x: center.x + tickOuterR * cosA, y: center.y + tickOuterR * sinA)
+
+        ZStack {
+            // Subtle background track ring
+            Circle()
+                .stroke(ringColor.opacity(0.18), lineWidth: lineWidth)
+                .frame(width: size, height: size)
+
+            // Outer progress arc (fully rounded ends)
+            Circle()
+                .trim(from: 0.0, to: CGFloat(clampedProgress))
+                .stroke(
+                    ringColor,
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+                .frame(width: size, height: size)
+
+            // Detached radial inward tick line (clean gap from perimeter arc, fully rounded ends)
+            Path { path in
+                path.move(to: tickStart)
+                path.addLine(to: tickEnd)
+            }
+            .stroke(
+                ringColor,
+                style: StrokeStyle(lineWidth: lineWidth * 0.95, lineCap: .round)
+            )
+            .frame(width: size, height: size)
+        }
+        .frame(width: size, height: size)
     }
 }
 
