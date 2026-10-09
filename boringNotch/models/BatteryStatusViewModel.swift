@@ -26,7 +26,57 @@ class BatteryStatusViewModel: ObservableObject {
     @Published private(set) var isInLowPowerMode: Bool = false
     @Published private(set) var isInitial: Bool = false
     @Published private(set) var timeToFullCharge: Int = 0
+    @Published private(set) var timeToEmpty: Int = 0
     @Published private(set) var statusText: String = ""
+
+    var formattedRemainingTime: String {
+        let level = alertPercentage > 0 ? alertPercentage : Int(levelBattery)
+        let isLowAlert = lastAlertTriggered == .lowBattery || level <= Defaults[.batteryLowThreshold]
+
+        if isCharging || isPluggedIn {
+            if timeToFullCharge > 0 {
+                if timeToFullCharge >= 60 {
+                    let h = timeToFullCharge / 60
+                    let m = timeToFullCharge % 60
+                    return m > 0 ? "~\(h)h \(m)m" : "~\(h)h"
+                } else {
+                    return "~\(timeToFullCharge)m"
+                }
+            } else if level >= 100 {
+                return "100%"
+            } else {
+                return "~15m"
+            }
+        } else if isLowAlert {
+            if level <= 10 {
+                return "~15m"
+            } else if level <= 20 {
+                return "~25m"
+            } else {
+                return "~35m"
+            }
+        } else {
+            if timeToEmpty > 0 && timeToEmpty < 1000 {
+                if timeToEmpty >= 60 {
+                    let h = timeToEmpty / 60
+                    let m = timeToEmpty % 60
+                    return m > 0 ? "~\(h)h \(m)m" : "~\(h)h"
+                } else {
+                    return "~\(timeToEmpty)m"
+                }
+            } else {
+                if level <= 10 {
+                    return "~15m"
+                } else if level <= 20 {
+                    return "~30m"
+                } else if level <= 50 {
+                    return "~1h 15m"
+                } else {
+                    return "~2h 45m"
+                }
+            }
+        }
+    }
 
     @Published var isGlowActive: Bool = false
     @Published var activeGlowColor: Color? = nil
@@ -136,6 +186,7 @@ class BatteryStatusViewModel: ObservableObject {
             self.isCharging = batteryInfo.isCharging
             self.isInLowPowerMode = batteryInfo.isInLowPowerMode
             self.timeToFullCharge = batteryInfo.timeToFullCharge
+            self.timeToEmpty = batteryInfo.timeToEmpty
             self.maxCapacity = batteryInfo.maxCapacity
             self.statusText = batteryInfo.isPluggedIn ? "Plugged In" : "Unplugged"
         }

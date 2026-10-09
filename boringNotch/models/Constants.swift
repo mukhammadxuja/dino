@@ -136,7 +136,7 @@ enum BatteryToastType: String, CaseIterable, Identifiable, Defaults.Serializable
 
     var title: String {
         switch self {
-        case .dynamicNotch: return "Dynamic Notch"
+        case .dynamicNotch: return "Inline"
         case .customToast: return "Custom Toast"
         }
     }
@@ -169,7 +169,6 @@ enum BatterySoundChoice: String, CaseIterable, Identifiable, Defaults.Serializab
 }
 
 enum BatteryToastSize: String, CaseIterable, Identifiable, Defaults.Serializable {
-    case extraSmall = "Extra Small"
     case small = "Small"
     case medium = "Medium"
     case large = "Large"
@@ -179,10 +178,9 @@ enum BatteryToastSize: String, CaseIterable, Identifiable, Defaults.Serializable
 
     var scale: CGFloat {
         switch self {
-        case .extraSmall: return 0.85
-        case .small: return 0.92
-        case .medium: return 1.00
-        case .large: return 1.10
+        case .small: return 0.82
+        case .medium: return 0.90
+        case .large: return 1.00
         }
     }
 }

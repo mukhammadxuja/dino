@@ -1184,29 +1184,13 @@ struct LowBatteryAlertCardView: View {
                             .background(Capsule().fill(Color.black))
                             .padding(.top, 2)
                         } else {
-                            // Notification bubble preview
-                            HStack(spacing: 8) {
-                                Image(systemName: "battery.25")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundStyle(Color.fromHex(alert.colorHex))
-
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text("\(alert.percentage)% Remaining")
-                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(.white)
-                                    Text("1h 12m until empty")
-                                        .font(.system(size: 8, weight: .regular, design: .rounded))
-                                        .foregroundStyle(.white.opacity(0.7))
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 5)
-                            .background(
-                                Capsule()
-                                    .fill(Color.white.opacity(0.2))
-                                    .background(Capsule().fill(.ultraThinMaterial))
+                            // Custom Battery Toast Mini Preview
+                            CustomBatteryToastMiniPreview(
+                                percentage: alert.percentage,
+                                colorHex: alert.colorHex,
+                                isCharged: false
                             )
-                            .padding(.top, alert.position == "Center" ? 0 : 14)
+                            .padding(.top, alert.position == "Center" ? 0 : 12)
                         }
                     }
                     .frame(height: 105)
@@ -1441,29 +1425,13 @@ struct ChargedAlertCardView: View {
                             .background(Capsule().fill(Color.black))
                             .padding(.top, 2)
                         } else {
-                            // Notification bubble preview
-                            HStack(spacing: 8) {
-                                Image(systemName: "battery.100.bolt")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundStyle(.green)
-
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text("\(threshold)% Charged")
-                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(.white)
-                                    Text("Ready to unplug")
-                                        .font(.system(size: 8, weight: .regular, design: .rounded))
-                                        .foregroundStyle(.white.opacity(0.7))
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 5)
-                            .background(
-                                Capsule()
-                                    .fill(Color.white.opacity(0.2))
-                                    .background(Capsule().fill(.ultraThinMaterial))
+                            // Custom Battery Toast Mini Preview
+                            CustomBatteryToastMiniPreview(
+                                percentage: threshold,
+                                colorHex: "#34C759",
+                                isCharged: true
                             )
-                            .padding(.top, position == "Center" ? 0 : 14)
+                            .padding(.top, position == "Center" ? 0 : 12)
                         }
                     }
                     .frame(height: 105)

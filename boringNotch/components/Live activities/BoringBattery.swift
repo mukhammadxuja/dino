@@ -404,66 +404,295 @@ struct ScreenEdgeGlowView: View {
 // MARK: - Custom Floating Spring Toast View
 struct CustomBatteryToastView: View {
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
+    @State private var animatedProgress: CGFloat = 0.0
 
     var body: some View {
         let isLow = batteryModel.lastAlertTriggered == .lowBattery || (batteryModel.levelBattery <= Float(Defaults[.batteryLowThreshold]))
-        let tintColor: Color = batteryModel.activeGlowColor ?? (isLow ? .red : .green)
+        let defaultNeon = isLow
+            ? Color(red: 255/255, green: 69/255, blue: 58/255) // Neon Red (#FF453A)
+            : Color(red: 48/255, green: 209/255, blue: 88/255) // Neon Green (#30D158)
+        let tintColor: Color = batteryModel.activeGlowColor ?? defaultNeon
         let displayPercentage = batteryModel.alertPercentage > 0 ? batteryModel.alertPercentage : Int(batteryModel.levelBattery)
+        let targetProgress = min(max(CGFloat(displayPercentage) / 100.0, 0.0), 1.0)
+        let remainingTimeText = batteryModel.formattedRemainingTime
 
         HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(tintColor.opacity(0.2))
-                    .frame(width: 36, height: 36)
+            // Interactive Horizontal Motion Slider
+            GeometryReader { geo in
+                let trackWidth = geo.size.width
+                let trackHeight: CGFloat = 4.0
+                let centerY = geo.size.height / 2.0
+                let badgeWidth: CGFloat = 38.0
+                let badgeHeight: CGFloat = 21.0
+                
+                let fillWidth = max(0, trackWidth * animatedProgress)
+                let halfBadge = badgeWidth / 2.0
+                let badgeX = min(max(fillWidth, halfBadge), max(halfBadge, trackWidth - halfBadge))
 
-                Image(systemName: isLow ? "battery.25" : "battery.100.bolt")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(tintColor)
+                ZStack(alignment: .leading) {
+                    // 1. Dark background track line
+                    Capsule()
+                        .fill(Color.white.opacity(0.18))
+                        .frame(width: trackWidth, height: trackHeight)
+                        .position(x: trackWidth / 2.0, y: centerY)
+
+                    // 2. Active filled progress line (left to badge)
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [tintColor.opacity(0.85), tintColor],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(0, badgeX), height: trackHeight)
+                        .position(x: max(0, badgeX) / 2.0, y: centerY)
+
+                    // 3. One-sided Aerodynamic Speed Trail (Havo oqimi / slipstream)
+                    if isLow {
+                        // Low battery: head moves leftward -> speed trail shoots out on the RIGHT side
+                        let trailWidth = min(trackWidth - (badgeX + halfBadge * 0.5), 50.0)
+                        if trailWidth > 0 {
+                            LinearGradient(
+                                colors: [
+                                    tintColor.opacity(0.85),
+                                    tintColor.opacity(0.35),
+                                    tintColor.opacity(0.0)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: trailWidth, height: 6.5)
+                            .blur(radius: 4.0)
+                            .position(x: badgeX + halfBadge * 0.5 + (trailWidth / 2.0), y: centerY)
+                        }
+
+                        // Asymmetric soft bloom trailing to the right
+                        Capsule()
+                            .fill(tintColor.opacity(0.40))
+                            .frame(width: badgeWidth + 14, height: badgeHeight + 8)
+                            .blur(radius: 9)
+                            .position(x: badgeX + 5, y: centerY)
+                    } else {
+                        // Charged / Charging: head moves rightward -> speed trail shoots out on the LEFT side
+                        let trailWidth = min(badgeX - halfBadge * 0.5, 50.0)
+                        if trailWidth > 0 {
+                            LinearGradient(
+                                colors: [
+                                    tintColor.opacity(0.0),
+                                    tintColor.opacity(0.35),
+                                    tintColor.opacity(0.85)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: trailWidth, height: 6.5)
+                            .blur(radius: 4.0)
+                            .position(x: (badgeX - halfBadge * 0.5) - (trailWidth / 2.0), y: centerY)
+                        }
+
+                        // Asymmetric soft bloom trailing to the left
+                        Capsule()
+                            .fill(tintColor.opacity(0.40))
+                            .frame(width: badgeWidth + 14, height: badgeHeight + 8)
+                            .blur(radius: 9)
+                            .position(x: badgeX - 5, y: centerY)
+                    }
+
+                    // 4. Value Capsule Badge (⚡ + Percentage)
+                    ZStack {
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [tintColor, tintColor.opacity(0.92)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(Color.white.opacity(0.35), lineWidth: 0.75)
+                            )
+                            // Directional shadow: only trails on the slipstream side
+                            .shadow(
+                                color: tintColor.opacity(0.70),
+                                radius: 7,
+                                x: isLow ? 5 : -5,
+                                y: 0
+                            )
+
+                        HStack(spacing: 2.0) {
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 9.0, weight: .black))
+                                .foregroundStyle(Color.white.opacity(0.95))
+
+                            Text("\(displayPercentage)")
+                                .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.white)
+                        }
+                        .padding(.horizontal, 4)
+                    }
+                    .frame(width: badgeWidth, height: badgeHeight)
+                    .position(x: badgeX, y: centerY)
+                }
             }
+            .frame(height: 24)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(batteryModel.alertHeadlineText ?? (isLow ? "Low Battery Warning" : "Battery Charged"))
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-
-                Text(batteryModel.alertBannerText ?? (isLow ? "Connect charger" : "Ready to unplug"))
-                    .font(.system(size: 12, weight: .regular, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.8))
-            }
-
-            Spacer(minLength: 8)
-
-            Text("\(displayPercentage)%")
-                .font(.system(size: 13, weight: .regular, design: .rounded))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(tintColor.opacity(0.25))
+            // Remaining Time Estimate (~15m)
+            Text(remainingTimeText)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(tintColor)
-                .clipShape(Capsule())
+                .lineLimit(1)
+                .fixedSize()
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .frame(width: 330)
-        .scaleEffect(Defaults[.batteryToastSize].scale)
+        .padding(.leading, 18)
+        .padding(.trailing, 16)
+        .padding(.vertical, 8)
+        .frame(width: 250, height: 48)
         .background(
             ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.black.opacity(0.75))
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [tintColor.opacity(0.85), tintColor.opacity(0.2)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1.5
-                    )
+                Capsule()
+                    .fill(Color.black)
+
+                Capsule()
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
             }
         )
-        .shadow(color: tintColor.opacity(0.35), radius: 14, x: 0, y: 6)
-        .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 4)
+        .shadow(
+            color: tintColor.opacity(0.20),
+            radius: 12,
+            x: isLow ? 3 : -3,
+            y: 4
+        )
+        .shadow(color: Color.black.opacity(0.75), radius: 14, x: 0, y: 5)
+        .scaleEffect(Defaults[.batteryToastSize].scale, anchor: .top)
+        .onAppear {
+            triggerSpringAnimation(target: targetProgress, isLow: isLow)
+        }
+        .onChange(of: batteryModel.alertTriggerId) { _ in
+            triggerSpringAnimation(target: targetProgress, isLow: isLow)
+        }
+        .onChange(of: displayPercentage) { _ in
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.72)) {
+                animatedProgress = targetProgress
+            }
+        }
+    }
+
+    private func triggerSpringAnimation(target: CGFloat, isLow: Bool) {
+        if isLow {
+            // Rush backwards from right to left
+            animatedProgress = min(1.0, target + 0.35)
+        } else {
+            // Rush forward from left to right
+            animatedProgress = max(0.0, target - 0.35)
+        }
+        withAnimation(.spring(response: 0.65, dampingFraction: 0.72)) {
+            animatedProgress = target
+        }
+    }
+}
+
+// MARK: - Mini Preview of Custom Battery Toast for Settings
+struct CustomBatteryToastMiniPreview: View {
+    var percentage: Int
+    var colorHex: String? = nil
+    var isCharged: Bool = false
+
+    var body: some View {
+        let isLow = !isCharged && (percentage <= Defaults[.batteryLowThreshold])
+        let defaultNeon = isLow
+            ? Color(red: 255/255, green: 69/255, blue: 58/255)
+            : Color(red: 48/255, green: 209/255, blue: 88/255)
+        let tintColor: Color = colorHex != nil ? Color.fromHex(colorHex!) : defaultNeon
+        let progress = min(max(CGFloat(percentage) / 100.0, 0.0), 1.0)
+        let timeText = isLow ? "~15m" : (isCharged ? "100%" : "~1h 15m")
+
+        HStack(spacing: 8) {
+            GeometryReader { geo in
+                let trackWidth = geo.size.width
+                let centerY = geo.size.height / 2.0
+                let badgeWidth: CGFloat = 30.0
+                let badgeHeight: CGFloat = 16.0
+                let halfBadge = badgeWidth / 2.0
+                let fillWidth = max(0, trackWidth * progress)
+                let badgeX = min(max(fillWidth, halfBadge), max(halfBadge, trackWidth - halfBadge))
+
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.18))
+                        .frame(width: trackWidth, height: 3)
+                        .position(x: trackWidth / 2.0, y: centerY)
+
+                    Capsule()
+                        .fill(tintColor)
+                        .frame(width: max(0, badgeX), height: 3)
+                        .position(x: max(0, badgeX) / 2.0, y: centerY)
+
+                    if isLow {
+                        let trailWidth = min(trackWidth - (badgeX + halfBadge * 0.5), 35.0)
+                        if trailWidth > 0 {
+                            LinearGradient(
+                                colors: [tintColor.opacity(0.85), tintColor.opacity(0.0)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: trailWidth, height: 5)
+                            .blur(radius: 2.5)
+                            .position(x: badgeX + halfBadge * 0.5 + (trailWidth / 2.0), y: centerY)
+                        }
+                    } else {
+                        let trailWidth = min(badgeX - halfBadge * 0.5, 35.0)
+                        if trailWidth > 0 {
+                            LinearGradient(
+                                colors: [tintColor.opacity(0.0), tintColor.opacity(0.85)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: trailWidth, height: 5)
+                            .blur(radius: 2.5)
+                            .position(x: (badgeX - halfBadge * 0.5) - (trailWidth / 2.0), y: centerY)
+                        }
+                    }
+
+                    ZStack {
+                        Capsule()
+                            .fill(tintColor)
+                            .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5))
+                            .shadow(color: tintColor.opacity(0.6), radius: 4, x: isLow ? 3 : -3, y: 0)
+
+                        HStack(spacing: 1.5) {
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 7, weight: .bold))
+                                .foregroundStyle(Color.white)
+
+                            Text("\(percentage)")
+                                .font(.system(size: 8.5, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.white)
+                        }
+                    }
+                    .frame(width: badgeWidth, height: badgeHeight)
+                    .position(x: badgeX, y: centerY)
+                }
+            }
+            .frame(height: 18)
+
+            Text(timeText)
+                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(tintColor)
+                .fixedSize()
+        }
+        .padding(.leading, 10)
+        .padding(.trailing, 9)
+        .padding(.vertical, 5)
+        .frame(width: 175, height: 32)
+        .background(
+            ZStack {
+                Capsule().fill(Color.black)
+                Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
+            }
+        )
+        .shadow(color: tintColor.opacity(0.2), radius: 6, x: 0, y: 2)
     }
 }
 

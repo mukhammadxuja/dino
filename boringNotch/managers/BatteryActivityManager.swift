@@ -42,7 +42,8 @@ class BatteryActivityManager {
         currentCapacity: 0,
         maxCapacity: 0,
         isInLowPowerMode: false,
-        timeToFullCharge: 0
+        timeToFullCharge: 0,
+        timeToEmpty: 0
     )
 
     private init() {
@@ -203,7 +204,8 @@ class BatteryActivityManager {
                 currentCapacity: 0,
                 maxCapacity: 0,
                 isInLowPowerMode: false,
-                timeToFullCharge: 0
+                timeToFullCharge: 0,
+                timeToEmpty: 0
             )
         }
         return batteryInfo
@@ -253,12 +255,16 @@ class BatteryActivityManager {
                 currentCapacity: currentCapacity,
                 maxCapacity: maxCapacity,
                 isInLowPowerMode: ProcessInfo.processInfo.isLowPowerModeEnabled,
-                timeToFullCharge: 0
+                timeToFullCharge: 0,
+                timeToEmpty: 0
             )
             
             // Optional parameters
             if let timeToFullCharge = description[kIOPSTimeToFullChargeKey] as? Int {
                 batteryInfo.timeToFullCharge = timeToFullCharge
+            }
+            if let timeToEmpty = description[kIOPSTimeToEmptyKey] as? Int {
+                batteryInfo.timeToEmpty = timeToEmpty
             }
             
             return batteryInfo
@@ -319,4 +325,5 @@ struct BatteryInfo {
     var maxCapacity: Float
     var isInLowPowerMode: Bool
     var timeToFullCharge: Int
+    var timeToEmpty: Int
 }

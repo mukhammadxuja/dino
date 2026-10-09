@@ -599,7 +599,7 @@ struct ContentView: View {
 
             if batteryModel.isCustomToastPresented && Defaults[.batteryToastEnabled] && Defaults[.batteryToastType] == .customToast && vm.notchState == .closed && batteryModel.alertPosition != "Center" {
                 CustomBatteryToastView()
-                    .offset(y: vm.effectiveClosedNotchHeight + 8)
+                    .offset(y: vm.effectiveClosedNotchHeight + 14)
                     .transition(
                         .asymmetric(
                             insertion: .move(edge: .top).combined(with: .scale(scale: 0.82, anchor: .top)).combined(with: .opacity),
