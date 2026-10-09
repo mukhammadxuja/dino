@@ -271,9 +271,9 @@ struct ContentView: View {
             }
         } else if isDualActivityActive {
             if isCurrentDisplayIsland {
-                chinWidth = isCurrentScreenBuiltin ? 200 : 165
+                chinWidth = isCurrentScreenBuiltin ? 150 : 130
             } else if isCurrentScreenBuiltin {
-                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 40)
+                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 38)
             } else {
                 chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
             }
@@ -666,8 +666,8 @@ struct ContentView: View {
                     ? (isCurrentDisplayIsland ? 22 : (topCornerRadius + 14))
                     : (isCurrentDisplayIsland ? (isShowingMusicSneakPeek ? 10 : 8) : (topCornerRadius + 6))
             )
-            .padding(.top, vm.notchState == .open ? 18 : (isCurrentDisplayIsland && isShowingMusicSneakPeek ? 4 : 0))
-            .padding(.bottom, vm.notchState == .open ? 18 : (isCurrentDisplayIsland && isShowingMusicSneakPeek ? 6 : 0))
+            .padding(.top, vm.notchState == .open ? 18 : (isShowingMusicSneakPeek ? 4 : 0))
+            .padding(.bottom, vm.notchState == .open ? 18 : (isShowingMusicSneakPeek ? 6 : 0))
             .background(surfaceBackground)
             .conditionalModifier(isCurrentDisplayIsland) { view in
                 view.clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
@@ -1253,60 +1253,144 @@ struct ContentView: View {
 
     @ViewBuilder
     func DualActivityClosedView() -> some View {
-        let isIsland = isCurrentDisplayIsland
         let isBuiltin = isCurrentScreenBuiltin
-        let buttonDiameter: CGFloat = isIsland ? (isBuiltin ? 18 : 14.5) : 18
-        let iconSize: CGFloat = isIsland ? (isBuiltin ? 8 : 6.5) : 8
-        let textSize: CGFloat = isIsland ? (isBuiltin ? 12.5 : 10.5) : 13
-        let artSize: CGFloat = isIsland ? (isBuiltin ? 17 : 14) : 17
-        let centerSpacer: CGFloat = isIsland ? (isBuiltin ? 36 : 26) : (isBuiltin ? (vm.closedNotchSize.width + 16) : (vm.closedNotchSize.width - 47))
+        let artSize: CGFloat = max(0, vm.effectiveClosedNotchHeight - 12)
+        let centerWidth: CGFloat = isBuiltin
+            ? (vm.closedNotchSize.width + 14)
+            : max(40, vm.closedNotchSize.width - 10)
 
-        HStack(spacing: 0) {
-            // Left: Music artwork + audio spectrum
-            HStack(spacing: isBuiltin ? 5 : 3.5) {
-                Image(nsImage: musicManager.albumArt)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: artSize, height: artSize)
-                    .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
-
-                AudioSpectrumView(
-                    isPlaying: $musicManager.isPlaying,
-                    color: .white
-                )
-                .frame(width: isBuiltin ? 13 : 10, height: isBuiltin ? 10 : 8)
-            }
-
-            Rectangle()
-                .fill(Color.clear)
-                .frame(width: centerSpacer)
-
-            // Right: Pomodoro timer count + play/pause indicator
-            HStack(spacing: isBuiltin ? 5 : 3.5) {
-                Text(pomodoroManager.formattedRemainingTime)
-                    .font(.system(size: textSize, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
-
-                Button {
-                    pomodoroManager.togglePlayPause()
-                } label: {
-                    ZStack {
-                        Circle().fill(Color.yellow)
-                        Image(systemName: pomodoroManager.isRunning ? "pause.fill" : "play.fill")
-                            .font(.system(size: iconSize, weight: .bold))
-                            .foregroundStyle(Color.black.opacity(0.85))
-                    }
-                    .frame(width: buttonDiameter, height: buttonDiameter)
+        VStack(spacing: isShowingMusicSneakPeek ? 4 : 0) {
+            HStack(spacing: 0) {
+                // Left: Music artwork with hover detection
+                ZStack {
+                    Image(nsImage: musicManager.albumArt)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: artSize, height: artSize)
+                        .clipShape(RoundedRectangle(cornerRadius: MusicPlayerImageSizes.cornerRadiusInset.closed, style: .continuous))
+                        .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
                 }
-                .buttonStyle(.plain)
+                .frame(width: artSize, height: artSize)
+                .contentShape(Rectangle())
+                .onHover { hovering in
+                    isCoverHovering = hovering
+                    if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
+                        coverHoverDismissTask?.cancel()
+                        withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
+                            showCoverHoverMusicDetails = true
+                        }
+                    }
+                }
+
+                // Center: Single Pomodoro countdown counter (centered in notch chin, no buttons)
+                HStack {
+                    Spacer(minLength: 0)
+                    Text(pomodoroManager.formattedRemainingTime)
+                        .font(.system(size: isBuiltin ? 12.5 : 11.0, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .frame(width: centerWidth, height: vm.effectiveClosedNotchHeight)
+
+                // Right: Soundwave / Audio Spectrum visualizer
+                HStack {
+                    if useMusicVisualizer {
+                        let spectrumFillColor: Color = Defaults[.playerColorTinting]
+                            ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)
+                            : Color.white.opacity(0.85)
+                        Rectangle()
+                            .fill(
+                                musicManager.isPlaying
+                                    ? spectrumFillColor.gradient
+                                    : Color.gray.gradient
+                            )
+                            .frame(width: artSize, height: artSize, alignment: .center)
+                            .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
+                            .mask {
+                                AudioSpectrumView(
+                                    isPlaying: $musicManager.isPlaying,
+                                    color: Defaults[.playerColorTinting] ? NSColor(Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)) : .white
+                                )
+                                .frame(width: 14, height: 11)
+                            }
+                    } else {
+                        LottieAnimationContainer()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                }
+                .frame(width: artSize, height: artSize, alignment: .center)
+            }
+            .contentShape(Rectangle())
+            .frame(
+                height: vm.effectiveClosedNotchHeight,
+                alignment: .center
+            )
+
+            // Centered Sneak Peek details row below cover & visualizer
+            if isShowingMusicSneakPeek {
+                let songTitleAndArtist = musicManager.artistName.isEmpty
+                    ? musicManager.songTitle
+                    : "\(musicManager.songTitle) - \(musicManager.artistName)"
+                let songText = musicManager.artistName.isEmpty
+                    ? "♪ \(musicManager.songTitle)"
+                    : "♪ \(musicManager.songTitle) • \(musicManager.artistName)"
+                let textAvailableWidth = vm.closedNotchSize.width - 20
+                let textColor = Defaults[.playerColorTinting]
+                    ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.6)
+                    : .white.opacity(0.9)
+
+                Group {
+                    if showCopiedFeedback {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 8.5, weight: .bold))
+                            Text("Copied to clipboard")
+                                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                        }
+                        .foregroundColor(.white.opacity(0.85))
+                        .frame(height: 16)
+                        .transition(.scale.combined(with: .opacity))
+                    } else {
+                        MarqueeText(
+                            .constant(songText),
+                            font: .system(size: 11, weight: .medium, design: .rounded),
+                            textColor: textColor,
+                            minDuration: 1.5,
+                            frameWidth: textAvailableWidth - 12,
+                            alignment: .center,
+                            fadeMaskWhenScrolling: true
+                        )
+                        .opacity(isSongDetailsHovered ? 1.0 : 0.85)
+                    }
+                }
+                .contentShape(Rectangle())
+                .onHover { hov in
+                    isSongDetailsHovered = hov
+                    if hov {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                .onTapGesture {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(songTitleAndArtist, forType: .string)
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                        showCopiedFeedback = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                            showCopiedFeedback = false
+                        }
+                    }
+                }
+                .frame(width: textAvailableWidth, alignment: .center)
+                .padding(.horizontal, 4)
             }
         }
-        .frame(
-            height: vm.effectiveClosedNotchHeight,
-            alignment: .center
-        )
-        .padding(.horizontal, isIsland ? 0 : 4)
+        .padding(.horizontal, 4)
     }
 
     @ViewBuilder
