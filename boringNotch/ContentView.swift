@@ -62,6 +62,8 @@ struct ContentView: View {
     @State private var isScaleHovered: Bool = false
     @State private var scaleHoverTask: Task<Void, Never>?
     @State private var showCopiedFeedback: Bool = false
+    @State private var isPomodoroCircleHovered: Bool = false
+    @State private var pomodoroCircleHoverTask: Task<Void, Never>? = nil
     
     // Displays & Island Mode
     @Default(.displaySelection) var displaySelection
@@ -222,14 +224,16 @@ struct ContentView: View {
             && (Defaults[.sneakPeekStyles] == .standard || showCoverHoverMusicDetails)
     }
 
-    private var isDualActivityActive: Bool {
-        vm.notchState == .closed
-            && (musicManager.isPlaying || !musicManager.isPlayerIdle)
+    private var isDualActivityEligible: Bool {
+        (musicManager.isPlaying || !musicManager.isPlayerIdle)
             && pomodoroManager.hasActiveSession
-            && !isShowingMusicSneakPeek
             && !isAntigravityActive
             && !coordinator.expandingView.show
             && !vm.hideOnClosed
+    }
+
+    private var isDualActivityActive: Bool {
+        vm.notchState == .closed && isDualActivityEligible
     }
 
     private var computedChinWidth: CGFloat {
@@ -241,7 +245,7 @@ struct ContentView: View {
             } else if isAntigravityActive {
                 return isCurrentScreenBuiltin ? 190 : 160
             } else if isDualActivityActive {
-                return isCurrentScreenBuiltin ? 200 : 165
+                return isCurrentScreenBuiltin ? 150 : 130
             } else if shouldShowPomodoroInlineClosedVisual {
                 return isCurrentScreenBuiltin ? 172 : 144
             } else if shouldShowMusicClosedVisual {
@@ -453,6 +457,7 @@ struct ContentView: View {
                         
                         return view
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
+                            .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchSize)
                             .animation(.smooth, value: gestureProgress)
                             .animation(animationSpring, value: pomodoroEnabled)
                             .animation(animationSpring, value: pomodoroClosedNotchDisplayMode)
@@ -689,9 +694,10 @@ struct ContentView: View {
 
     @ViewBuilder
     private var islandContainerView: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .top, spacing: 8) {
             mainPillView
                 .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+                .opacity(isPomodoroCircleHovered ? 0 : 1)
                 .onTapGesture {
                     if vm.notchState == .closed {
                         openMusicWithSpring()
@@ -700,16 +706,13 @@ struct ContentView: View {
 
             if isCurrentDisplayIsland && isDualActivityActive && vm.notchState == .closed {
                 pomodoroCompanionCircleView
+                    .opacity(isShowingMusicSneakPeek ? 0 : 1)
                     .transition(
                         .asymmetric(
                             insertion: .scale(scale: 0.5).combined(with: .opacity),
                             removal: .scale(scale: 0.5).combined(with: .opacity)
                         )
                     )
-                    .contentShape(Circle())
-                    .onTapGesture {
-                        openPomodoroWithSpring()
-                    }
             }
         }
     }
@@ -1312,53 +1315,115 @@ struct ContentView: View {
         let ringColor: Color = pomodoroManager.isBreakPhase
             ? Color(red: 0.2, green: 0.85, blue: 0.4)
             : Color(red: 243/255.0, green: 164/255.0, blue: 28/255.0)
-        // Match exact Pomodoro closed button sizing (20pt Built-in, 15.5pt External)
         let ringSize: CGFloat = isCurrentScreenBuiltin ? 20.0 : 15.5
         let ringLineWidth: CGFloat = isCurrentScreenBuiltin ? 2.0 : 1.6
 
-        ZStack {
-            PomodoroDetachedTickRingView(
-                progress: Double(pomodoroManager.progress),
-                ringColor: ringColor,
-                size: ringSize,
-                lineWidth: ringLineWidth
-            )
-            .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: pomodoroManager.progress)
-        }
-        .frame(width: diameter, height: diameter)
-        .background(surfaceBackground)
-        .clipShape(Circle())
-        .overlay(companionCircleOverlay)
-        .shadow(
-            color: ((vm.notchState == .open || isHovering) && Defaults[.enableShadow])
-                ? Color.black.opacity(0.65)
-                : (Defaults[.enableShadow] ? Color.black.opacity(0.25) : .clear),
-            radius: (isHovering || vm.notchState == .open) ? 14 : 5,
-            x: 0,
-            y: (isHovering || vm.notchState == .open) ? 6 : 2
-        )
-        .contentShape(Circle())
-        .onTapGesture {
-            openPomodoroWithSpring()
-        }
-    }
+        let musicPillWidth: CGFloat = isCurrentScreenBuiltin ? 118 : 103
+        let expandedWidth: CGFloat = musicPillWidth + 8 + diameter
+        let currentWidth: CGFloat = isPomodoroCircleHovered ? expandedWidth : diameter
+        let buttonDiameter: CGFloat = isCurrentScreenBuiltin ? 18.0 : 14.5
+        let iconSize: CGFloat = isCurrentScreenBuiltin ? 8.5 : 7.0
+        let textSize: CGFloat = isCurrentScreenBuiltin ? 13.0 : 11.0
+        let buttonGap: CGFloat = isCurrentScreenBuiltin ? 4.5 : 4.0
 
-    @ViewBuilder
-    private var companionCircleOverlay: some View {
-        if islandStyle == .glass {
-            Circle()
-                .stroke(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.38), Color.white.opacity(0.14)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        } else {
-            Circle()
-                .stroke(Color.white.opacity(0.18), lineWidth: 0.9)
+        ZStack(alignment: .trailing) {
+            HStack(spacing: 0) {
+                if isPomodoroCircleHovered {
+                    HStack(spacing: 0) {
+                        Text(pomodoroManager.formattedRemainingTime)
+                            .font(.system(size: textSize, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
+                            .lineLimit(1)
+
+                        Spacer(minLength: 8)
+
+                        HStack(spacing: buttonGap) {
+                            Button {
+                                pomodoroManager.togglePlayPause()
+                            } label: {
+                                ZStack {
+                                    Circle().fill(Color.yellow)
+                                    Image(systemName: pomodoroManager.isRunning ? "pause.fill" : "play.fill")
+                                        .font(.system(size: iconSize, weight: .bold))
+                                        .foregroundStyle(Color.black.opacity(0.85))
+                                }
+                                .frame(width: buttonDiameter, height: buttonDiameter)
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                pomodoroManager.reset()
+                            } label: {
+                                ZStack {
+                                    Circle().fill(Color.red)
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: iconSize, weight: .bold))
+                                        .foregroundStyle(.white)
+                                }
+                                .frame(width: buttonDiameter, height: buttonDiameter)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, isCurrentScreenBuiltin ? 10 : 8)
+                    .transition(.opacity)
+                } else {
+                    PomodoroDetachedTickRingView(
+                        progress: Double(pomodoroManager.progress),
+                        ringColor: ringColor,
+                        size: ringSize,
+                        lineWidth: ringLineWidth
+                    )
+                    .transition(.opacity)
+                }
+            }
+            .frame(width: currentWidth, height: diameter, alignment: .center)
+            .background(surfaceBackground)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(
+                        islandStyle == .glass
+                            ? LinearGradient(
+                                colors: [Color.white.opacity(0.38), Color.white.opacity(0.14)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            : LinearGradient(colors: [Color.white.opacity(0.18)], startPoint: .top, endPoint: .bottom),
+                        lineWidth: islandStyle == .glass ? 1.0 : 0.9
+                    )
+            )
+            .shadow(
+                color: ((vm.notchState == .open || isHovering || isPomodoroCircleHovered) && Defaults[.enableShadow])
+                    ? Color.black.opacity(0.65)
+                    : (Defaults[.enableShadow] ? Color.black.opacity(0.25) : .clear),
+                radius: (isHovering || isPomodoroCircleHovered || vm.notchState == .open) ? 14 : 5,
+                x: 0,
+                y: (isHovering || isPomodoroCircleHovered || vm.notchState == .open) ? 6 : 2
+            )
+            .contentShape(Capsule())
+            .onHover { hovering in
+                pomodoroCircleHoverTask?.cancel()
+                if hovering {
+                    withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.74)) {
+                        isPomodoroCircleHovered = true
+                    }
+                } else {
+                    pomodoroCircleHoverTask = Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(250))
+                        guard !Task.isCancelled else { return }
+                        withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.74)) {
+                            self.isPomodoroCircleHovered = false
+                        }
+                    }
+                }
+            }
+            .onTapGesture {
+                openPomodoroWithSpring()
+            }
         }
+        .frame(width: diameter, height: diameter, alignment: .trailing)
     }
 
     @ViewBuilder
