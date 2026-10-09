@@ -552,11 +552,11 @@ struct NotchHomeView: View {
     }
 
     private var effectiveActiveModule: ActiveNotchModule {
+        if activeModule == .pomodoro {
+            return .pomodoro
+        }
         if activeModule == .calendar && Defaults[.showCalendar] {
             return .calendar
-        }
-        if activeModule == .pomodoro && Defaults[.pomodoroEnabled] {
-            return .pomodoro
         }
         if activeModule == .battery {
             return .battery
@@ -569,6 +569,9 @@ struct NotchHomeView: View {
         }
         if activeModule == .music {
             return .music
+        }
+        if pomodoroManager.hasActiveSession {
+            return .pomodoro
         }
         if musicManager.isPlaying || !musicManager.isPlayerIdle {
             return .music

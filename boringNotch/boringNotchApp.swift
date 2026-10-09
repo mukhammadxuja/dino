@@ -975,59 +975,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             }
         }
 
-        KeyboardShortcuts.onKeyDown(for: .selectMusicModule) { [weak self] in
-            Task { @MainActor in
-                Defaults[.activeModule] = .music
-                self?.coordinator.currentView = .home
-                NSSound(named: "Tink")?.play()
-            }
-        }
+        // Shortcuts are managed centrally by DinoHotKeyManager
 
-        KeyboardShortcuts.onKeyDown(for: .selectPomodoroModule) { [weak self] in
-            Task { @MainActor in
-                Defaults[.activeModule] = .pomodoro
-                self?.coordinator.currentView = .home
-                NSSound(named: "Tink")?.play()
-            }
-        }
-
-        KeyboardShortcuts.onKeyDown(for: .selectCalendarModule) { [weak self] in
-            Task { @MainActor in
-                if Defaults[.activeModule] == .calendar {
-                    Defaults[.activeModule] = .none
-                } else {
-                    Defaults[.activeModule] = .calendar
-                    Defaults[.showCalendar] = true
-                }
-                self?.coordinator.currentView = .home
-                NSSound(named: "Tink")?.play()
-            }
-        }
-
-        KeyboardShortcuts.onKeyDown(for: .selectBatteryModule) { [weak self] in
-            Task { @MainActor in
-                Defaults[.activeModule] = .battery
-                self?.coordinator.currentView = .home
-                NSSound(named: "Tink")?.play()
-            }
-        }
-
-        KeyboardShortcuts.onKeyDown(for: .selectCodingModule) { [weak self] in
-            Task { @MainActor in
-                Defaults[.activeModule] = .coding
-                self?.coordinator.currentView = .home
-                NSSound(named: "Tink")?.play()
-            }
-        }
-
-        KeyboardShortcuts.onKeyDown(for: .selectShelfModule) { [weak self] in
-            Task { @MainActor in
-                Defaults[.activeModule] = .shelf
-                self?.coordinator.currentView = .home
-                NSSound(named: "Tink")?.play()
-            }
-        }
-
+        DinoHotKeyManager.shared.registerAllShortcuts()
+        
         setupStrictModeObservers()
         setupScreenGlowObservers()
         setupStrictModeEscMonitors()

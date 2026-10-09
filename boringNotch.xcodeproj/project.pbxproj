@@ -130,6 +130,12 @@
 		B172AAC02C95DA0B001623F1 /* InlineHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = B172AABF2C95DA0B001623F1 /* InlineHUD.swift */; };
 		B18654392C6F4990000B926A /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = B18654382C6F4990000B926A /* KeyboardShortcuts */; };
 		B186543C2C6F49AE000B926A /* ShortcutConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = B186543B2C6F49AE000B926A /* ShortcutConstants.swift */; };
+		B1D100022D00000100000001 /* DinoCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D100012D00000100000001 /* DinoCoordinator.swift */; };
+		B1D100042D00000100000001 /* DinoHotKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D100032D00000100000001 /* DinoHotKeyManager.swift */; };
+		B1D100062D00000100000001 /* MusicSlotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D100052D00000100000001 /* MusicSlotView.swift */; };
+		B1D100082D00000100000001 /* PomodoroSlotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D100072D00000100000001 /* PomodoroSlotView.swift */; };
+		B1D1000A2D00000100000001 /* WeatherSlotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D100092D00000100000001 /* WeatherSlotView.swift */; };
+		B1D1000C2D00000100000001 /* DinoSlotContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D1000B2D00000100000001 /* DinoSlotContainerView.swift */; };
 		B19016222CC15B3D00E3F12E /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = B19016212CC15B3D00E3F12E /* Defaults */; };
 		B19016242CC15B5000E3F12E /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19016232CC15B4D00E3F12E /* Constants.swift */; };
 		B19424092CD0FF01003E5DC2 /* LottieAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19424082CD0FEFE003E5DC2 /* LottieAnimationView.swift */; };
@@ -304,6 +310,12 @@
 		B17266E22C65F7FB0031BA0D /* WhatsNewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewView.swift; sourceTree = "<group>"; };
 		B172AABF2C95DA0B001623F1 /* InlineHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineHUD.swift; sourceTree = "<group>"; };
 		B186543B2C6F49AE000B926A /* ShortcutConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutConstants.swift; sourceTree = "<group>"; };
+		B1D100012D00000100000001 /* DinoCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/managers/DinoCoordinator.swift"; sourceTree = SOURCE_ROOT; };
+		B1D100032D00000100000001 /* DinoHotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/Shortcuts/DinoHotKeyManager.swift"; sourceTree = SOURCE_ROOT; };
+		B1D100052D00000100000001 /* MusicSlotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/components/Music/MusicSlotView.swift"; sourceTree = SOURCE_ROOT; };
+		B1D100072D00000100000001 /* PomodoroSlotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/components/Pomodoro/PomodoroSlotView.swift"; sourceTree = SOURCE_ROOT; };
+		B1D100092D00000100000001 /* WeatherSlotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/components/Weather/WeatherSlotView.swift"; sourceTree = SOURCE_ROOT; };
+		B1D1000B2D00000100000001 /* DinoSlotContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/components/DinoSlotContainerView.swift"; sourceTree = SOURCE_ROOT; };
 		B19016232CC15B4D00E3F12E /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		B19424082CD0FEFE003E5DC2 /* LottieAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LottieAnimationView.swift; sourceTree = "<group>"; };
 		B1A78C812C8BA08100BD51B0 /* FullscreenMediaDetection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenMediaDetection.swift; sourceTree = "<group>"; };
@@ -934,6 +946,12 @@
 				147163982C5D35B70068B555 /* MusicVisualizer.swift in Sources */,
 				11CC44A22CEE614100C7244B /* BoringViewCoordinator.swift in Sources */,
 				B186543C2C6F49AE000B926A /* ShortcutConstants.swift in Sources */,
+				B1D100022D00000100000001 /* DinoCoordinator.swift in Sources */,
+				B1D100042D00000100000001 /* DinoHotKeyManager.swift in Sources */,
+				B1D100062D00000100000001 /* MusicSlotView.swift in Sources */,
+				B1D100082D00000100000001 /* PomodoroSlotView.swift in Sources */,
+				B1D1000A2D00000100000001 /* WeatherSlotView.swift in Sources */,
+				B1D1000C2D00000100000001 /* DinoSlotContainerView.swift in Sources */,
 				11A45C792E34E63100CEB175 /* MediaChecker.swift in Sources */,
 				B1D365CE2C6A979C0047BDBC /* LiveActivityModifier.swift in Sources */,
 				1113ABD02E80E6BB00EC13B2 /* ThumbnailService.swift in Sources */,

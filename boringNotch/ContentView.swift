@@ -127,16 +127,17 @@ struct ContentView: View {
 
     private var islandYOffset: CGFloat {
         guard isCurrentDisplayIsland else { return 0 }
-        if vm.notchState == .open {
-            return 8
-        }
         let currentScreen = currentTargetScreen
         let physicalHeight = max(32, currentScreen?.safeAreaInsets.top ?? 38)
         let menuBarHeight = max(24, (currentScreen?.frame.maxY ?? 0) - (currentScreen?.visibleFrame.maxY ?? 0))
         let centeredMenuBarOffset = max(2, (menuBarHeight - (isCurrentScreenBuiltin ? 33 : 24)) / 2)
         
-        // Exact drop down offset below camera / menu bar with clean breathing space
+        // Exact drop down offset below camera / menu bar with clean breathing space (38pt + 8pt = 46pt)
         let dropDownOffset = max(physicalHeight, menuBarHeight) + 8
+
+        if vm.notchState == .open {
+            return isCurrentScreenBuiltin ? dropDownOffset : 8
+        }
 
         if effectiveIslandVisibility == .onHover {
             if isHovering || isShowingMusicSneakPeek || isIslandTransientlyVisible {
@@ -221,6 +222,16 @@ struct ContentView: View {
             && (Defaults[.sneakPeekStyles] == .standard || showCoverHoverMusicDetails)
     }
 
+    private var isDualActivityActive: Bool {
+        vm.notchState == .closed
+            && (musicManager.isPlaying || !musicManager.isPlayerIdle)
+            && pomodoroManager.hasActiveSession
+            && !isShowingMusicSneakPeek
+            && !isAntigravityActive
+            && !coordinator.expandingView.show
+            && !vm.hideOnClosed
+    }
+
     private var computedChinWidth: CGFloat {
         if isCurrentDisplayIsland {
             if isShowingMusicSneakPeek {
@@ -229,8 +240,10 @@ struct ContentView: View {
                 return isCurrentScreenBuiltin ? 170 : 145
             } else if isAntigravityActive {
                 return isCurrentScreenBuiltin ? 190 : 160
+            } else if isDualActivityActive {
+                return isCurrentScreenBuiltin ? 200 : 165
             } else if shouldShowPomodoroInlineClosedVisual {
-                return isCurrentScreenBuiltin ? 160 : 135
+                return isCurrentScreenBuiltin ? 172 : 144
             } else if shouldShowMusicClosedVisual {
                 return isCurrentScreenBuiltin ? 150 : 130
             } else if shouldShowCalendarClosedVisual {
@@ -252,10 +265,30 @@ struct ContentView: View {
             } else {
                 chinWidth = 640
             }
+        } else if isDualActivityActive {
+            if isCurrentDisplayIsland {
+                chinWidth = isCurrentScreenBuiltin ? 200 : 165
+            } else if isCurrentScreenBuiltin {
+                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 40)
+            } else {
+                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
+            }
         } else if shouldShowPomodoroInlineClosedVisual {
-            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24 + pomodoroReplaceWidthExpansion)
+            if isCurrentDisplayIsland {
+                chinWidth = isCurrentScreenBuiltin ? 172 : 144
+            } else if isCurrentScreenBuiltin {
+                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 40)
+            } else {
+                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
+            }
         } else if shouldShowMusicClosedVisual {
-            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
+            if isCurrentDisplayIsland {
+                chinWidth = isCurrentScreenBuiltin ? 150 : 130
+            } else if isCurrentScreenBuiltin {
+                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 38)
+            } else {
+                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
+            }
         } else if shouldShowCalendarClosedVisual {
             chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
         } else if !coordinator.expandingView.show && vm.notchState == .closed
@@ -302,13 +335,13 @@ struct ContentView: View {
 
     private var shouldShowPomodoroClosedContent: Bool {
         vm.notchState == .closed
-            && pomodoroEnabled
-            && pomodoroManager.hasActiveSession
+            && (pomodoroManager.hasActiveSession || activeModule == .pomodoro || DinoCoordinator.shared.activeSlot == .pomodoro)
             && !vm.hideOnClosed
     }
 
     private var shouldShowMusicClosedVisual: Bool {
-        (!coordinator.expandingView.show || coordinator.expandingView.type == .music)
+        guard !isDualActivityActive else { return false }
+        return (!coordinator.expandingView.show || coordinator.expandingView.type == .music)
             && vm.notchState == .closed
             && (musicManager.isPlaying || !musicManager.isPlayerIdle || isShowingMusicSneakPeek)
             && coordinator.musicLiveActivityEnabled
@@ -330,9 +363,11 @@ struct ContentView: View {
     private var hasActiveFeature: Bool {
         if coordinator.expandingView.show { return true }
         if coordinator.sneakPeek.show { return true }
+        if isDualActivityActive { return true }
         if shouldShowMusicClosedVisual { return true }
         if shouldShowPomodoroInlineClosedVisual { return true }
         if shouldShowCalendarClosedVisual { return true }
+        if DinoCoordinator.shared.activeSlot != .idle { return true }
         if activeModule != .none && activeModule != .music && activeModule != .coding { return true }
         if activeModule == .calendar && showCalendar { return true }
         if !musicManager.isPlayerIdle || musicManager.isPlaying { return true }
@@ -347,14 +382,10 @@ struct ContentView: View {
 
     private var shouldShowPomodoroInlineClosedVisual: Bool {
         guard shouldShowPomodoroClosedContent else { return false }
+        guard !isDualActivityActive else { return false }
         guard !isShowingInlineMusicPlaybackPeek else { return false }
         guard !(coordinator.sneakPeek.show && coordinator.sneakPeek.type == .music) else { return false }
-        switch pomodoroClosedNotchDisplayMode {
-        case .off:
-            return false
-        case .replaceMusicVisual, .countOnly, .controlsAndCount, .showInSneakPeek:
-            return true
-        }
+        return true
     }
 
     private func updateOpenNotchWidth(animated: Bool = true) {
@@ -459,6 +490,9 @@ struct ContentView: View {
                             .animation(animationSpring, value: pomodoroEnabled)
                             .animation(animationSpring, value: pomodoroClosedNotchDisplayMode)
                             .animation(animationSpring, value: shouldShowPomodoroInlineClosedVisual)
+                            .animation(animationSpring, value: activeModule)
+                            .animation(animationSpring, value: computedChinWidth)
+                            .animation(animationSpring, value: DinoCoordinator.shared.activeSlot)
                             .animation(animationSpring, value: isShowingInlineMusicPlaybackPeek)
                             .animation(animationSpring, value: isAntigravityActive)
                             .animation(animationSpring, value: isShowingMusicSneakPeek)
@@ -724,6 +758,13 @@ struct ContentView: View {
                     } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && vm.notchState == .closed {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
                               .transition(.opacity)
+                      } else if DinoCoordinator.shared.activeSlot == .weather && vm.notchState == .closed {
+                          WeatherClosedPillView()
+                              .frame(width: isCurrentDisplayIsland ? 110 : (vm.closedNotchSize.width + 10), height: vm.effectiveClosedNotchHeight)
+                              .transition(.opacity)
+                      } else if isDualActivityActive {
+                          DualActivityClosedView()
+                              .transition(.opacity)
                       } else if shouldShowPomodoroInlineClosedVisual {
                           PomodoroClosedNotchView()
                               .transition(.opacity)
@@ -865,7 +906,7 @@ struct ContentView: View {
         let islandSneakPeekWidth: CGFloat = isCurrentScreenBuiltin ? 190 : 165
         let defaultCenterSpacerWidth: CGFloat = isCurrentDisplayIsland
             ? (isShowingMusicSneakPeek ? max(10, islandSneakPeekWidth - (coverSize * 2) - 20) : (isCurrentScreenBuiltin ? 68 : 50))
-            : (vm.closedNotchSize.width - 10)
+            : (isCurrentScreenBuiltin ? (vm.closedNotchSize.width + 14) : (vm.closedNotchSize.width - 10))
 
         VStack(spacing: isShowingMusicSneakPeek ? 4 : 0) {
             HStack(spacing: 0) {
@@ -1115,27 +1156,39 @@ struct ContentView: View {
 
     @ViewBuilder
     func PomodoroClosedNotchView() -> some View {
-        HStack(spacing: 12) {
+        let isIsland = isCurrentDisplayIsland
+        let isBuiltin = isCurrentScreenBuiltin
+
+        // Dynamic responsive sizing for Built-in vs External displays
+        let buttonDiameter: CGFloat = isIsland ? (isBuiltin ? 20 : 15.5) : 20
+        let iconSize: CGFloat = isIsland ? (isBuiltin ? 9 : 7) : 9
+        let textSize: CGFloat = isIsland ? (isBuiltin ? 14 : 11.5) : 15
+        let buttonGap: CGFloat = isIsland ? 4 : 5
+        let centerSpacer: CGFloat = isIsland ? (isBuiltin ? 48 : 36) : (isBuiltin ? (vm.closedNotchSize.width + 16) : (vm.closedNotchSize.width - 47))
+
+        HStack(spacing: 0) {
             Text(pomodoroManager.formattedRemainingTime)
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .font(.system(size: textSize, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(Color.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
 
-            Spacer(minLength: 6)
+            Rectangle()
+                .fill(Color.clear)
+                .frame(width: centerSpacer)
 
-            HStack(spacing: 6) {
+            HStack(spacing: buttonGap) {
                 Button {
                     pomodoroManager.togglePlayPause()
                 } label: {
                     ZStack {
                         Circle().fill(Color.yellow)
                         Image(systemName: pomodoroManager.isRunning ? "pause.fill" : "play.fill")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: iconSize, weight: .bold))
                             .foregroundStyle(Color.black.opacity(0.85))
                     }
-                    .frame(width: 22, height: 22)
+                    .frame(width: buttonDiameter, height: buttonDiameter)
                 }
                 .buttonStyle(.plain)
 
@@ -1145,20 +1198,77 @@ struct ContentView: View {
                     ZStack {
                         Circle().fill(Color.red)
                         Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.system(size: iconSize, weight: .bold))
                             .foregroundStyle(.white)
                     }
-                    .frame(width: 22, height: 22)
+                    .frame(width: buttonDiameter, height: buttonDiameter)
                 }
                 .buttonStyle(.plain)
             }
         }
         .frame(
-            width: vm.closedNotchSize.width + pomodoroReplaceWidthExpansion,
             height: vm.effectiveClosedNotchHeight,
             alignment: .center
         )
-        .padding(.horizontal, 4)
+        .padding(.horizontal, isIsland ? 0 : 4)
+    }
+
+    @ViewBuilder
+    func DualActivityClosedView() -> some View {
+        let isIsland = isCurrentDisplayIsland
+        let isBuiltin = isCurrentScreenBuiltin
+        let buttonDiameter: CGFloat = isIsland ? (isBuiltin ? 18 : 14.5) : 18
+        let iconSize: CGFloat = isIsland ? (isBuiltin ? 8 : 6.5) : 8
+        let textSize: CGFloat = isIsland ? (isBuiltin ? 12.5 : 10.5) : 13
+        let artSize: CGFloat = isIsland ? (isBuiltin ? 17 : 14) : 17
+        let centerSpacer: CGFloat = isIsland ? (isBuiltin ? 36 : 26) : (isBuiltin ? (vm.closedNotchSize.width + 16) : (vm.closedNotchSize.width - 47))
+
+        HStack(spacing: 0) {
+            // Left: Music artwork + audio spectrum
+            HStack(spacing: isBuiltin ? 5 : 3.5) {
+                Image(nsImage: musicManager.albumArt)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: artSize, height: artSize)
+                    .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
+
+                AudioSpectrumView(
+                    isPlaying: $musicManager.isPlaying,
+                    color: .white
+                )
+                .frame(width: isBuiltin ? 13 : 10, height: isBuiltin ? 10 : 8)
+            }
+
+            Rectangle()
+                .fill(Color.clear)
+                .frame(width: centerSpacer)
+
+            // Right: Pomodoro timer count + play/pause indicator
+            HStack(spacing: isBuiltin ? 5 : 3.5) {
+                Text(pomodoroManager.formattedRemainingTime)
+                    .font(.system(size: textSize, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
+
+                Button {
+                    pomodoroManager.togglePlayPause()
+                } label: {
+                    ZStack {
+                        Circle().fill(Color.yellow)
+                        Image(systemName: pomodoroManager.isRunning ? "pause.fill" : "play.fill")
+                            .font(.system(size: iconSize, weight: .bold))
+                            .foregroundStyle(Color.black.opacity(0.85))
+                    }
+                    .frame(width: buttonDiameter, height: buttonDiameter)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(
+            height: vm.effectiveClosedNotchHeight,
+            alignment: .center
+        )
+        .padding(.horizontal, isIsland ? 0 : 4)
     }
 
     @ViewBuilder
@@ -1212,6 +1322,27 @@ struct ContentView: View {
             return
         }
         if hasActiveFeature {
+            if isDualActivityActive {
+                if activeModule == .pomodoro || DinoCoordinator.shared.activeSlot == .pomodoro {
+                    Defaults[.activeModule] = .pomodoro
+                    Defaults[.pomodoroEnabled] = true
+                } else {
+                    Defaults[.activeModule] = .music
+                }
+                coordinator.currentView = .home
+            } else if shouldShowPomodoroInlineClosedVisual || DinoCoordinator.shared.activeSlot == .pomodoro {
+                Defaults[.activeModule] = .pomodoro
+                Defaults[.pomodoroEnabled] = true
+                coordinator.currentView = .home
+            } else if shouldShowMusicClosedVisual || DinoCoordinator.shared.activeSlot == .music {
+                Defaults[.activeModule] = .music
+                coordinator.currentView = .home
+            } else if shouldShowCalendarClosedVisual || DinoCoordinator.shared.activeSlot == .calendar {
+                Defaults[.activeModule] = .calendar
+                coordinator.currentView = .home
+            } else if DinoCoordinator.shared.activeSlot == .weather {
+                coordinator.currentView = .home
+            }
             doOpen()
         } else {
             withAnimation(.spring(response: 0.22, dampingFraction: 0.52, blendDuration: 0)) {

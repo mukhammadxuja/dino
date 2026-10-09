@@ -20,6 +20,7 @@ extension KeyboardShortcuts.Name {
     // Module selection shortcuts
     static let selectMusicModule = Self("selectMusicModule", default: .init(.p, modifiers: [.command, .shift]))
     static let selectPomodoroModule = Self("selectPomodoroModule", default: .init(.o, modifiers: [.command, .shift]))
+    static let selectWeatherModule = Self("selectWeatherModule", default: .init(.w, modifiers: [.command, .shift]))
     static let selectCalendarModule = Self("selectCalendarModule", default: .init(.a, modifiers: [.command, .shift]))
     static let selectBatteryModule = Self("selectBatteryModule", default: .init(.b, modifiers: [.command, .shift]))
     static let selectCodingModule = Self("selectCodingModule", default: .init(.d, modifiers: [.command, .shift]))
