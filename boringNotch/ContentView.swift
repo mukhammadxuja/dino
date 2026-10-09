@@ -62,8 +62,6 @@ struct ContentView: View {
     @State private var isScaleHovered: Bool = false
     @State private var scaleHoverTask: Task<Void, Never>?
     @State private var showCopiedFeedback: Bool = false
-    @State private var isPomodoroCircleHovered: Bool = false
-    @State private var pomodoroCircleHoverTask: Task<Void, Never>? = nil
     
     // Displays & Island Mode
     @Default(.displaySelection) var displaySelection
@@ -259,9 +257,7 @@ struct ContentView: View {
 
         var chinWidth: CGFloat = vm.closedNotchSize.width + (2 * topCornerRadius) + 8
 
-        if isShowingMusicSneakPeek {
-            chinWidth += 32
-        } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show
+        if coordinator.expandingView.type == .battery && coordinator.expandingView.show
             && vm.notchState == .closed
         {
             if Defaults[.batteryToastType] == .dynamicNotch {
@@ -276,6 +272,9 @@ struct ContentView: View {
                 chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 38)
             } else {
                 chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
+            }
+            if isShowingMusicSneakPeek {
+                chinWidth += 32
             }
         } else if shouldShowPomodoroInlineClosedVisual {
             if isCurrentDisplayIsland {
@@ -697,7 +696,6 @@ struct ContentView: View {
         HStack(alignment: .top, spacing: 8) {
             mainPillView
                 .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
-                .opacity(isPomodoroCircleHovered ? 0 : 1)
                 .onTapGesture {
                     if vm.notchState == .closed {
                         openMusicWithSpring()
@@ -705,14 +703,21 @@ struct ContentView: View {
                 }
 
             if isCurrentDisplayIsland && isDualActivityActive && vm.notchState == .closed {
-                pomodoroCompanionCircleView
-                    .opacity(isShowingMusicSneakPeek ? 0 : 1)
-                    .transition(
-                        .asymmetric(
-                            insertion: .scale(scale: 0.5).combined(with: .opacity),
-                            removal: .scale(scale: 0.5).combined(with: .opacity)
-                        )
+                PomodoroCompanionCircleView(
+                    isCurrentScreenBuiltin: isCurrentScreenBuiltin,
+                    islandStyle: islandStyle,
+                    isHovering: isHovering,
+                    onOpenPomodoro: {
+                        openPomodoroWithSpring()
+                    }
+                )
+                .opacity(isShowingMusicSneakPeek ? 0 : 1)
+                .transition(
+                    .asymmetric(
+                        insertion: .scale(scale: 0.5).combined(with: .opacity),
+                        removal: .scale(scale: 0.5).combined(with: .opacity)
                     )
+                )
             }
         }
     }
@@ -796,22 +801,24 @@ struct ContentView: View {
                               .frame(width: isCurrentDisplayIsland ? 110 : (vm.closedNotchSize.width + 10), height: vm.effectiveClosedNotchHeight)
                               .transition(.opacity)
                       } else if isDualActivityActive {
-                          if isCurrentDisplayIsland {
-                              MusicLiveActivity()
-                                  .frame(alignment: .center)
-                          } else {
-                              DualActivityClosedView()
-                                  .transition(.opacity)
-                          }
-                      } else if shouldShowPomodoroInlineClosedVisual {
-                          PomodoroClosedNotchView()
+                          MusicLiveActivity()
+                              .frame(alignment: .center)
                               .transition(.opacity)
+                      } else if shouldShowPomodoroInlineClosedVisual {
+                          PomodoroClosedNotchView(
+                              isCurrentDisplayIsland: isCurrentDisplayIsland,
+                              isCurrentScreenBuiltin: isCurrentScreenBuiltin
+                          )
+                          .transition(.opacity)
                       } else if shouldShowMusicClosedVisual {
                           MusicLiveActivity()
                               .frame(alignment: .center)
                       } else if shouldShowCalendarClosedVisual {
-                          CalendarClosedNotchView()
-                              .transition(.opacity)
+                          CalendarClosedNotchView(
+                              isCurrentDisplayIsland: isCurrentDisplayIsland,
+                              isCurrentScreenBuiltin: isCurrentScreenBuiltin
+                          )
+                          .transition(.opacity)
                       } else if !coordinator.expandingView.show && vm.notchState == .closed && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace] && !vm.hideOnClosed  {
                           BoringFaceAnimation()
                        } else if vm.notchState == .open {
@@ -985,52 +992,68 @@ struct ContentView: View {
                     }
                 }
 
-                Rectangle()
-                    .fill(Color.clear)
-                    .contentShape(Rectangle())
-                    .overlay(
-                        HStack(alignment: .top) {
-                            if coordinator.expandingView.show
-                                && coordinator.expandingView.type == .music
-                            {
-                                MarqueeText(
-                                    .constant(musicManager.songTitle),
-                                    textColor: Defaults[.coloredSpectrogram]
-                                        ? Color(nsColor: musicManager.avgColor) : Color.gray,
-                                    minDuration: 0.4,
-                                    frameWidth: 100
-                                )
-                                .opacity(
-                                    (coordinator.expandingView.show
-                                        && Defaults[.sneakPeekStyles] == .inline)
-                                        ? 1 : 0
-                                 )
-                                Spacer(minLength: isCurrentDisplayIsland ? 64 : vm.closedNotchSize.width)
-                                // Song Artist
-                                Text(musicManager.artistName)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                    .foregroundStyle(
-                                        Defaults[.coloredSpectrogram]
-                                            ? Color(nsColor: musicManager.avgColor)
-                                            : Color.gray
+                if isDualActivityActive && !isCurrentDisplayIsland {
+                    HStack {
+                        Spacer(minLength: 0)
+                        Text(pomodoroManager.formattedRemainingTime)
+                            .font(.system(size: isCurrentScreenBuiltin ? 12.5 : 11.0, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(
+                        width: defaultCenterSpacerWidth,
+                        height: vm.effectiveClosedNotchHeight
+                    )
+                } else {
+                    Rectangle()
+                        .fill(Color.clear)
+                        .contentShape(Rectangle())
+                        .overlay(
+                            HStack(alignment: .top) {
+                                if coordinator.expandingView.show
+                                    && coordinator.expandingView.type == .music
+                                {
+                                    MarqueeText(
+                                        .constant(musicManager.songTitle),
+                                        textColor: Defaults[.coloredSpectrogram]
+                                            ? Color(nsColor: musicManager.avgColor) : Color.gray,
+                                        minDuration: 0.4,
+                                        frameWidth: 100
                                     )
                                     .opacity(
                                         (coordinator.expandingView.show
-                                            && coordinator.expandingView.type == .music
                                             && Defaults[.sneakPeekStyles] == .inline)
                                             ? 1 : 0
-                                    )
+                                     )
+                                    Spacer(minLength: isCurrentDisplayIsland ? 64 : vm.closedNotchSize.width)
+                                    // Song Artist
+                                    Text(musicManager.artistName)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                        .foregroundStyle(
+                                            Defaults[.coloredSpectrogram]
+                                                ? Color(nsColor: musicManager.avgColor)
+                                                : Color.gray
+                                        )
+                                        .opacity(
+                                            (coordinator.expandingView.show
+                                                && coordinator.expandingView.type == .music
+                                                && Defaults[.sneakPeekStyles] == .inline)
+                                                ? 1 : 0
+                                        )
+                                }
                             }
-                        }
-                    )
-                    .frame(
-                        width: (coordinator.expandingView.show
-                            && coordinator.expandingView.type == .music
-                            && Defaults[.sneakPeekStyles] == .inline)
-                            ? 380
-                            : defaultCenterSpacerWidth
-                    )
+                        )
+                        .frame(
+                            width: (coordinator.expandingView.show
+                                && coordinator.expandingView.type == .music
+                                && Defaults[.sneakPeekStyles] == .inline)
+                                ? 380
+                                : defaultCenterSpacerWidth
+                        )
+                }
 
                 // MARK: Right side - Visualizer with gesture next icon & hover play/pause
                 ZStack {
@@ -1192,353 +1215,6 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder
-    func PomodoroClosedNotchView() -> some View {
-        let isIsland = isCurrentDisplayIsland
-        let isBuiltin = isCurrentScreenBuiltin
-
-        // Dynamic responsive sizing for Built-in vs External displays
-        let buttonDiameter: CGFloat = isIsland ? (isBuiltin ? 20 : 15.5) : 20
-        let iconSize: CGFloat = isIsland ? (isBuiltin ? 9 : 7) : 9
-        let textSize: CGFloat = isIsland ? (isBuiltin ? 14 : 11.5) : 15
-        let buttonGap: CGFloat = isIsland ? 4 : 5
-        let centerSpacer: CGFloat = isIsland ? (isBuiltin ? 48 : 36) : (isBuiltin ? (vm.closedNotchSize.width + 16) : (vm.closedNotchSize.width - 47))
-
-        HStack(spacing: 0) {
-            Text(pomodoroManager.formattedRemainingTime)
-                .font(.system(size: textSize, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-
-            Rectangle()
-                .fill(Color.clear)
-                .frame(width: centerSpacer)
-
-            HStack(spacing: buttonGap) {
-                Button {
-                    pomodoroManager.togglePlayPause()
-                } label: {
-                    ZStack {
-                        Circle().fill(Color.yellow)
-                        Image(systemName: pomodoroManager.isRunning ? "pause.fill" : "play.fill")
-                            .font(.system(size: iconSize, weight: .bold))
-                            .foregroundStyle(Color.black.opacity(0.85))
-                    }
-                    .frame(width: buttonDiameter, height: buttonDiameter)
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    pomodoroManager.reset()
-                } label: {
-                    ZStack {
-                        Circle().fill(Color.red)
-                        Image(systemName: "xmark")
-                            .font(.system(size: iconSize, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                    .frame(width: buttonDiameter, height: buttonDiameter)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .frame(
-            height: vm.effectiveClosedNotchHeight,
-            alignment: .center
-        )
-        .padding(.horizontal, isIsland ? 0 : 4)
-    }
-
-    @ViewBuilder
-    func DualActivityClosedView() -> some View {
-        let isBuiltin = isCurrentScreenBuiltin
-        let artSize: CGFloat = max(0, vm.effectiveClosedNotchHeight - 12)
-        let centerWidth: CGFloat = isBuiltin
-            ? (vm.closedNotchSize.width + 14)
-            : max(40, vm.closedNotchSize.width - 10)
-
-        VStack(spacing: isShowingMusicSneakPeek ? 4 : 0) {
-            HStack(spacing: 0) {
-                // Left: Music artwork with hover detection
-                ZStack {
-                    Image(nsImage: musicManager.albumArt)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: artSize, height: artSize)
-                        .clipShape(RoundedRectangle(cornerRadius: MusicPlayerImageSizes.cornerRadiusInset.closed, style: .continuous))
-                        .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
-                }
-                .frame(width: artSize, height: artSize)
-                .contentShape(Rectangle())
-                .onHover { hovering in
-                    isCoverHovering = hovering
-                    if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
-                        coverHoverDismissTask?.cancel()
-                        withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
-                            showCoverHoverMusicDetails = true
-                        }
-                    }
-                }
-
-                // Center: Single Pomodoro countdown counter (centered in notch chin, no buttons)
-                HStack {
-                    Spacer(minLength: 0)
-                    Text(pomodoroManager.formattedRemainingTime)
-                        .font(.system(size: isBuiltin ? 12.5 : 11.0, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                }
-                .frame(width: centerWidth, height: vm.effectiveClosedNotchHeight)
-
-                // Right: Soundwave / Audio Spectrum visualizer
-                HStack {
-                    if useMusicVisualizer {
-                        let spectrumFillColor: Color = Defaults[.playerColorTinting]
-                            ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)
-                            : Color.white.opacity(0.85)
-                        Rectangle()
-                            .fill(
-                                musicManager.isPlaying
-                                    ? spectrumFillColor.gradient
-                                    : Color.gray.gradient
-                            )
-                            .frame(width: artSize, height: artSize, alignment: .center)
-                            .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
-                            .mask {
-                                AudioSpectrumView(
-                                    isPlaying: $musicManager.isPlaying,
-                                    color: Defaults[.playerColorTinting] ? NSColor(Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)) : .white
-                                )
-                                .frame(width: 14, height: 11)
-                            }
-                    } else {
-                        LottieAnimationContainer()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                }
-                .frame(width: artSize, height: artSize, alignment: .center)
-            }
-            .contentShape(Rectangle())
-            .frame(
-                height: vm.effectiveClosedNotchHeight,
-                alignment: .center
-            )
-
-            // Centered Sneak Peek details row below cover & visualizer
-            if isShowingMusicSneakPeek {
-                let songTitleAndArtist = musicManager.artistName.isEmpty
-                    ? musicManager.songTitle
-                    : "\(musicManager.songTitle) - \(musicManager.artistName)"
-                let songText = musicManager.artistName.isEmpty
-                    ? "♪ \(musicManager.songTitle)"
-                    : "♪ \(musicManager.songTitle) • \(musicManager.artistName)"
-                let textAvailableWidth = vm.closedNotchSize.width - 20
-                let textColor = Defaults[.playerColorTinting]
-                    ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.6)
-                    : .white.opacity(0.9)
-
-                Group {
-                    if showCopiedFeedback {
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 8.5, weight: .bold))
-                            Text("Copied to clipboard")
-                                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                        }
-                        .foregroundColor(.white.opacity(0.85))
-                        .frame(height: 16)
-                        .transition(.scale.combined(with: .opacity))
-                    } else {
-                        MarqueeText(
-                            .constant(songText),
-                            font: .system(size: 11, weight: .medium, design: .rounded),
-                            textColor: textColor,
-                            minDuration: 1.5,
-                            frameWidth: textAvailableWidth - 12,
-                            alignment: .center,
-                            fadeMaskWhenScrolling: true
-                        )
-                        .opacity(isSongDetailsHovered ? 1.0 : 0.85)
-                    }
-                }
-                .contentShape(Rectangle())
-                .onHover { hov in
-                    isSongDetailsHovered = hov
-                    if hov {
-                        NSCursor.pointingHand.push()
-                    } else {
-                        NSCursor.pop()
-                    }
-                }
-                .onTapGesture {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(songTitleAndArtist, forType: .string)
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
-                        showCopiedFeedback = true
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
-                            showCopiedFeedback = false
-                        }
-                    }
-                }
-                .frame(width: textAvailableWidth, alignment: .center)
-                .padding(.horizontal, 4)
-            }
-        }
-        .padding(.horizontal, 4)
-    }
-
-    @ViewBuilder
-    private var pomodoroCompanionCircleView: some View {
-        let diameter: CGFloat = vm.effectiveClosedNotchHeight
-        let ringColor: Color = pomodoroManager.isBreakPhase
-            ? Color(red: 0.2, green: 0.85, blue: 0.4)
-            : Color(red: 243/255.0, green: 164/255.0, blue: 28/255.0)
-        let ringSize: CGFloat = isCurrentScreenBuiltin ? 20.0 : 15.5
-        let ringLineWidth: CGFloat = isCurrentScreenBuiltin ? 2.0 : 1.6
-
-        let musicPillWidth: CGFloat = isCurrentScreenBuiltin ? 118 : 103
-        let expandedWidth: CGFloat = musicPillWidth + 8 + diameter
-        let currentWidth: CGFloat = isPomodoroCircleHovered ? expandedWidth : diameter
-        let buttonDiameter: CGFloat = isCurrentScreenBuiltin ? 18.0 : 14.5
-        let iconSize: CGFloat = isCurrentScreenBuiltin ? 8.5 : 7.0
-        let textSize: CGFloat = isCurrentScreenBuiltin ? 13.0 : 11.0
-        let buttonGap: CGFloat = isCurrentScreenBuiltin ? 4.5 : 4.0
-
-        ZStack(alignment: .trailing) {
-            HStack(spacing: 0) {
-                if isPomodoroCircleHovered {
-                    HStack(spacing: 0) {
-                        Text(pomodoroManager.formattedRemainingTime)
-                            .font(.system(size: textSize, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
-                            .lineLimit(1)
-
-                        Spacer(minLength: 8)
-
-                        HStack(spacing: buttonGap) {
-                            Button {
-                                pomodoroManager.togglePlayPause()
-                            } label: {
-                                ZStack {
-                                    Circle().fill(Color.yellow)
-                                    Image(systemName: pomodoroManager.isRunning ? "pause.fill" : "play.fill")
-                                        .font(.system(size: iconSize, weight: .bold))
-                                        .foregroundStyle(Color.black.opacity(0.85))
-                                }
-                                .frame(width: buttonDiameter, height: buttonDiameter)
-                            }
-                            .buttonStyle(.plain)
-
-                            Button {
-                                pomodoroManager.reset()
-                            } label: {
-                                ZStack {
-                                    Circle().fill(Color.red)
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: iconSize, weight: .bold))
-                                        .foregroundStyle(.white)
-                                }
-                                .frame(width: buttonDiameter, height: buttonDiameter)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, isCurrentScreenBuiltin ? 10 : 8)
-                    .transition(.opacity)
-                } else {
-                    PomodoroDetachedTickRingView(
-                        progress: Double(pomodoroManager.progress),
-                        ringColor: ringColor,
-                        size: ringSize,
-                        lineWidth: ringLineWidth
-                    )
-                    .transition(.opacity)
-                }
-            }
-            .frame(width: currentWidth, height: diameter, alignment: .center)
-            .background(surfaceBackground)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(
-                        islandStyle == .glass
-                            ? LinearGradient(
-                                colors: [Color.white.opacity(0.38), Color.white.opacity(0.14)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                            : LinearGradient(colors: [Color.white.opacity(0.18)], startPoint: .top, endPoint: .bottom),
-                        lineWidth: islandStyle == .glass ? 1.0 : 0.9
-                    )
-            )
-            .shadow(
-                color: ((vm.notchState == .open || isHovering || isPomodoroCircleHovered) && Defaults[.enableShadow])
-                    ? Color.black.opacity(0.65)
-                    : (Defaults[.enableShadow] ? Color.black.opacity(0.25) : .clear),
-                radius: (isHovering || isPomodoroCircleHovered || vm.notchState == .open) ? 14 : 5,
-                x: 0,
-                y: (isHovering || isPomodoroCircleHovered || vm.notchState == .open) ? 6 : 2
-            )
-            .contentShape(Capsule())
-            .onHover { hovering in
-                pomodoroCircleHoverTask?.cancel()
-                if hovering {
-                    withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.74)) {
-                        isPomodoroCircleHovered = true
-                    }
-                } else {
-                    pomodoroCircleHoverTask = Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(250))
-                        guard !Task.isCancelled else { return }
-                        withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.74)) {
-                            self.isPomodoroCircleHovered = false
-                        }
-                    }
-                }
-            }
-            .onTapGesture {
-                openPomodoroWithSpring()
-            }
-        }
-        .frame(width: diameter, height: diameter, alignment: .trailing)
-    }
-
-    @ViewBuilder
-    func CalendarClosedNotchView() -> some View {
-        let itemSize = max(0, vm.effectiveClosedNotchHeight - (isCurrentDisplayIsland ? 10 : 12))
-        let centerSpacerWidth: CGFloat = isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 76 : 50) : (vm.closedNotchSize.width + 14)
-        HStack(spacing: 0) {
-            Image(systemName: "calendar")
-                .font(.system(size: isCurrentScreenBuiltin ? 14 : 13, weight: .semibold))
-                .foregroundStyle(Color.effectiveAccent)
-                .frame(width: itemSize, height: itemSize)
-
-            Rectangle()
-                .fill(Color.clear)
-                .frame(
-                    width: centerSpacerWidth,
-                    height: vm.effectiveClosedNotchHeight
-                )
-
-            Text("\(Calendar.current.component(.day, from: Date()))")
-                .font(.system(size: isCurrentScreenBuiltin ? 14 : 13, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color.effectiveAccent)
-                .frame(width: itemSize, height: itemSize)
-        }
-        .contentShape(Rectangle())
-        .frame(
-            height: vm.effectiveClosedNotchHeight,
-            alignment: .center
-        )
-    }
 
     @ViewBuilder
     var dragDetector: some View {
@@ -1872,60 +1548,6 @@ struct GeneralDropTargetDelegate: DropDelegate {
 
     func performDrop(info: DropInfo) -> Bool {
         return false
-    }
-}
-
-// MARK: - Pomodoro Detached Tick Ring View
-struct PomodoroDetachedTickRingView: View {
-    var progress: Double
-    var ringColor: Color
-    var size: CGFloat
-    var lineWidth: CGFloat
-
-    var body: some View {
-        let radius = size / 2.0
-        let clampedProgress = max(0.01, min(1.0, progress))
-        let endAngleDegrees = -90.0 + (clampedProgress * 360.0)
-        let angleRad = (endAngleDegrees * .pi) / 180.0
-
-        // Clean gap between outer circular arc and inner tick line
-        let outerGap: CGFloat = lineWidth * 0.85 + 1.2
-        let tickOuterR = max(2.0, radius - outerGap)
-        let tickInnerR = max(1.0, radius * 0.28)
-        let cosA = CGFloat(cos(angleRad))
-        let sinA = CGFloat(sin(angleRad))
-        let center = CGPoint(x: radius, y: radius)
-        let tickStart = CGPoint(x: center.x + tickInnerR * cosA, y: center.y + tickInnerR * sinA)
-        let tickEnd = CGPoint(x: center.x + tickOuterR * cosA, y: center.y + tickOuterR * sinA)
-
-        ZStack {
-            // Subtle background track ring
-            Circle()
-                .stroke(ringColor.opacity(0.18), lineWidth: lineWidth)
-                .frame(width: size, height: size)
-
-            // Outer progress arc (fully rounded ends)
-            Circle()
-                .trim(from: 0.0, to: CGFloat(clampedProgress))
-                .stroke(
-                    ringColor,
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .frame(width: size, height: size)
-
-            // Detached radial inward tick line (clean gap from perimeter arc, fully rounded ends)
-            Path { path in
-                path.move(to: tickStart)
-                path.addLine(to: tickEnd)
-            }
-            .stroke(
-                ringColor,
-                style: StrokeStyle(lineWidth: lineWidth * 0.95, lineCap: .round)
-            )
-            .frame(width: size, height: size)
-        }
-        .frame(width: size, height: size)
     }
 }
 

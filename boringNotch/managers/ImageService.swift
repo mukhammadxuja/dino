@@ -19,9 +19,13 @@ public final class ImageService: ImageServiceProtocol {
 
     private init() {
         let config = URLSessionConfiguration.default
-        let cache = URLCache(memoryCapacity: 50 * 1024 * 1024, // 50MB
-                             diskCapacity: 100 * 1024 * 1024, // 100MB
-                             diskPath: "artwork_cache")
+        let cachesURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("com.mukhammadxuja.dino/artwork_cache")
+        let cache = URLCache(
+            memoryCapacity: 50 * 1024 * 1024, // 50MB
+            diskCapacity: 100 * 1024 * 1024, // 100MB
+            directory: cachesURL
+        )
         config.urlCache = cache
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = 30

@@ -776,6 +776,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         window.contentView = NSHostingView(
             rootView: ContentView()
                 .environmentObject(viewModel)
+                .environmentObject(BoringViewCoordinator.shared)
         )
 
         window.orderFrontRegardless()
