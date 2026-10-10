@@ -224,6 +224,24 @@ class BoringViewCoordinator: ObservableObject {
                 self.sneakPeek.value = value
                 self.sneakPeek.icon = icon
             }
+
+            // Sync with DinoCoordinator SSOT Priority Stack (P1 Toast)
+            if type != .music {
+                if status {
+                    let hudSlot: DinoSlot = {
+                        switch type {
+                        case .volume: return .hud(.volume(value: Double(value)))
+                        case .brightness: return .hud(.brightness(value: Double(value)))
+                        case .backlight: return .hud(.backlight(value: Double(value)))
+                        case .mic: return .hud(.micMute(isMuted: value == 1))
+                        default: return .hud(.volume(value: Double(value)))
+                        }
+                    }()
+                    DinoCoordinator.shared.triggerToast(hudSlot, duration: duration)
+                } else {
+                    DinoCoordinator.shared.dismissToast()
+                }
+            }
         }
 
         if type == .mic {
@@ -295,5 +313,14 @@ class BoringViewCoordinator: ObservableObject {
     
     func showEmpty() {
         currentView = .home
+    }
+
+    func cancelAllTasks() {
+        sneakPeekTask?.cancel()
+        sneakPeekTask = nil
+        expandingViewTask?.cancel()
+        expandingViewTask = nil
+        hudEnableTask?.cancel()
+        hudEnableTask = nil
     }
 }

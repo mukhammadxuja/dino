@@ -25,4 +25,10 @@ extension KeyboardShortcuts.Name {
     static let selectBatteryModule = Self("selectBatteryModule", default: .init(.b, modifiers: [.command, .shift]))
     static let selectCodingModule = Self("selectCodingModule", default: .init(.d, modifiers: [.command, .shift]))
     static let selectShelfModule = Self("selectShelfModule", default: .init(.u, modifiers: [.command, .shift]))
+    
+    // Quick On-Demand Shortcuts (Option + W, Option + C, Option + P, Option + O)
+    static let optionWeatherShortcut = Self("optionWeatherShortcut", default: .init(.w, modifiers: [.option]))
+    static let optionCalendarShortcut = Self("optionCalendarShortcut", default: .init(.c, modifiers: [.option]))
+    static let optionMusicShortcut = Self("optionMusicShortcut", default: .init(.p, modifiers: [.option]))
+    static let optionPomodoroShortcut = Self("optionPomodoroShortcut", default: .init(.o, modifiers: [.option]))
 }

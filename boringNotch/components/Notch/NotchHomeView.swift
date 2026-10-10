@@ -56,7 +56,7 @@ struct AlbumArtView: View {
     private var albumArtImage: some View {
         Image(nsImage: musicManager.albumArt)
             .resizable()
-            .aspectRatio(1, contentMode: .fit)
+            .aspectRatio(1, contentMode: .fill)
             .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
             .clipped()
             .clipShape(
@@ -136,10 +136,21 @@ struct MusicControlsView: View {
     }
 
     private var progressRow: some View {
-        TimelineView(.animation(minimumInterval: musicManager.playbackRate > 0 ? 0.1 : nil)) { timeline in
-            let remaining = max(0, musicManager.songDuration - sliderValue)
+        TimelineView(.animation(minimumInterval: 0.1, paused: !musicManager.isPlaying || musicManager.isPlayerIdle)) { timeline in
+            let currentPos: Double = {
+                if dragging {
+                    return sliderValue
+                }
+                return MusicManager.shared.estimatedPlaybackPosition(at: timeline.date)
+            }()
+            let remaining = max(0, musicManager.songDuration - currentPos)
+            let sliderBinding = Binding<Double>(
+                get: { currentPos },
+                set: { sliderValue = $0 }
+            )
+
             HStack(alignment: .center, spacing: 8) {
-                Text(timeString(from: sliderValue))
+                Text(timeString(from: currentPos))
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
@@ -148,7 +159,7 @@ struct MusicControlsView: View {
                     .frame(width: 32, alignment: .leading)
 
                 CustomSlider(
-                    value: $sliderValue,
+                    value: sliderBinding,
                     range: 0...musicManager.songDuration,
                     color: .white,
                     dragging: $dragging,
@@ -173,10 +184,6 @@ struct MusicControlsView: View {
             }
             .frame(height: 14)
             .padding(.top, 1)
-            .onChange(of: timeline.date) {
-                guard !dragging, musicManager.timestampDate.timeIntervalSince(lastDragged) > -1 else { return }
-                sliderValue = MusicManager.shared.estimatedPlaybackPosition(at: timeline.date)
-            }
         }
     }
 
@@ -197,7 +204,7 @@ struct MusicControlsView: View {
                 frameWidth: width
             )
             if Defaults[.enableLyrics] {
-                TimelineView(.animation(minimumInterval: 0.25)) { timeline in
+                TimelineView(.animation(minimumInterval: 0.25, paused: !musicManager.isPlaying || musicManager.isPlayerIdle)) { timeline in
                     let currentElapsed: Double = {
                         guard musicManager.isPlaying else { return musicManager.elapsedTime }
                         let delta = timeline.date.timeIntervalSince(musicManager.timestampDate)
@@ -234,7 +241,7 @@ struct MusicControlsView: View {
     }
 
     private var musicSlider: some View {
-        TimelineView(.animation(minimumInterval: musicManager.playbackRate > 0 ? 0.1 : nil)) { timeline in
+        TimelineView(.animation(minimumInterval: 0.1, paused: !musicManager.isPlaying || musicManager.isPlayerIdle)) { timeline in
             MusicSliderView(
                 sliderValue: $sliderValue,
                 duration: $musicManager.songDuration,
@@ -537,6 +544,7 @@ struct NotchHomeView: View {
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @ObservedObject var pomodoroManager = PomodoroManager.shared
     @ObservedObject var musicManager = MusicManager.shared
+    @ObservedObject var dinoCoordinator = DinoCoordinator.shared
     @Default(.activeModule) private var activeModule
     let albumArtNamespace: Namespace.ID
 
@@ -552,6 +560,23 @@ struct NotchHomeView: View {
     }
 
     private var effectiveActiveModule: ActiveNotchModule {
+        switch dinoCoordinator.activeSlot {
+        case .pomodoro:
+            return .pomodoro
+        case .calendar:
+            return .calendar
+        case .battery:
+            return .battery
+        case .shelf:
+            return .shelf
+        case .coding:
+            return .coding
+        case .music:
+            return .music
+        default:
+            break
+        }
+
         if activeModule == .pomodoro {
             return .pomodoro
         }
@@ -570,11 +595,11 @@ struct NotchHomeView: View {
         if activeModule == .music {
             return .music
         }
-        if pomodoroManager.hasActiveSession {
-            return .pomodoro
-        }
         if musicManager.isPlaying || !musicManager.isPlayerIdle {
             return .music
+        }
+        if pomodoroManager.hasActiveSession {
+            return .pomodoro
         }
         return .music
     }
@@ -588,17 +613,21 @@ struct NotchHomeView: View {
 
     private var mainContent: some View {
         Group {
-            switch effectiveActiveModule {
-            case .none, .music, .coding:
-                playerPage
-            case .pomodoro:
-                pomodoroPage
-            case .calendar:
-                calendarPage
-            case .battery:
-                batteryPage
-            case .shelf:
-                shelfPage
+            if dinoCoordinator.activeSlot == .weather {
+                WeatherExpandedCardView()
+            } else {
+                switch effectiveActiveModule {
+                case .none, .music, .coding:
+                    playerPage
+                case .pomodoro:
+                    pomodoroPage
+                case .calendar:
+                    calendarPage
+                case .battery:
+                    batteryPage
+                case .shelf:
+                    shelfPage
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -747,9 +776,18 @@ struct MusicSliderView: View {
 
 
     var body: some View {
+        let currentPos: Double = {
+            if dragging { return sliderValue }
+            return MusicManager.shared.estimatedPlaybackPosition(at: currentDate)
+        }()
+        let sliderBinding = Binding<Double>(
+            get: { currentPos },
+            set: { sliderValue = $0 }
+        )
+
         VStack {
             CustomSlider(
-                value: $sliderValue,
+                value: sliderBinding,
                 range: 0...duration,
                 color: Defaults[.sliderColor] == SliderColorEnum.albumArt
                     ? Color(nsColor: color).ensureMinimumBrightness(factor: 0.8)
@@ -761,7 +799,7 @@ struct MusicSliderView: View {
             .frame(height: 10, alignment: .center)
 
             HStack {
-                Text(timeString(from: sliderValue))
+                Text(timeString(from: currentPos))
                 Spacer()
                 Text(timeString(from: duration))
             }
@@ -771,10 +809,6 @@ struct MusicSliderView: View {
                     ? Color(nsColor: color).ensureMinimumBrightness(factor: 0.6) : .gray
             )
             .font(.caption)
-        }
-        .onChange(of: currentDate) {
-           guard !dragging, timestampDate.timeIntervalSince(lastDragged) > -1 else { return }
-            sliderValue = MusicManager.shared.estimatedPlaybackPosition(at: currentDate)
         }
     }
 

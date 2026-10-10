@@ -18,68 +18,70 @@ public final class DinoHotKeyManager {
     private init() {}
     
     public func registerAllShortcuts() {
-        // Weather Module (`Cmd + Shift + W`)
-        KeyboardShortcuts.onKeyDown(for: .selectWeatherModule) {
+        // Weather Module (`Cmd + Shift + W` or `Option + W`)
+        let triggerWeather: () -> Void = {
             Task { @MainActor in
-                withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.8)) {
-                    DinoCoordinator.shared.activateOnDemand(.weather, timeout: 5.0)
-                }
+                DinoCoordinator.shared.toggleOrMorphSlot(.weather)
             }
         }
+        KeyboardShortcuts.onKeyDown(for: .selectWeatherModule, action: triggerWeather)
+        KeyboardShortcuts.onKeyDown(for: .optionWeatherShortcut, action: triggerWeather)
         
-        // Music Module (`Cmd + Shift + P`)
-        KeyboardShortcuts.onKeyDown(for: .selectMusicModule) {
+        // Calendar Module (`Cmd + Shift + A` or `Option + C`)
+        let triggerCalendar: () -> Void = {
             Task { @MainActor in
-                withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.8)) {
-                    Defaults[.activeModule] = .music
-                    BoringViewCoordinator.shared.currentView = .home
-                    DinoCoordinator.shared.activateOnDemand(.music, timeout: 5.0)
-                }
+                Defaults[.showCalendar] = true
+                DinoCoordinator.shared.toggleOrMorphSlot(.calendar)
             }
         }
+        KeyboardShortcuts.onKeyDown(for: .selectCalendarModule, action: triggerCalendar)
+        KeyboardShortcuts.onKeyDown(for: .optionCalendarShortcut, action: triggerCalendar)
+
+        // Music Module (`Cmd + Shift + P` or `Option + P`)
+        let triggerMusic: () -> Void = {
+            Task { @MainActor in
+                DinoCoordinator.shared.toggleOrMorphSlot(.music)
+            }
+        }
+        KeyboardShortcuts.onKeyDown(for: .selectMusicModule, action: triggerMusic)
+        KeyboardShortcuts.onKeyDown(for: .optionMusicShortcut, action: triggerMusic)
         
-        // Pomodoro Module (`Cmd + Shift + O`)
-        KeyboardShortcuts.onKeyDown(for: .selectPomodoroModule) {
+        // Pomodoro Module (`Cmd + Shift + O` or `Option + O`)
+        let triggerPomodoro: () -> Void = {
             Task { @MainActor in
-                withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.8)) {
-                    Defaults[.activeModule] = .pomodoro
-                    Defaults[.pomodoroEnabled] = true
-                    BoringViewCoordinator.shared.currentView = .home
-                    DinoCoordinator.shared.activateOnDemand(.pomodoro, timeout: 5.0)
-                }
+                Defaults[.pomodoroEnabled] = true
+                DinoCoordinator.shared.toggleOrMorphSlot(.pomodoro)
             }
         }
-        
-        // Calendar Module (`Cmd + Shift + A`)
-        KeyboardShortcuts.onKeyDown(for: .selectCalendarModule) {
-            Task { @MainActor in
-                withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.8)) {
-                    Defaults[.activeModule] = .calendar
-                    Defaults[.showCalendar] = true
-                    BoringViewCoordinator.shared.currentView = .home
-                    DinoCoordinator.shared.activateOnDemand(.calendar, timeout: 5.0)
-                }
-            }
-        }
+        KeyboardShortcuts.onKeyDown(for: .selectPomodoroModule, action: triggerPomodoro)
+        KeyboardShortcuts.onKeyDown(for: .optionPomodoroShortcut, action: triggerPomodoro)
         
         // Battery Module (`Cmd + Shift + B`)
         KeyboardShortcuts.onKeyDown(for: .selectBatteryModule) {
             Task { @MainActor in
-                withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.8)) {
-                    Defaults[.activeModule] = .battery
-                    BoringViewCoordinator.shared.currentView = .home
-                    DinoCoordinator.shared.activateOnDemand(.battery, timeout: 4.0)
-                }
+                DinoCoordinator.shared.toggleOrMorphSlot(.battery)
             }
         }
         
         // Shelf Module (`Cmd + Shift + U`)
         KeyboardShortcuts.onKeyDown(for: .selectShelfModule) {
             Task { @MainActor in
-                withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.8)) {
-                    Defaults[.activeModule] = .shelf
-                    BoringViewCoordinator.shared.currentView = .shelf
-                    DinoCoordinator.shared.activateOnDemand(.shelf, timeout: nil) // Pinned
+                DinoCoordinator.shared.toggleOrMorphSlot(.shelf)
+            }
+        }
+        
+        // Emergency Exit / Escape: Close open card and restore P3 background immediately
+        KeyboardShortcuts.onKeyDown(for: .pomodoroEmergencyExit) {
+            Task { @MainActor in
+                if BoringViewModel.shared.notchState == .open {
+                    withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
+                        BoringViewModel.shared.close()
+                        DinoCoordinator.shared.dismissOnDemand()
+                    }
+                } else if DinoCoordinator.shared.currentPriority == .p2OnDemand {
+                    withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
+                        DinoCoordinator.shared.dismissOnDemand()
+                    }
                 }
             }
         }

@@ -20,6 +20,7 @@ class MusicManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var controllerCancellables = Set<AnyCancellable>()
     private var debounceIdleTask: Task<Void, Never>?
+    private var lyricsFetchTask: Task<Void, Never>?
 
     // Helper to check if macOS has removed support for NowPlayingController
     public private(set) var isNowPlayingDeprecated: Bool = false
@@ -98,6 +99,8 @@ class MusicManager: ObservableObject {
     
     public func destroy() {
         debounceIdleTask?.cancel()
+        lyricsFetchTask?.cancel()
+        lyricsFetchTask = nil
         cancellables.removeAll()
         controllerCancellables.removeAll()
         flipWorkItem?.cancel()
@@ -350,11 +353,14 @@ class MusicManager: ObservableObject {
             return
         }
 
+        lyricsFetchTask?.cancel()
+
         // Prefer native Apple Music lyrics when available
         if let bundleIdentifier = bundleIdentifier, bundleIdentifier.contains("com.apple.Music") {
-            Task { @MainActor in
+            lyricsFetchTask = Task { @MainActor in
                 let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music")
                 guard !runningApps.isEmpty else {
+                    guard !Task.isCancelled else { return }
                     await self.fetchLyricsFromWeb(title: title, artist: artist)
                     return
                 }
@@ -385,6 +391,7 @@ class MusicManager: ObservableObject {
                     end tell
                     """
                     if let result = try await AppleScriptHelper.execute(script), let lyricsString = result.stringValue, !lyricsString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        guard !Task.isCancelled else { return }
                         self.currentLyrics = lyricsString.trimmingCharacters(in: .whitespacesAndNewlines)
                         self.isFetchingLyrics = false
                         self.syncedLyrics = []
@@ -393,12 +400,14 @@ class MusicManager: ObservableObject {
                 } catch {
                     // fall through to web lookup
                 }
+                guard !Task.isCancelled else { return }
                 await self.fetchLyricsFromWeb(title: title, artist: artist)
             }
         } else {
-            Task { @MainActor in
+            lyricsFetchTask = Task { @MainActor in
                 self.isFetchingLyrics = true
                 self.currentLyrics = ""
+                guard !Task.isCancelled else { return }
                 await self.fetchLyricsFromWeb(title: title, artist: artist)
             }
         }
@@ -428,8 +437,10 @@ class MusicManager: ObservableObject {
             self.isFetchingLyrics = false
             return
         }
+        guard !Task.isCancelled else { return }
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
+            guard !Task.isCancelled else { return }
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                 self.currentLyrics = ""
                 self.isFetchingLyrics = false
@@ -437,6 +448,7 @@ class MusicManager: ObservableObject {
             }
             if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
                let first = jsonArray.first {
+                guard !Task.isCancelled else { return }
                 // Prefer plain lyrics (syncedLyrics may also be present)
                 let plain = (first["plainLyrics"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let synced = (first["syncedLyrics"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -449,11 +461,13 @@ class MusicManager: ObservableObject {
                     self.syncedLyrics = []
                 }
             } else {
+                guard !Task.isCancelled else { return }
                 self.currentLyrics = ""
                 self.isFetchingLyrics = false
                 self.syncedLyrics = []
             }
         } catch {
+            guard !Task.isCancelled else { return }
             self.currentLyrics = ""
             self.isFetchingLyrics = false
             self.syncedLyrics = []
@@ -573,7 +587,8 @@ class MusicManager: ObservableObject {
     }
 
     func calculateAverageColor() {
-        albumArt.averageColor { [weak self] color in
+        let key = "\(songTitle)-\(artistName)-\(album)"
+        albumArt.averageColor(cacheKey: key) { [weak self] color in
             DispatchQueue.main.async {
                 withAnimation(.smooth) {
                     self?.avgColor = color ?? .white

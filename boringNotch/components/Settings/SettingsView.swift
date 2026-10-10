@@ -3795,14 +3795,25 @@ final class AppEnergyUsageManager: ObservableObject {
     private var iconCache: [String: NSImage] = [:]
 
     private init() {
+        // Do not poll system processes constantly in background;
+        // monitoring starts on-demand when BatteryAppUsageSettingsView appears.
+    }
+
+    deinit {
+        stopMonitoring()
+    }
+
+    func startMonitoring() {
         refresh()
+        guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: true) { [weak self] _ in
             self?.refresh()
         }
     }
 
-    deinit {
+    func stopMonitoring() {
         timer?.invalidate()
+        timer = nil
     }
 
     func refresh() {
@@ -4515,7 +4526,10 @@ struct BatteryAppUsageSettingsView: View {
         .navigationTitle("App Usage")
         .background(Color.white)
         .onAppear {
-            manager.refresh()
+            manager.startMonitoring()
+        }
+        .onDisappear {
+            manager.stopMonitoring()
         }
     }
 

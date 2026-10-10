@@ -10,6 +10,14 @@ import Defaults
 import SwiftUI
 
 class BoringViewModel: NSObject, ObservableObject {
+    public static var activeInstance: BoringViewModel?
+    public static var shared: BoringViewModel {
+        if let active = activeInstance { return active }
+        let fallback = BoringViewModel()
+        activeInstance = fallback
+        return fallback
+    }
+
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @ObservedObject var detector = FullscreenMediaDetector.shared
 
@@ -45,7 +53,11 @@ class BoringViewModel: NSObject, ObservableObject {
         destroy()
     }
 
+    private var openNotchTask: Task<Void, Never>?
+
     func destroy() {
+        openNotchTask?.cancel()
+        openNotchTask = nil
         cancellables.forEach { $0.cancel() }
         cancellables.removeAll()
     }
@@ -54,6 +66,7 @@ class BoringViewModel: NSObject, ObservableObject {
         animation = animationLibrary.animation
 
         super.init()
+        Self.activeInstance = self
         
         self.screenUUID = screenUUID
         notchSize = getClosedNotchSize(screenUUID: screenUUID)
@@ -207,10 +220,12 @@ class BoringViewModel: NSObject, ObservableObject {
         let openHeight: CGFloat = (coordinator.currentView == .home) ? 188 : openNotchSize.height
         self.notchSize = .init(width: openWidth, height: openHeight)
         self.notchState = .open
+        DinoCoordinator.shared.isExpanded = true
         
         // Defer music information update until after the spring animation settles
         // so background queries and @Published property updates do not cause frame drops during expansion
-        Task { [weak self] in
+        openNotchTask?.cancel()
+        openNotchTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(380))
             guard self?.notchState == .open else { return }
             MusicManager.shared.forceUpdate()
@@ -218,6 +233,10 @@ class BoringViewModel: NSObject, ObservableObject {
     }
 
     func close() {
+        openNotchTask?.cancel()
+        openNotchTask = nil
+        coordinator.cancelAllTasks()
+
         // Do not close while a share picker or sharing service is active
         if SharingStateManager.shared.preventNotchClose {
             return
@@ -225,6 +244,7 @@ class BoringViewModel: NSObject, ObservableObject {
         self.notchSize = getClosedNotchSize(screenUUID: self.screenUUID)
         self.closedNotchSize = self.notchSize
         self.notchState = .closed
+        DinoCoordinator.shared.isExpanded = false
         self.isBatteryPopoverActive = false
         self.coordinator.sneakPeek.show = false
         self.edgeAutoOpenActive = false

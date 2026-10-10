@@ -16,15 +16,11 @@ import SwiftUIIntrospect
 @MainActor
 struct ContentView: View {
     @EnvironmentObject var vm: BoringViewModel
-    @ObservedObject var webcamManager = WebcamManager.shared
-
     @ObservedObject var coordinator = BoringViewCoordinator.shared
-    @ObservedObject var musicManager = MusicManager.shared
-    @ObservedObject var pomodoroManager = PomodoroManager.shared
-    @ObservedObject var batteryModel = BatteryStatusViewModel.shared
-    @ObservedObject var brightnessManager = BrightnessManager.shared
-    @ObservedObject var volumeManager = VolumeManager.shared
-    @ObservedObject var antigravityManager = AntigravityManager.shared
+
+    private var musicManager: MusicManager { MusicManager.shared }
+    private var pomodoroManager: PomodoroManager { PomodoroManager.shared }
+    private var antigravityManager: AntigravityManager { AntigravityManager.shared }
     @State private var hoverTask: Task<Void, Never>?
     @State private var isHovering: Bool = false
     @State private var anyDropDebounceTask: Task<Void, Never>?
@@ -39,8 +35,6 @@ struct ContentView: View {
     @State private var mediaGestureTask: Task<Void, Never>?
     
     // Hover states for closed notch music areas
-    @State private var isCoverHovering: Bool = false
-    @State private var isVisualizerHovering: Bool = false
     @State private var showCoverHoverMusicDetails: Bool = false
     @State private var coverHoverDismissTask: Task<Void, Never>?
     @State private var isIslandTransientlyVisible: Bool = false
@@ -58,10 +52,8 @@ struct ContentView: View {
     @Default(.activeModule) var activeModule
     
     @State private var emptyClickBounce: Bool = false
-    @State private var isSongDetailsHovered: Bool = false
     @State private var isScaleHovered: Bool = false
     @State private var scaleHoverTask: Task<Void, Never>?
-    @State private var showCopiedFeedback: Bool = false
     
     // Displays & Island Mode
     @Default(.displaySelection) var displaySelection
@@ -174,46 +166,7 @@ struct ContentView: View {
         )
     }
 
-    @ViewBuilder
-    private var surfaceBackground: some View {
-        if isCurrentDisplayIsland {
-            if islandStyle == .glass {
-                ZStack {
-                    VisualEffectBackground(material: .hudWindow, blendingMode: .withinWindow)
-                    Color.black.opacity(0.32)
-                }
-            } else {
-                Color.black
-            }
-        } else {
-            Color.black
-        }
-    }
 
-    @ViewBuilder
-    private var surfaceOverlay: some View {
-        if isCurrentDisplayIsland {
-            if islandStyle == .glass {
-                RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.38), Color.white.opacity(0.14)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            } else {
-                RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.18), lineWidth: 0.9)
-            }
-        } else {
-            Rectangle()
-                .fill(.black)
-                .frame(height: 1)
-                .padding(.horizontal, topCornerRadius)
-        }
-    }
 
     private var isShowingMusicSneakPeek: Bool {
         (showCoverHoverMusicDetails || (coordinator.sneakPeek.show && coordinator.sneakPeek.type == .music))
@@ -234,9 +187,18 @@ struct ContentView: View {
         vm.notchState == .closed && isDualActivityEligible
     }
 
+    private var isShowingSystemToastHUD: Bool {
+        (coordinator.sneakPeek.show || DinoCoordinator.shared.currentPriority == .p1Toast)
+            && (coordinator.sneakPeek.type != .music)
+            && (coordinator.sneakPeek.type != .battery)
+            && vm.notchState == .closed
+    }
+
     private var computedChinWidth: CGFloat {
         if isCurrentDisplayIsland {
-            if isShowingMusicSneakPeek {
+            if isShowingSystemToastHUD {
+                return isCurrentScreenBuiltin ? 210 : 185
+            } else if isShowingMusicSneakPeek {
                 return isCurrentScreenBuiltin ? 190 : 165
             } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show && vm.notchState == .closed {
                 return isCurrentScreenBuiltin ? 170 : 145
@@ -246,6 +208,8 @@ struct ContentView: View {
                 return isCurrentScreenBuiltin ? 150 : 130
             } else if shouldShowPomodoroInlineClosedVisual {
                 return isCurrentScreenBuiltin ? 172 : 144
+            } else if DinoCoordinator.shared.activeSlot == .weather {
+                return isCurrentScreenBuiltin ? 120 : 105
             } else if shouldShowMusicClosedVisual {
                 return isCurrentScreenBuiltin ? 150 : 130
             } else if shouldShowCalendarClosedVisual {
@@ -265,6 +229,8 @@ struct ContentView: View {
             } else {
                 chinWidth = 640
             }
+        } else if isShowingSystemToastHUD {
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 60)
         } else if isDualActivityActive {
             if isCurrentDisplayIsland {
                 chinWidth = isCurrentScreenBuiltin ? 150 : 130
@@ -284,6 +250,8 @@ struct ContentView: View {
             } else {
                 chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
             }
+        } else if DinoCoordinator.shared.activeSlot == .weather {
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
         } else if shouldShowMusicClosedVisual {
             if isCurrentDisplayIsland {
                 chinWidth = isCurrentScreenBuiltin ? 150 : 130
@@ -361,6 +329,14 @@ struct ContentView: View {
             && !isShowingMusicSneakPeek
             && !isAntigravityActive
             && !coordinator.expandingView.show
+    }
+
+    private var shouldShowNonMusicClosedVisual: Bool {
+        !coordinator.expandingView.show
+            && vm.notchState == .closed
+            && !vm.hideOnClosed
+            && (!musicManager.isPlaying && musicManager.isPlayerIdle)
+            && (showCalendar || showNotHumanFace || showMirror)
     }
 
     private var hasActiveFeature: Bool {
@@ -458,22 +434,18 @@ struct ContentView: View {
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchSize)
                             .animation(.smooth, value: gestureProgress)
-                            .animation(animationSpring, value: pomodoroEnabled)
-                            .animation(animationSpring, value: pomodoroClosedNotchDisplayMode)
-                            .animation(animationSpring, value: shouldShowPomodoroInlineClosedVisual)
-                            .animation(animationSpring, value: activeModule)
                             .animation(animationSpring, value: computedChinWidth)
-                            .animation(animationSpring, value: DinoCoordinator.shared.activeSlot)
-                            .animation(animationSpring, value: isShowingInlineMusicPlaybackPeek)
-                            .animation(animationSpring, value: isAntigravityActive)
-                            .animation(animationSpring, value: isShowingMusicSneakPeek)
                     }
                     .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
                     .onHover { hovering in
-                        handleHover(hovering)
+                        if !(isDualActivityActive && isCurrentDisplayIsland && vm.notchState == .closed) {
+                            handleHover(hovering)
+                        }
                     }
                     .onTapGesture {
-                        handleTap()
+                        if !(isDualActivityActive && isCurrentDisplayIsland && vm.notchState == .closed) {
+                            handleTap()
+                        }
                     }
                     .conditionalModifier(Defaults[.enableGestures]) { view in
                         view
@@ -529,10 +501,10 @@ struct ContentView: View {
                     .onChange(of: vm.isCameraExpanded) { _, _ in
                         updateOpenNotchWidth()
                     }
-                    .onChange(of: webcamManager.cameraAvailable) { _, _ in
+                    .onReceive(WebcamManager.shared.$cameraAvailable) { _ in
                         updateOpenNotchWidth()
                     }
-                    .onChange(of: musicManager.songTitle) { _, newTitle in
+                    .onReceive(MusicManager.shared.$songTitle) { newTitle in
                         guard !newTitle.isEmpty else { return }
                         withAnimation(.spring(response: 0.55, dampingFraction: 0.72)) {
                             coverRotationY -= 180
@@ -541,6 +513,11 @@ struct ContentView: View {
                             coordinator.toggleSneakPeek(status: true, type: .music, duration: 4.5)
                         }
                     }
+                    .onReceive(MusicManager.shared.$isPlaying) { _ in }
+                    .onReceive(MusicManager.shared.$isPlayerIdle) { _ in }
+                    .onReceive(PomodoroManager.shared.$state) { _ in }
+                    .onReceive(AntigravityManager.shared.$isVisible) { _ in }
+                    .onReceive(AntigravityManager.shared.$currentPhase) { _ in }
                     .onChange(of: coordinator.sneakPeek.show) { _, isShowing in
                         if isShowing && coordinator.sneakPeek.type == .music && vm.notchState == .closed {
                             transientVisibilityTask?.cancel()
@@ -594,24 +571,8 @@ struct ContentView: View {
                 }
             }
 
-            if batteryModel.isCustomToastPresented && Defaults[.batteryToastEnabled] && Defaults[.batteryToastType] == .customToast && vm.notchState == .closed && batteryModel.alertPosition != "Center" {
-                CustomBatteryToastView()
-                    .offset(y: vm.effectiveClosedNotchHeight + 14)
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .top).combined(with: .scale(scale: 0.82, anchor: .top)).combined(with: .opacity),
-                            removal: .move(edge: .top).combined(with: .scale(scale: 0.88, anchor: .top)).combined(with: .opacity)
-                        )
-                    )
-                    .zIndex(100)
-            }
+            CustomBatteryToastOverlay()
         }
-        .animation(
-            batteryModel.isCustomToastPresented
-                ? .spring(response: 0.45, dampingFraction: 0.65)
-                : .spring(response: 0.45, dampingFraction: 0.8),
-            value: batteryModel.isCustomToastPresented
-        )
         .padding(.bottom, 8)
         .frame(maxWidth: windowSize.width, maxHeight: windowSize.height, alignment: .top)
         .compositingGroup()
@@ -653,554 +614,73 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private var mainPillView: some View {
-        NotchLayout()
-            .frame(alignment: .top)
-            .padding(
-                .horizontal,
-                vm.notchState == .open
-                    ? (isCurrentDisplayIsland ? 22 : (topCornerRadius + 14))
-                    : (isCurrentDisplayIsland ? (isShowingMusicSneakPeek ? 10 : 8) : (topCornerRadius + 6))
-            )
-            .padding(.top, vm.notchState == .open ? 18 : (isShowingMusicSneakPeek ? 4 : 0))
-            .padding(.bottom, vm.notchState == .open ? 18 : (isShowingMusicSneakPeek ? 6 : 0))
-            .background(surfaceBackground)
-            .conditionalModifier(isCurrentDisplayIsland) { view in
-                view.clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
-            }
-            .conditionalModifier(!isCurrentDisplayIsland) { view in
-                view.clipShape(currentNotchShape)
-            }
-            .overlay(alignment: .top) {
-                surfaceOverlay
-            }
-            .shadow(
-                color: ((vm.notchState == .open || isHovering) && Defaults[.enableShadow])
-                    ? (isCurrentDisplayIsland ? Color.black.opacity(0.65) : Color.black.opacity(0.7))
-                    : (isCurrentDisplayIsland && Defaults[.enableShadow] ? Color.black.opacity(0.25) : .clear),
-                radius: isCurrentDisplayIsland ? ((isHovering || vm.notchState == .open) ? 14 : 5) : (Defaults[.cornerRadiusScaling] ? 8 : 5),
-                x: 0,
-                y: isCurrentDisplayIsland ? ((isHovering || vm.notchState == .open) ? 6 : 2) : 0
-            )
-            .padding(
-                .bottom,
-                vm.effectiveClosedNotchHeight == 0 ? 10 : 0
-            )
-    }
-
-    @ViewBuilder
     private var islandContainerView: some View {
-        HStack(alignment: .top, spacing: (vm.notchState == .closed && isDualActivityActive) ? 8 : 0) {
-            mainPillView
-                .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
-                .onTapGesture {
+        IslandContainerLayout(
+            isCurrentDisplayIsland: isCurrentDisplayIsland,
+            isCurrentScreenBuiltin: isCurrentScreenBuiltin,
+            islandStyle: islandStyle,
+            isShowingMusicSneakPeek: isShowingMusicSneakPeek,
+            isDualActivityActive: isDualActivityActive,
+            isHovering: isHovering,
+            isScaleHovered: isScaleHovered,
+            emptyClickBounce: emptyClickBounce,
+            islandCornerRadius: islandCornerRadius,
+            topCornerRadius: topCornerRadius,
+            currentNotchShape: currentNotchShape,
+            islandYOffset: islandYOffset,
+            islandOpacity: islandOpacity,
+            gestureProgress: gestureProgress,
+            pomodoroEnabled: pomodoroEnabled,
+            pomodoroClosedNotchDisplayMode: pomodoroClosedNotchDisplayMode,
+            shouldShowPomodoroInlineClosedVisual: shouldShowPomodoroInlineClosedVisual,
+            animationSpring: animationSpring,
+            onMainPillHover: { hovering in
+                handleMainPillHover(hovering)
+            },
+            onHover: { hovering in
+                handleHover(hovering)
+            },
+            onMainPillTap: {
+                if isDualActivityActive && vm.notchState == .closed {
+                    openMusicWithSpring()
+                } else {
                     handleTap()
                 }
-
-            if isCurrentDisplayIsland && isDualActivityActive && vm.notchState == .closed {
-                PomodoroCompanionCircleView(
-                    isCurrentScreenBuiltin: isCurrentScreenBuiltin,
-                    islandStyle: islandStyle,
-                    isHovering: isHovering,
-                    onOpenPomodoro: {
-                        openPomodoroWithSpring()
-                    }
-                )
-                .opacity(isShowingMusicSneakPeek ? 0 : 1)
-                .transition(
-                    .asymmetric(
-                        insertion: .scale(scale: 0.5).combined(with: .opacity),
-                        removal: .opacity
-                    )
-                )
+            },
+            onCompanionCircleTap: {
+                openPomodoroWithSpring()
             }
-        }
-    }
-
-    @ViewBuilder
-    func NotchLayout() -> some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                if coordinator.helloAnimationRunning {
-                    Spacer()
-                    HelloAnimation(onFinish: {
-                        vm.closeHello()
-                    }).frame(
-                        width: getClosedNotchSize().width,
-                        height: 80
-                    )
-                    .padding(.top, 40)
-                    Spacer()
-                } else {
-                    if coordinator.expandingView.type == .battery && coordinator.expandingView.show
-                        && vm.notchState == .closed
-                    {
-                        if Defaults[.batteryToastType] == .dynamicNotch {
-                            let itemSize = max(0, vm.effectiveClosedNotchHeight - 12)
-                            let tintColor: Color = batteryModel.activeGlowColor ?? (batteryModel.levelBattery <= 20 ? .red : .green)
-                            let displayPercentage = batteryModel.alertPercentage > 0 ? batteryModel.alertPercentage : Int(batteryModel.levelBattery)
-
-                            HStack {
-                                Image(systemName: "bolt.fill")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundStyle(tintColor)
-                                    .frame(width: itemSize, height: itemSize)
-
-                                Rectangle()
-                                    .fill(Color.clear)
-                                    .frame(width: isCurrentDisplayIsland ? 64 : (vm.closedNotchSize.width - cornerRadiusInsets.closed.top), height: vm.effectiveClosedNotchHeight)
-
-                                Text("\(displayPercentage)")
-                                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                                    .foregroundStyle(tintColor)
-                                    .frame(width: itemSize, height: itemSize)
-                            }
-                            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
-                        } else {
-                            HStack(spacing: 0) {
-                                HStack {
-                                    Text(batteryModel.alertBannerText ?? batteryModel.statusText)
-                                        .font(.subheadline)
-                                        .fontWeight(.medium)
-                                        .foregroundStyle(.white)
-                                }
-
-                                Rectangle()
-                                    .fill(Color.clear)
-                                    .frame(width: isCurrentDisplayIsland ? 64 : (vm.closedNotchSize.width + 10))
-
-                                HStack {
-                                    BoringBatteryView(
-                                        batteryWidth: 30,
-                                        isCharging: batteryModel.isCharging,
-                                        isInLowPowerMode: batteryModel.isInLowPowerMode,
-                                        isPluggedIn: batteryModel.isPluggedIn,
-                                        levelBattery: batteryModel.levelBattery,
-                                        isForNotification: true
-                                    )
-                                }
-                                .frame(width: 76, alignment: .trailing)
-                            }
-                            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
-                        }
-                    } else if isAntigravityActive {
-                        AntigravityLiveActivity()
-                            .frame(width: computedChinWidth, height: vm.effectiveClosedNotchHeight, alignment: .center)
-                            .clipped()
-                            .transition(.opacity)
-                    } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && vm.notchState == .closed {
-                          InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
-                              .transition(.opacity)
-                      } else if DinoCoordinator.shared.activeSlot == .weather && vm.notchState == .closed {
-                          WeatherClosedPillView()
-                              .frame(width: isCurrentDisplayIsland ? 110 : (vm.closedNotchSize.width + 10), height: vm.effectiveClosedNotchHeight)
-                              .transition(.opacity)
-                      } else if isDualActivityActive {
-                          MusicLiveActivity()
-                              .frame(alignment: .center)
-                              .transition(.opacity)
-                      } else if shouldShowPomodoroInlineClosedVisual {
-                          PomodoroClosedNotchView(
-                              isCurrentDisplayIsland: isCurrentDisplayIsland,
-                              isCurrentScreenBuiltin: isCurrentScreenBuiltin
-                          )
-                          .transition(.opacity)
-                      } else if shouldShowMusicClosedVisual {
-                          MusicLiveActivity()
-                              .frame(alignment: .center)
-                      } else if shouldShowCalendarClosedVisual {
-                          CalendarClosedNotchView(
-                              isCurrentDisplayIsland: isCurrentDisplayIsland,
-                              isCurrentScreenBuiltin: isCurrentScreenBuiltin
-                          )
-                          .transition(.opacity)
-                      } else if !coordinator.expandingView.show && vm.notchState == .closed && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace] && !vm.hideOnClosed  {
-                          BoringFaceAnimation()
-                       } else if vm.notchState == .open {
-                           EmptyView()
-                       } else {
-                           Rectangle().fill(.clear).frame(width: vm.closedNotchSize.width - 20, height: vm.effectiveClosedNotchHeight)
-                       }
-
-                      if coordinator.sneakPeek.show {
-                          if (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && !Defaults[.inlineHUD] && vm.notchState == .closed {
-                              SystemEventIndicatorModifier(
-                                  eventType: $coordinator.sneakPeek.type,
-                                  value: $coordinator.sneakPeek.value,
-                                  icon: $coordinator.sneakPeek.icon,
-                                  sendEventBack: { newVal in
-                                      switch coordinator.sneakPeek.type {
-                                      case .volume:
-                                          VolumeManager.shared.setAbsolute(Float32(newVal))
-                                      case .brightness:
-                                          BrightnessManager.shared.setAbsolute(value: Float32(newVal))
-                                      default:
-                                          break
-                                      }
-                                  }
-                              )
-                              .padding(.bottom, 10)
-                              .padding(.leading, 4)
-                              .padding(.trailing, 8)
-                          }
-                      }
-
-                  }
-              }
-              .zIndex(2)
-            if vm.notchState == .open {
-                VStack {
-                    switch coordinator.currentView {
-                    case .home, .calendar:
-                        NotchHomeView(albumArtNamespace: albumArtNamespace)
-                    case .shelf:
-                        VStack(spacing: 0) {
-                            HStack(alignment: .center) {
-                                Text("Shelf")
-                                    .font(.system(.subheadline, design: .rounded))
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.white)
-
-                                Spacer(minLength: 0)
-
-                                Button(action: {
-                                    withAnimation(.smooth) {
-                                        coordinator.currentView = .home
-                                    }
-                                }) {
-                                    Image(systemName: "xmark")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(.white.opacity(0.9))
-                                        .frame(width: 24, height: 24)
-                                        .background(Color.white.opacity(0.10))
-                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.top, 4)
-                            .padding(.horizontal, 8)
-
-                            ShelfView()
-                                .padding(.top, 4)
-                        }
-                        .padding(.horizontal, 8)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    }
+        ) {
+            DinoSlotRouter(
+                isCurrentDisplayIsland: isCurrentDisplayIsland,
+                isCurrentScreenBuiltin: isCurrentScreenBuiltin,
+                computedChinWidth: computedChinWidth,
+                isShowingMusicSneakPeek: isShowingMusicSneakPeek,
+                isShowingSystemToastHUD: isShowingSystemToastHUD,
+                isDualActivityActive: isDualActivityActive,
+                isAntigravityActive: isAntigravityActive,
+                shouldShowPomodoroInlineClosedVisual: shouldShowPomodoroInlineClosedVisual,
+                shouldShowMusicClosedVisual: shouldShowMusicClosedVisual,
+                shouldShowCalendarClosedVisual: shouldShowCalendarClosedVisual,
+                shouldShowNonMusicClosedVisual: shouldShowNonMusicClosedVisual,
+                mediaGestureDirection: mediaGestureDirection,
+                mediaGestureIconVisible: mediaGestureIconVisible,
+                coverRotationY: coverRotationY,
+                albumArtNamespace: albumArtNamespace,
+                useMusicVisualizer: useMusicVisualizer,
+                islandStyle: islandStyle,
+                showCalendar: showCalendar,
+                showNotHumanFace: showNotHumanFace,
+                showMirror: showMirror,
+                isHovering: $isHovering,
+                gestureProgress: $gestureProgress,
+                showCoverHoverMusicDetails: $showCoverHoverMusicDetails,
+                coverHoverDismissTask: $coverHoverDismissTask,
+                onOpenPomodoro: {
+                    openPomodoroWithSpring()
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .transition(
-                    .scale(scale: 0.8, anchor: .top)
-                    .combined(with: .opacity)
-                    .animation(.smooth(duration: 0.35))
-                )
-                .zIndex(1)
-                .allowsHitTesting(vm.notchState == .open)
-                .opacity(gestureProgress != 0 ? 1.0 - min(abs(gestureProgress) * 0.1, 0.3) : 1.0)
-            }
-        }
-        .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], delegate: GeneralDropTargetDelegate(isTargeted: $vm.generalDropTargeting))
-    }
-
-    @ViewBuilder
-    func BoringFaceAnimation() -> some View {
-        HStack {
-            HStack {
-                Rectangle()
-                    .fill(.clear)
-                    .frame(
-                        width: max(0, vm.effectiveClosedNotchHeight - 12),
-                        height: max(0, vm.effectiveClosedNotchHeight - 12)
-                    )
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(width: isCurrentDisplayIsland ? 64 : (vm.closedNotchSize.width - 20))
-                MinimalFaceFeatures()
-            }
-        }.frame(
-            height: vm.effectiveClosedNotchHeight,
-            alignment: .center
-        )
-    }
-
-    @ViewBuilder
-    func MusicLiveActivity() -> some View {
-        let coverSize: CGFloat = {
-            if isCurrentDisplayIsland {
-                if isCurrentScreenBuiltin {
-                    return isShowingMusicSneakPeek ? 18 : 17
-                } else {
-                    return isShowingMusicSneakPeek ? 18.5 : 18
-                }
-            } else {
-                return max(0, vm.effectiveClosedNotchHeight - 12)
-            }
-        }()
-        let showGesturePrev = mediaGestureDirection == .right && mediaGestureIconVisible && musicManager.isPlaying
-        let showGestureNext = mediaGestureDirection == .left && mediaGestureIconVisible && musicManager.isPlaying
-        let islandSneakPeekWidth: CGFloat = isCurrentScreenBuiltin ? 190 : 165
-        let defaultCenterSpacerWidth: CGFloat = isCurrentDisplayIsland
-            ? (isShowingMusicSneakPeek ? max(10, islandSneakPeekWidth - (coverSize * 2) - 20) : (isCurrentScreenBuiltin ? 68 : 50))
-            : (isCurrentScreenBuiltin ? (vm.closedNotchSize.width + 14) : (vm.closedNotchSize.width - 10))
-
-        VStack(spacing: isShowingMusicSneakPeek ? 4 : 0) {
-            HStack(spacing: 0) {
-                // MARK: Left side - Album art with gesture prev icon & hover sneak peek
-                ZStack {
-                    Image(nsImage: musicManager.albumArt)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: coverSize, height: coverSize)
-                        .clipShape(
-                            RoundedRectangle(
-                                cornerRadius: isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 4.5 : 4.8) : MusicPlayerImageSizes.cornerRadiusInset.closed,
-                                style: .continuous
-                            )
-                        )
-                        .rotation3DEffect(.degrees(coverRotationY), axis: (x: 0, y: 1, z: 0))
-                        .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
-                        .opacity(showGesturePrev ? 0 : 1)
-                        .animation(.easeOut(duration: 0.2), value: showGesturePrev)
-
-                    // Gesture: swipe right → prev icon replaces cover
-                    if showGesturePrev {
-                        Image(systemName: "backward.fill")
-                            .font(.system(size: coverSize * 0.45, weight: .bold))
-                            .foregroundStyle(.white)
-                            .transition(.scale.combined(with: .opacity))
-                    }
-                }
-                .frame(width: coverSize, height: coverSize)
-                .contentShape(Rectangle())
-                .onHover { hovering in
-                    isCoverHovering = hovering
-                    if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
-                        coverHoverDismissTask?.cancel()
-                        withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
-                            showCoverHoverMusicDetails = true
-                        }
-                    }
-                }
-
-                if isDualActivityActive && !isCurrentDisplayIsland {
-                    HStack {
-                        Spacer(minLength: 0)
-                        Text(pomodoroManager.formattedRemainingTime)
-                            .font(.system(size: isCurrentScreenBuiltin ? 12.5 : 11.0, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
-                            .lineLimit(1)
-                        Spacer(minLength: 0)
-                    }
-                    .frame(
-                        width: defaultCenterSpacerWidth,
-                        height: vm.effectiveClosedNotchHeight
-                    )
-                } else {
-                    Rectangle()
-                        .fill(Color.clear)
-                        .contentShape(Rectangle())
-                        .overlay(
-                            HStack(alignment: .top) {
-                                if coordinator.expandingView.show
-                                    && coordinator.expandingView.type == .music
-                                {
-                                    MarqueeText(
-                                        .constant(musicManager.songTitle),
-                                        textColor: Defaults[.coloredSpectrogram]
-                                            ? Color(nsColor: musicManager.avgColor) : Color.gray,
-                                        minDuration: 0.4,
-                                        frameWidth: 100
-                                    )
-                                    .opacity(
-                                        (coordinator.expandingView.show
-                                            && Defaults[.sneakPeekStyles] == .inline)
-                                            ? 1 : 0
-                                     )
-                                    Spacer(minLength: isCurrentDisplayIsland ? 64 : vm.closedNotchSize.width)
-                                    // Song Artist
-                                    Text(musicManager.artistName)
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                        .foregroundStyle(
-                                            Defaults[.coloredSpectrogram]
-                                                ? Color(nsColor: musicManager.avgColor)
-                                                : Color.gray
-                                        )
-                                        .opacity(
-                                            (coordinator.expandingView.show
-                                                && coordinator.expandingView.type == .music
-                                                && Defaults[.sneakPeekStyles] == .inline)
-                                                ? 1 : 0
-                                        )
-                                }
-                            }
-                        )
-                        .frame(
-                            width: (coordinator.expandingView.show
-                                && coordinator.expandingView.type == .music
-                                && Defaults[.sneakPeekStyles] == .inline)
-                                ? 380
-                                : defaultCenterSpacerWidth
-                        )
-                }
-
-                // MARK: Right side - Visualizer with gesture next icon & hover play/pause
-                ZStack {
-                    // Normal visualizer content
-                    HStack {
-                        if useMusicVisualizer {
-                            let spectrumFillColor: Color = Defaults[.playerColorTinting]
-                                ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)
-                                : Color.white.opacity(0.85)
-                            Rectangle()
-                                .fill(
-                                    musicManager.isPlaying
-                                        ? spectrumFillColor.gradient
-                                        : Color.gray.gradient
-                                )
-                                .frame(width: coverSize, height: coverSize, alignment: .center)
-                                .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
-                                .mask {
-                                    AudioSpectrumView(
-                                        isPlaying: $musicManager.isPlaying,
-                                        color: Defaults[.playerColorTinting] ? NSColor(Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)) : .white
-                                    )
-                                    .frame(width: 14, height: 11)
-                                }
-                        } else {
-                            LottieAnimationContainer()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        }
-                    }
-                    .frame(width: coverSize, height: coverSize, alignment: .center)
-                    .opacity(showGestureNext || isVisualizerHovering ? 0 : 1)
-                    .animation(.easeOut(duration: 0.2), value: showGestureNext)
-                    .animation(.easeOut(duration: 0.2), value: isVisualizerHovering)
-
-                    // Gesture: swipe left → next icon replaces visualizer
-                    if showGestureNext {
-                        Image(systemName: "forward.fill")
-                            .font(.system(size: coverSize * 0.45, weight: .bold))
-                            .foregroundStyle(.white)
-                            .transition(.scale.combined(with: .opacity))
-                    }
-
-                    // Hover: play/pause icon replaces visualizer
-                    if isVisualizerHovering && !showGestureNext {
-                        Button {
-                            MusicManager.shared.togglePlay()
-                        } label: {
-                            Image(systemName: musicManager.isPlaying ? "pause.fill" : "play.fill")
-                                .font(.system(size: coverSize * 0.62, weight: .bold))
-                                .foregroundStyle(.white)
-                                .shadow(color: .white.opacity(0.6), radius: 12)
-                                .shadow(color: .white.opacity(0.35), radius: 24)
-                                .padding(6)
-                                .background(
-                                    Circle()
-                                        .fill(Color.white.opacity(0.12))
-                                        .blur(radius: 0.5)
-                                )
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                        }
-                        .buttonStyle(.plain)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                        .transition(.opacity.animation(.easeInOut(duration: 0.2)))
-                    }
-                }
-                .frame(
-                    width: coverSize,
-                    height: coverSize,
-                    alignment: .center
-                )
-                .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isVisualizerHovering = hovering && !musicManager.isPlayerIdle && vm.notchState == .closed
-                    }
-                }
-            }
-            .contentShape(Rectangle())
-            .frame(
-                height: vm.effectiveClosedNotchHeight,
-                alignment: .center
             )
-
-            // Centered Sneak Peek details row below cover & visualizer
-            if isShowingMusicSneakPeek {
-                let songTitleAndArtist = musicManager.artistName.isEmpty
-                    ? musicManager.songTitle
-                    : "\(musicManager.songTitle) - \(musicManager.artistName)"
-                let songText = musicManager.artistName.isEmpty
-                    ? "♪ \(musicManager.songTitle)"
-                    : "♪ \(musicManager.songTitle) • \(musicManager.artistName)"
-                let textAvailableWidth = isCurrentDisplayIsland ? (islandSneakPeekWidth - 28) : (vm.closedNotchSize.width - 20)
-                let textColor = Defaults[.playerColorTinting]
-                    ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.6)
-                    : .white.opacity(0.9)
-
-                Group {
-                    if showCopiedFeedback {
-                        let feedbackColor: Color = {
-                            if Defaults[.playerColorTinting] {
-                                return Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.7)
-                            } else if islandStyle == .glass && isCurrentDisplayIsland {
-                                return .white.opacity(0.9)
-                            } else {
-                                return .white.opacity(0.85)
-                            }
-                        }()
-
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 8.5, weight: .bold))
-                            Text("Copied to clipboard")
-                                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                        }
-                        .foregroundColor(feedbackColor)
-                        .frame(height: 16)
-                        .transition(.scale.combined(with: .opacity))
-                    } else {
-                        MarqueeText(
-                            .constant(songText),
-                            font: .system(size: 11, weight: .medium, design: .rounded),
-                            textColor: textColor,
-                            minDuration: 1.5,
-                            frameWidth: textAvailableWidth - 12,
-                            alignment: .center,
-                            fadeMaskWhenScrolling: true
-                        )
-                        .opacity(isSongDetailsHovered ? 1.0 : 0.85)
-                    }
-                }
-                .contentShape(Rectangle())
-                .onHover { hov in
-                    isSongDetailsHovered = hov
-                    if hov {
-                        NSCursor.pointingHand.push()
-                    } else {
-                        NSCursor.pop()
-                    }
-                }
-                .onTapGesture {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(songTitleAndArtist, forType: .string)
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
-                        showCopiedFeedback = true
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
-                            showCopiedFeedback = false
-                        }
-                    }
-                }
-                .frame(width: textAvailableWidth, alignment: .center)
-                .padding(.horizontal, 4)
-                .padding(.bottom, isCurrentDisplayIsland ? 6 : 8)
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
-                    removal: .opacity.combined(with: .scale(scale: 0.95))
-                ))
-            }
+            .environmentObject(vm)
         }
     }
 
@@ -1226,7 +706,7 @@ struct ContentView: View {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             haptics.toggle()
         }
-        Defaults[.activeModule] = .music
+        DinoCoordinator.shared.activateSlotDirectly(.music)
         coordinator.currentView = .home
         doOpen()
     }
@@ -1236,10 +716,73 @@ struct ContentView: View {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             haptics.toggle()
         }
-        Defaults[.activeModule] = .pomodoro
+        DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
         Defaults[.pomodoroEnabled] = true
         coordinator.currentView = .home
         doOpen()
+    }
+
+    private func handleMainPillHover(_ hovering: Bool) {
+        if coordinator.firstLaunch { return }
+        coverHoverDismissTask?.cancel()
+
+        if hovering {
+            scaleHoverTask?.cancel()
+            withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.82)) {
+                isScaleHovered = true
+            }
+            let wasNotHovering = !isHovering
+            withAnimation(animationSpring) {
+                isHovering = true
+            }
+
+            if wasNotHovering && Defaults[.enableHaptics] {
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+                haptics.toggle()
+            }
+
+            // Show music sneak peek (song title & artist)
+            if !MusicManager.shared.isPlayerIdle {
+                withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
+                    showCoverHoverMusicDetails = true
+                }
+            }
+
+            guard vm.notchState == .closed,
+                  Defaults[.openNotchOnHover] else { return }
+
+            hoverTask?.cancel()
+            hoverTask = Task {
+                try? await Task.sleep(for: .seconds(Defaults[.minimumHoverDuration]))
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard self.vm.notchState == .closed, self.isHovering else { return }
+                    self.openMusicWithSpring()
+                }
+            }
+        } else {
+            scaleHoverTask?.cancel()
+            scaleHoverTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+                withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.82)) {
+                    self.isScaleHovered = false
+                }
+            }
+
+            hoverTask?.cancel()
+            withAnimation(animationSpring) {
+                isHovering = false
+            }
+
+            coverHoverDismissTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(200))
+                guard !Task.isCancelled else { return }
+                withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
+                    self.showCoverHoverMusicDetails = false
+                }
+            }
+        }
     }
 
     private func handleTap() {
@@ -1247,25 +790,21 @@ struct ContentView: View {
             return
         }
         if hasActiveFeature {
-            if isDualActivityActive {
-                if activeModule == .pomodoro || DinoCoordinator.shared.activeSlot == .pomodoro {
+            if isDualActivityActive || DinoCoordinator.shared.isDualActivityActive {
+                if DinoCoordinator.shared.activeSlot == .pomodoro {
                     openPomodoroWithSpring()
                 } else {
                     openMusicWithSpring()
                 }
                 return
-            } else if shouldShowPomodoroInlineClosedVisual || DinoCoordinator.shared.activeSlot == .pomodoro {
-                Defaults[.activeModule] = .pomodoro
-                Defaults[.pomodoroEnabled] = true
-                coordinator.currentView = .home
-            } else if shouldShowMusicClosedVisual || DinoCoordinator.shared.activeSlot == .music {
-                Defaults[.activeModule] = .music
-                coordinator.currentView = .home
-            } else if shouldShowCalendarClosedVisual || DinoCoordinator.shared.activeSlot == .calendar {
-                Defaults[.activeModule] = .calendar
-                coordinator.currentView = .home
+            } else if DinoCoordinator.shared.activeSlot == .pomodoro || shouldShowPomodoroInlineClosedVisual {
+                DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
+            } else if DinoCoordinator.shared.activeSlot == .music || shouldShowMusicClosedVisual {
+                DinoCoordinator.shared.activateSlotDirectly(.music)
+            } else if DinoCoordinator.shared.activeSlot == .calendar || shouldShowCalendarClosedVisual {
+                DinoCoordinator.shared.activateSlotDirectly(.calendar)
             } else if DinoCoordinator.shared.activeSlot == .weather {
-                coordinator.currentView = .home
+                DinoCoordinator.shared.activateSlotDirectly(.weather)
             }
             doOpen()
         } else {
@@ -1309,6 +848,10 @@ struct ContentView: View {
                 NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
                 haptics.toggle()
             }
+
+            if DinoCoordinator.shared.currentPriority == .p2OnDemand {
+                DinoCoordinator.shared.pauseOnDemandDismiss()
+            }
             
             guard vm.notchState == .closed,
                   !coordinator.sneakPeek.show,
@@ -1329,6 +872,9 @@ struct ContentView: View {
                 }
             }
         } else {
+            if DinoCoordinator.shared.currentPriority == .p2OnDemand {
+                DinoCoordinator.shared.resumeOnDemandDismiss(timeout: 5.0)
+            }
             scaleHoverTask?.cancel()
             scaleHoverTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(100))
@@ -1537,6 +1083,442 @@ struct GeneralDropTargetDelegate: DropDelegate {
 
     func performDrop(info: DropInfo) -> Bool {
         return false
+    }
+}
+
+// MARK: - Isolated Battery Toast Overlay
+@MainActor
+struct CustomBatteryToastOverlay: View {
+    @ObservedObject private var batteryModel = BatteryStatusViewModel.shared
+    @EnvironmentObject private var vm: BoringViewModel
+    @Default(.batteryToastEnabled) private var batteryToastEnabled
+    @Default(.batteryToastType) private var batteryToastType
+
+    var body: some View {
+        Group {
+            if batteryModel.isCustomToastPresented && batteryToastEnabled && batteryToastType == .customToast && vm.notchState == .closed && batteryModel.alertPosition != "Center" {
+                CustomBatteryToastView()
+                    .offset(y: vm.effectiveClosedNotchHeight + 14)
+                    .transition(
+                        .asymmetric(
+                            insertion: .move(edge: .top).combined(with: .scale(scale: 0.82, anchor: .top)).combined(with: .opacity),
+                            removal: .move(edge: .top).combined(with: .scale(scale: 0.88, anchor: .top)).combined(with: .opacity)
+                        )
+                    )
+                    .zIndex(100)
+            }
+        }
+        .animation(
+            batteryModel.isCustomToastPresented
+                ? .spring(response: 0.45, dampingFraction: 0.65)
+                : .spring(response: 0.45, dampingFraction: 0.8),
+            value: batteryModel.isCustomToastPresented
+        )
+    }
+}
+
+// MARK: - Isolated Battery Closed Notch View
+@MainActor
+struct BatteryClosedNotchLayoutView: View {
+    @ObservedObject private var batteryModel = BatteryStatusViewModel.shared
+    @EnvironmentObject private var vm: BoringViewModel
+    @Default(.batteryToastType) private var batteryToastType
+
+    let isCurrentDisplayIsland: Bool
+
+    var body: some View {
+        if batteryToastType == .dynamicNotch {
+            let itemSize = max(0, vm.effectiveClosedNotchHeight - 12)
+            let tintColor: Color = batteryModel.activeGlowColor ?? (batteryModel.levelBattery <= 20 ? .red : .green)
+            let displayPercentage = batteryModel.alertPercentage > 0 ? batteryModel.alertPercentage : Int(batteryModel.levelBattery)
+
+            HStack {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(tintColor)
+                    .frame(width: itemSize, height: itemSize)
+
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(width: isCurrentDisplayIsland ? 64 : (vm.closedNotchSize.width - cornerRadiusInsets.closed.top), height: vm.effectiveClosedNotchHeight)
+
+                Text("\(displayPercentage)")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(tintColor)
+                    .frame(width: itemSize, height: itemSize)
+            }
+            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
+        } else {
+            HStack(spacing: 0) {
+                HStack {
+                    Text(batteryModel.alertBannerText ?? batteryModel.statusText)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.white)
+                }
+
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(width: isCurrentDisplayIsland ? 64 : (vm.closedNotchSize.width + 10))
+
+                HStack {
+                    BoringBatteryView(
+                        batteryWidth: 30,
+                        isCharging: batteryModel.isCharging,
+                        isInLowPowerMode: batteryModel.isInLowPowerMode,
+                        isPluggedIn: batteryModel.isPluggedIn,
+                        levelBattery: batteryModel.levelBattery,
+                        isForNotification: true
+                    )
+                }
+                .frame(width: 76, alignment: .trailing)
+            }
+            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
+        }
+    }
+}
+
+// MARK: - Isolated Music Live Activity View
+@MainActor
+struct MusicLiveActivityView: View {
+    @ObservedObject private var musicManager = MusicManager.shared
+    @ObservedObject private var pomodoroManager = PomodoroManager.shared
+    @ObservedObject private var coordinator = BoringViewCoordinator.shared
+    @EnvironmentObject private var vm: BoringViewModel
+
+    let isCurrentDisplayIsland: Bool
+    let isCurrentScreenBuiltin: Bool
+    let isShowingMusicSneakPeek: Bool
+    let mediaGestureDirection: MediaGestureDirection
+    let mediaGestureIconVisible: Bool
+    let coverRotationY: Double
+    var albumArtNamespace: Namespace.ID
+    let isDualActivityActive: Bool
+    let useMusicVisualizer: Bool
+    let islandStyle: IslandStyle
+
+    @Binding var showCoverHoverMusicDetails: Bool
+    @Binding var coverHoverDismissTask: Task<Void, Never>?
+    var onOpenPomodoro: (() -> Void)? = nil
+
+    @State private var isVisualizerHovering: Bool = false
+    @State private var isCoverHovering: Bool = false
+    @State private var isSongDetailsHovered: Bool = false
+    @State private var showCopiedFeedback: Bool = false
+
+    public init(
+        isCurrentDisplayIsland: Bool,
+        isCurrentScreenBuiltin: Bool,
+        isShowingMusicSneakPeek: Bool,
+        mediaGestureDirection: MediaGestureDirection,
+        mediaGestureIconVisible: Bool,
+        coverRotationY: Double,
+        albumArtNamespace: Namespace.ID,
+        isDualActivityActive: Bool,
+        useMusicVisualizer: Bool,
+        islandStyle: IslandStyle,
+        showCoverHoverMusicDetails: Binding<Bool>,
+        coverHoverDismissTask: Binding<Task<Void, Never>?>,
+        onOpenPomodoro: (() -> Void)? = nil
+    ) {
+        self.isCurrentDisplayIsland = isCurrentDisplayIsland
+        self.isCurrentScreenBuiltin = isCurrentScreenBuiltin
+        self.isShowingMusicSneakPeek = isShowingMusicSneakPeek
+        self.mediaGestureDirection = mediaGestureDirection
+        self.mediaGestureIconVisible = mediaGestureIconVisible
+        self.coverRotationY = coverRotationY
+        self.albumArtNamespace = albumArtNamespace
+        self.isDualActivityActive = isDualActivityActive
+        self.useMusicVisualizer = useMusicVisualizer
+        self.islandStyle = islandStyle
+        self._showCoverHoverMusicDetails = showCoverHoverMusicDetails
+        self._coverHoverDismissTask = coverHoverDismissTask
+        self.onOpenPomodoro = onOpenPomodoro
+    }
+
+    var body: some View {
+        let coverSize: CGFloat = {
+            if isCurrentDisplayIsland {
+                if isCurrentScreenBuiltin {
+                    return isShowingMusicSneakPeek ? 18 : 17
+                } else {
+                    return isShowingMusicSneakPeek ? 18.5 : 18
+                }
+            } else {
+                return max(0, vm.effectiveClosedNotchHeight - 12)
+            }
+        }()
+        let showGesturePrev = mediaGestureDirection == .right && mediaGestureIconVisible && musicManager.isPlaying
+        let showGestureNext = mediaGestureDirection == .left && mediaGestureIconVisible && musicManager.isPlaying
+        let islandSneakPeekWidth: CGFloat = isCurrentScreenBuiltin ? 190 : 165
+        let defaultCenterSpacerWidth: CGFloat = isCurrentDisplayIsland
+            ? (isShowingMusicSneakPeek ? max(10, islandSneakPeekWidth - (coverSize * 2) - 20) : (isCurrentScreenBuiltin ? 68 : 50))
+            : (isCurrentScreenBuiltin ? (vm.closedNotchSize.width + 14) : (vm.closedNotchSize.width - 10))
+
+        VStack(spacing: isShowingMusicSneakPeek ? 4 : 0) {
+            HStack(spacing: 0) {
+                // MARK: Left side - Album art with gesture prev icon & hover sneak peek
+                ZStack {
+                    Image(nsImage: musicManager.albumArt)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: coverSize, height: coverSize)
+                        .clipShape(
+                            RoundedRectangle(
+                                cornerRadius: isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 4.5 : 4.8) : MusicPlayerImageSizes.cornerRadiusInset.closed,
+                                style: .continuous
+                            )
+                        )
+                        .rotation3DEffect(.degrees(coverRotationY), axis: (x: 0, y: 1, z: 0))
+                        .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
+                        .opacity(showGesturePrev ? 0 : 1)
+                        .animation(.easeOut(duration: 0.2), value: showGesturePrev)
+
+                    // Gesture: swipe right → prev icon replaces cover
+                    if showGesturePrev {
+                        Image(systemName: "backward.fill")
+                            .font(.system(size: coverSize * 0.45, weight: .bold))
+                            .foregroundStyle(.white)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                .frame(width: coverSize, height: coverSize)
+                .contentShape(Rectangle())
+                .onHover { hovering in
+                    isCoverHovering = hovering
+                    if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
+                        coverHoverDismissTask?.cancel()
+                        withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
+                            showCoverHoverMusicDetails = true
+                        }
+                    }
+                }
+
+                if isDualActivityActive && !isCurrentDisplayIsland {
+                    HStack {
+                        Spacer(minLength: 0)
+                        Text(pomodoroManager.formattedRemainingTime)
+                            .font(.system(size: isCurrentScreenBuiltin ? 12.5 : 11.0, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(
+                        width: defaultCenterSpacerWidth,
+                        height: vm.effectiveClosedNotchHeight
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onOpenPomodoro?()
+                    }
+                } else {
+                    Rectangle()
+                        .fill(Color.clear)
+                        .contentShape(Rectangle())
+                        .overlay(
+                            HStack(alignment: .top) {
+                                if coordinator.expandingView.show
+                                    && coordinator.expandingView.type == .music
+                                {
+                                    MarqueeText(
+                                        .constant(musicManager.songTitle),
+                                        textColor: Defaults[.coloredSpectrogram]
+                                            ? Color(nsColor: musicManager.avgColor) : Color.gray,
+                                        minDuration: 0.4,
+                                        frameWidth: 100
+                                    )
+                                    .opacity(
+                                        (coordinator.expandingView.show
+                                            && Defaults[.sneakPeekStyles] == .inline)
+                                            ? 1 : 0
+                                     )
+                                    Spacer(minLength: isCurrentDisplayIsland ? 64 : vm.closedNotchSize.width)
+                                    // Song Artist
+                                    Text(musicManager.artistName)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                        .foregroundStyle(
+                                            Defaults[.coloredSpectrogram]
+                                                ? Color(nsColor: musicManager.avgColor)
+                                                : Color.gray
+                                        )
+                                        .opacity(
+                                            (coordinator.expandingView.show
+                                                && coordinator.expandingView.type == .music
+                                                && Defaults[.sneakPeekStyles] == .inline)
+                                                ? 1 : 0
+                                        )
+                                }
+                            }
+                        )
+                        .frame(
+                            width: (coordinator.expandingView.show
+                                && coordinator.expandingView.type == .music
+                                && Defaults[.sneakPeekStyles] == .inline)
+                                ? 380
+                                : defaultCenterSpacerWidth
+                        )
+                }
+
+                // MARK: Right side - Visualizer with gesture next icon & hover play/pause
+                ZStack {
+                    // Normal visualizer content
+                    HStack {
+                        if useMusicVisualizer {
+                            let spectrumFillColor: Color = Defaults[.playerColorTinting]
+                                ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)
+                                : Color.white.opacity(0.85)
+                            Rectangle()
+                                .fill(
+                                    musicManager.isPlaying
+                                        ? spectrumFillColor.gradient
+                                        : Color.gray.gradient
+                                )
+                                .frame(width: coverSize, height: coverSize, alignment: .center)
+                                .matchedGeometryEffect(id: "spectrum", in: albumArtNamespace)
+                                .mask {
+                                    AudioSpectrumView(
+                                        isPlaying: $musicManager.isPlaying,
+                                        color: Defaults[.playerColorTinting] ? NSColor(Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)) : .white
+                                    )
+                                    .frame(width: 14, height: 11)
+                                }
+                        } else {
+                            LottieAnimationContainer()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .frame(width: coverSize, height: coverSize, alignment: .center)
+                    .opacity(showGestureNext || isVisualizerHovering ? 0 : 1)
+                    .animation(.easeOut(duration: 0.2), value: showGestureNext)
+                    .animation(.easeOut(duration: 0.2), value: isVisualizerHovering)
+
+                    // Gesture: swipe left → next icon replaces visualizer
+                    if showGestureNext {
+                        Image(systemName: "forward.fill")
+                            .font(.system(size: coverSize * 0.45, weight: .bold))
+                            .foregroundStyle(.white)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+
+                    // Hover: play/pause icon replaces visualizer
+                    if isVisualizerHovering && !showGestureNext {
+                        Button {
+                            MusicManager.shared.togglePlay()
+                        } label: {
+                            Image(systemName: musicManager.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: coverSize * 0.62, weight: .bold))
+                                .foregroundStyle(.white)
+                                .shadow(color: .white.opacity(0.6), radius: 12)
+                                .shadow(color: .white.opacity(0.35), radius: 24)
+                                .padding(6)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(0.12))
+                                        .blur(radius: 0.5)
+                                )
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        .transition(.opacity.animation(.easeInOut(duration: 0.2)))
+                    }
+                }
+                .frame(
+                    width: coverSize,
+                    height: coverSize,
+                    alignment: .center
+                )
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isVisualizerHovering = hovering && !musicManager.isPlayerIdle && vm.notchState == .closed
+                    }
+                }
+            }
+            .contentShape(Rectangle())
+            .frame(
+                height: vm.effectiveClosedNotchHeight,
+                alignment: .center
+            )
+
+            // Centered Sneak Peek details row below cover & visualizer
+            if isShowingMusicSneakPeek {
+                let songTitleAndArtist = musicManager.artistName.isEmpty
+                    ? musicManager.songTitle
+                    : "\(musicManager.songTitle) - \(musicManager.artistName)"
+                let songText = musicManager.artistName.isEmpty
+                    ? "♪ \(musicManager.songTitle)"
+                    : "♪ \(musicManager.songTitle) • \(musicManager.artistName)"
+                let textAvailableWidth = isCurrentDisplayIsland ? (islandSneakPeekWidth - 28) : (vm.closedNotchSize.width - 20)
+                let textColor = Defaults[.playerColorTinting]
+                    ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.6)
+                    : .white.opacity(0.9)
+
+                Group {
+                    if showCopiedFeedback {
+                        let feedbackColor: Color = {
+                            if Defaults[.playerColorTinting] {
+                                return Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.7)
+                            } else if islandStyle == .glass && isCurrentDisplayIsland {
+                                return .white.opacity(0.9)
+                            } else {
+                                return .white.opacity(0.85)
+                            }
+                        }()
+
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 8.5, weight: .bold))
+                            Text("Copied to clipboard")
+                                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                        }
+                        .foregroundColor(feedbackColor)
+                        .frame(height: 16)
+                        .transition(.scale.combined(with: .opacity))
+                    } else {
+                        MarqueeText(
+                            .constant(songText),
+                            font: .system(size: 11, weight: .medium, design: .rounded),
+                            textColor: textColor,
+                            minDuration: 1.5,
+                            frameWidth: textAvailableWidth - 12,
+                            alignment: .center,
+                            fadeMaskWhenScrolling: true
+                        )
+                        .opacity(isSongDetailsHovered ? 1.0 : 0.85)
+                    }
+                }
+                .contentShape(Rectangle())
+                .onHover { hov in
+                    isSongDetailsHovered = hov
+                    if hov {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+                .onTapGesture {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(songTitleAndArtist, forType: .string)
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                        showCopiedFeedback = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+                            showCopiedFeedback = false
+                        }
+                    }
+                }
+                .frame(width: textAvailableWidth, alignment: .center)
+                .padding(.horizontal, 4)
+                .padding(.bottom, isCurrentDisplayIsland ? 6 : 8)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                    removal: .opacity.combined(with: .scale(scale: 0.95))
+                ))
+            }
+        }
     }
 }
 

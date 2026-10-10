@@ -116,10 +116,12 @@ public struct PomodoroCompanionCircleView: View {
     var isHovering: Bool
     var onOpenPomodoro: () -> Void
 
+    @State private var isCircleHovered: Bool = false
+
     public init(
         isCurrentScreenBuiltin: Bool,
         islandStyle: IslandStyle,
-        isHovering: Bool,
+        isHovering: Bool = false,
         onOpenPomodoro: @escaping () -> Void
     ) {
         self.isCurrentScreenBuiltin = isCurrentScreenBuiltin
@@ -157,6 +159,15 @@ public struct PomodoroCompanionCircleView: View {
         }
     }
 
+    private var miniTimeText: String {
+        let remaining = pomodoroManager.remainingTime
+        if remaining >= 60 {
+            return "\(Int(ceil(Double(remaining) / 60.0)))m"
+        } else {
+            return "\(max(0, remaining))s"
+        }
+    }
+
     public var body: some View {
         let diameter: CGFloat = vm.effectiveClosedNotchHeight
         let ringColor: Color = pomodoroManager.isBreakPhase
@@ -174,20 +185,47 @@ public struct PomodoroCompanionCircleView: View {
                 lineWidth: ringLineWidth
             )
             .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: pomodoroManager.progress)
+            .opacity(isCircleHovered ? 0.35 : 1.0)
+
+            if isCircleHovered {
+                Text(miniTimeText)
+                    .font(.system(size: isCurrentScreenBuiltin ? 9.0 : 7.5, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(ringColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
         }
         .frame(width: diameter, height: diameter)
         .background(surfaceBackground)
         .clipShape(Circle())
         .overlay(companionCircleOverlay)
+        .scaleEffect(isCircleHovered ? 1.06 : 1.0)
         .shadow(
-            color: ((vm.notchState == .open || isHovering) && Defaults[.enableShadow])
-                ? Color.black.opacity(0.65)
-                : (Defaults[.enableShadow] ? Color.black.opacity(0.25) : .clear),
-            radius: (isHovering || vm.notchState == .open) ? 14 : 5,
+            color: isCircleHovered
+                ? ringColor.opacity(0.45)
+                : (((vm.notchState == .open || isHovering) && Defaults[.enableShadow])
+                    ? Color.black.opacity(0.65)
+                    : (Defaults[.enableShadow] ? Color.black.opacity(0.25) : .clear)),
+            radius: isCircleHovered ? 10 : ((isHovering || vm.notchState == .open) ? 14 : 5),
             x: 0,
             y: (isHovering || vm.notchState == .open) ? 6 : 2
         )
         .contentShape(Circle())
+        .onHover { hovering in
+            withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.80)) {
+                isCircleHovered = hovering
+            }
+            if hovering {
+                if Defaults[.enableHaptics] {
+                    NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+                }
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
         .onTapGesture {
             onOpenPomodoro()
         }

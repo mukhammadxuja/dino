@@ -74,7 +74,7 @@ public struct DinoSlotContainerView: View {
                 .padding(.horizontal, 8)
             case .hud(let type):
                 hudClosedView(type: type)
-            case .idle, .calendar, .shelf, .download, .webcam:
+            case .idle, .calendar, .shelf, .download, .webcam, .coding:
                 EmptyView()
             }
         }

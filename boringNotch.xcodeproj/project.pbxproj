@@ -139,6 +139,11 @@
 		B1D1000E2D00000100000001 /* DualActivityClosedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D1000D2D00000100000001 /* DualActivityClosedView.swift */; };
 		B1D100102D00000100000001 /* CalendarClosedNotchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D1000F2D00000100000001 /* CalendarClosedNotchView.swift */; };
 		B1D100122D00000100000001 /* PomodoroClosedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D100112D00000100000001 /* PomodoroClosedViews.swift */; };
+		B1D100142D00000100000001 /* LockScreenPasscodePlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D100132D00000100000001 /* LockScreenPasscodePlayerView.swift */; };
+		B1D100162D00000100000001 /* DinoWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D100152D00000100000001 /* DinoWindowManager.swift */; };
+		B1D100182D00000100000001 /* DinoScreenObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D100172D00000100000001 /* DinoScreenObserver.swift */; };
+		B1D1001A2D00000100000001 /* DinoSlotRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D100192D00000100000001 /* DinoSlotRouter.swift */; };
+		B1D1001C2D00000100000001 /* IslandContainerLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1D1001B2D00000100000001 /* IslandContainerLayout.swift */; };
 		B19016222CC15B3D00E3F12E /* Defaults in Frameworks */ = {isa = PBXBuildFile; productRef = B19016212CC15B3D00E3F12E /* Defaults */; };
 		B19016242CC15B5000E3F12E /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19016232CC15B4D00E3F12E /* Constants.swift */; };
 		B19424092CD0FF01003E5DC2 /* LottieAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19424082CD0FEFE003E5DC2 /* LottieAnimationView.swift */; };
@@ -322,6 +327,11 @@
 		B1D1000D2D00000100000001 /* DualActivityClosedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/components/Live activities/DualActivityClosedView.swift"; sourceTree = SOURCE_ROOT; };
 		B1D1000F2D00000100000001 /* CalendarClosedNotchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/components/Calendar/CalendarClosedNotchView.swift"; sourceTree = SOURCE_ROOT; };
 		B1D100112D00000100000001 /* PomodoroClosedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/components/Pomodoro/PomodoroClosedViews.swift"; sourceTree = SOURCE_ROOT; };
+		B1D100132D00000100000001 /* LockScreenPasscodePlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/components/LockScreenPasscodePlayerView.swift"; sourceTree = SOURCE_ROOT; };
+		B1D100152D00000100000001 /* DinoWindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/managers/DinoWindowManager.swift"; sourceTree = SOURCE_ROOT; };
+		B1D100172D00000100000001 /* DinoScreenObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/observers/DinoScreenObserver.swift"; sourceTree = SOURCE_ROOT; };
+		B1D100192D00000100000001 /* DinoSlotRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/components/DinoSlotRouter.swift"; sourceTree = SOURCE_ROOT; };
+		B1D1001B2D00000100000001 /* IslandContainerLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "boringNotch/components/IslandContainerLayout.swift"; sourceTree = SOURCE_ROOT; };
 		B19016232CC15B4D00E3F12E /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		B19424082CD0FEFE003E5DC2 /* LottieAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LottieAnimationView.swift; sourceTree = "<group>"; };
 		B1A78C812C8BA08100BD51B0 /* FullscreenMediaDetection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenMediaDetection.swift; sourceTree = "<group>"; };
@@ -961,6 +971,11 @@
 				B1D1000E2D00000100000001 /* DualActivityClosedView.swift in Sources */,
 				B1D100102D00000100000001 /* CalendarClosedNotchView.swift in Sources */,
 				B1D100122D00000100000001 /* PomodoroClosedViews.swift in Sources */,
+				B1D100142D00000100000001 /* LockScreenPasscodePlayerView.swift in Sources */,
+				B1D100162D00000100000001 /* DinoWindowManager.swift in Sources */,
+				B1D100182D00000100000001 /* DinoScreenObserver.swift in Sources */,
+				B1D1001A2D00000100000001 /* DinoSlotRouter.swift in Sources */,
+				B1D1001C2D00000100000001 /* IslandContainerLayout.swift in Sources */,
 				11A45C792E34E63100CEB175 /* MediaChecker.swift in Sources */,
 				B1D365CE2C6A979C0047BDBC /* LiveActivityModifier.swift in Sources */,
 				1113ABD02E80E6BB00EC13B2 /* ThumbnailService.swift in Sources */,

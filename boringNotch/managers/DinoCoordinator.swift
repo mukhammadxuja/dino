@@ -6,8 +6,15 @@
 //
 
 import Combine
+import Defaults
 import Foundation
 import SwiftUI
+
+// MARK: - Dual Activity Side Selection
+public enum DualActivitySide: Sendable {
+    case leading   // Chap tomon (masalan: Musiqa)
+    case trailing  // O'ng tomon (masalan: Pomodoro)
+}
 
 // MARK: - Dino Slot Types
 public enum DinoSlot: Equatable, Hashable, Sendable {
@@ -18,6 +25,7 @@ public enum DinoSlot: Equatable, Hashable, Sendable {
     case calendar
     case shelf
     case battery
+    case coding
     case download
     case webcam
     case hud(HUDType)
@@ -27,6 +35,27 @@ public enum DinoSlot: Equatable, Hashable, Sendable {
         case brightness(value: Double)
         case backlight(value: Double)
         case micMute(isMuted: Bool)
+    }
+    
+    var asActiveModule: ActiveNotchModule {
+        switch self {
+        case .idle: return .none
+        case .music: return .music
+        case .pomodoro: return .pomodoro
+        case .calendar: return .calendar
+        case .battery: return .battery
+        case .coding: return .coding
+        case .shelf: return .shelf
+        case .weather, .download, .webcam, .hud: return .none
+        }
+    }
+    
+    var asNotchView: NotchViews {
+        switch self {
+        case .shelf: return .shelf
+        case .calendar: return .calendar
+        default: return .home
+        }
     }
 }
 
@@ -60,29 +89,93 @@ public enum ExpandedSizePreset: Sendable {
     }
 }
 
-// MARK: - Dino Coordinator
+// MARK: - Dino Coordinator (Single Source of Truth)
 @MainActor
 public final class DinoCoordinator: ObservableObject {
     public static let shared = DinoCoordinator()
     
-    // MARK: - Published State
+    // MARK: - Published State (SSOT)
     @Published public private(set) var activeSlot: DinoSlot = .idle
     @Published public private(set) var secondarySlot: DinoSlot? = nil
     @Published public private(set) var currentPriority: SlotPriority = .p4Idle
     @Published public var isExpanded: Bool = false
     
+    // MARK: - Priority Stack Entry (Interrupt & Resume)
+    public struct PriorityStackEntry: Equatable, Sendable {
+        public let slot: DinoSlot
+        public let priority: SlotPriority
+        public let secondarySlot: DinoSlot?
+        public let timestamp: Date
+    }
+    
+    // Stack to handle interrupts (e.g. P1 interrupts P2, P2 interrupts P3)
+    private var interruptStack: [PriorityStackEntry] = []
+    
     // MARK: - Internal Timers & Tasks
     private var toastDismissTask: Task<Void, Never>?
     private var onDemandDismissTask: Task<Void, Never>?
     
-    // Stack to remember previous background state when interrupted by Toast or OnDemand
-    private var backgroundSlot: DinoSlot = .idle
+    // Underlying background slot when no higher priority feat is active
+    public private(set) var backgroundSlot: DinoSlot = .idle
+    
+    // Loop-prevention guard during SSOT synchronization
+    private var isSyncing: Bool = false
+    
+    private var cancellables = Set<AnyCancellable>()
     
     private init() {
         setupBackgroundObservers()
+        setupLegacyStateSync()
     }
     
-    // MARK: - Public API
+    // MARK: - Public State Query
+    
+    public var isDualActivityActive: Bool {
+        (activeSlot == .music && secondarySlot == .pomodoro) ||
+        (activeSlot == .pomodoro && secondarySlot == .music)
+    }
+    
+    // MARK: - Dual Activity Switching
+    
+    /// Swaps primary (activeSlot) and secondarySlot when dual activities are running
+    public func swapActiveAndSecondary() {
+        guard let sec = secondarySlot else { return }
+        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
+            let prevActive = self.activeSlot
+            self.activeSlot = sec
+            self.secondarySlot = prevActive
+            self.syncLegacyState(for: self.activeSlot)
+        }
+    }
+    
+    /// Activates the clicked side of dual activity: leading (Music) or trailing (Pomodoro)
+    public func activateDualSlotSide(_ side: DualActivitySide) {
+        switch side {
+        case .leading:
+            if activeSlot != .music {
+                swapActiveAndSecondary()
+            }
+        case .trailing:
+            if activeSlot != .pomodoro {
+                swapActiveAndSecondary()
+            }
+        }
+    }
+    
+    // MARK: - Direct & On-Demand Slot Activation (SSOT)
+    
+    /// Directly sets the active slot and synchronizes legacy state
+    public func activateSlotDirectly(_ slot: DinoSlot) {
+        onDemandDismissTask?.cancel()
+        onDemandDismissTask = nil
+        interruptStack.removeAll()
+        
+        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
+            self.activeSlot = slot
+            self.currentPriority = (slot == .idle) ? .p4Idle : .p2OnDemand
+            self.syncLegacyState(for: slot)
+        }
+    }
     
     /// Trigger a P1 Toast (e.g., Volume HUD, Brightness, Charger)
     /// Automatically interrupts the current view and restores it after `duration`.
@@ -90,9 +183,16 @@ public final class DinoCoordinator: ObservableObject {
         toastDismissTask?.cancel()
         toastDismissTask = nil
         
-        // Save current background state if we are interrupting
+        // Push currently active slot to the interrupt stack if priority is lower than P1
         if currentPriority < .p1Toast {
-            // Keep existing backgroundSlot
+            interruptStack.append(
+                PriorityStackEntry(
+                    slot: activeSlot,
+                    priority: currentPriority,
+                    secondarySlot: secondarySlot,
+                    timestamp: Date()
+                )
+            )
         }
         
         withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
@@ -113,9 +213,23 @@ public final class DinoCoordinator: ObservableObject {
         onDemandDismissTask?.cancel()
         onDemandDismissTask = nil
         
+        // Save current background state to interrupt stack
+        if currentPriority <= .p3Background {
+            interruptStack.removeAll { $0.priority <= .p3Background }
+            interruptStack.append(
+                PriorityStackEntry(
+                    slot: activeSlot,
+                    priority: currentPriority,
+                    secondarySlot: secondarySlot,
+                    timestamp: Date()
+                )
+            )
+        }
+        
         withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
             self.activeSlot = slot
             self.currentPriority = .p2OnDemand
+            self.syncLegacyState(for: slot)
         }
         
         if let timeout = timeout, timeout > 0 {
@@ -127,6 +241,23 @@ public final class DinoCoordinator: ObservableObject {
         }
     }
     
+    /// Pause auto-dismiss timer when user hovers or interacts with on-demand module
+    public func pauseOnDemandDismiss() {
+        onDemandDismissTask?.cancel()
+        onDemandDismissTask = nil
+    }
+    
+    /// Resume auto-dismiss timer after user leaves on-demand module
+    public func resumeOnDemandDismiss(timeout: TimeInterval = 5.0) {
+        guard currentPriority == .p2OnDemand else { return }
+        onDemandDismissTask?.cancel()
+        onDemandDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self.dismissOnDemand()
+        }
+    }
+    
     /// Dismiss the active on-demand slot and return to the underlying background/idle slot
     public func dismissOnDemand() {
         onDemandDismissTask?.cancel()
@@ -135,9 +266,18 @@ public final class DinoCoordinator: ObservableObject {
         guard currentPriority == .p2OnDemand else { return }
         
         withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
-            self.activeSlot = self.backgroundSlot
-            self.currentPriority = (self.backgroundSlot == .idle) ? .p4Idle : .p3Background
-            self.isExpanded = false
+            if let previous = interruptStack.popLast(), previous.priority <= .p3Background {
+                self.activeSlot = previous.slot
+                self.secondarySlot = previous.secondarySlot
+                self.currentPriority = previous.priority
+                self.isExpanded = false
+                self.syncLegacyState(for: previous.slot)
+            } else {
+                self.activeSlot = self.backgroundSlot
+                self.currentPriority = (self.backgroundSlot == .idle) ? .p4Idle : .p3Background
+                self.isExpanded = false
+                self.syncLegacyState(for: self.backgroundSlot)
+            }
         }
     }
     
@@ -145,17 +285,19 @@ public final class DinoCoordinator: ObservableObject {
     public func deactivateSlot(_ slot: DinoSlot) {
         onDemandDismissTask?.cancel()
         onDemandDismissTask = nil
+        interruptStack.removeAll { $0.slot == slot }
         
         withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
             if self.activeSlot == slot {
                 self.activeSlot = (self.backgroundSlot == slot) ? .idle : self.backgroundSlot
                 self.currentPriority = (self.activeSlot == .idle) ? .p4Idle : .p3Background
                 self.isExpanded = false
+                self.syncLegacyState(for: self.activeSlot)
             }
         }
     }
     
-    /// Dismiss the active toast immediately
+    /// Dismiss the active toast immediately and restore interrupted state
     public func dismissToast() {
         toastDismissTask?.cancel()
         toastDismissTask = nil
@@ -163,21 +305,70 @@ public final class DinoCoordinator: ObservableObject {
         guard currentPriority == .p1Toast else { return }
         
         withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
-            self.activeSlot = self.backgroundSlot
-            self.currentPriority = (self.backgroundSlot == .idle) ? .p4Idle : .p3Background
+            if let previous = interruptStack.popLast() {
+                self.activeSlot = previous.slot
+                self.secondarySlot = previous.secondarySlot
+                self.currentPriority = previous.priority
+                self.syncLegacyState(for: previous.slot)
+            } else {
+                self.activeSlot = self.backgroundSlot
+                self.currentPriority = (self.backgroundSlot == .idle) ? .p4Idle : .p3Background
+                self.syncLegacyState(for: self.backgroundSlot)
+            }
         }
     }
     
+    // MARK: - BoringViewModel Open/Close Integration
+    
     /// Expand current slot into full card
     public func toggleExpanded() {
-        withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.8)) {
-            self.isExpanded.toggle()
+        if BoringViewModel.shared.notchState == .open {
+            BoringViewModel.shared.close()
+        } else {
+            BoringViewModel.shared.open()
+        }
+    }
+    
+    public func expand() {
+        if BoringViewModel.shared.notchState != .open {
+            BoringViewModel.shared.open()
         }
     }
     
     public func collapse() {
-        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.8)) {
-            self.isExpanded = false
+        if BoringViewModel.shared.notchState == .open {
+            BoringViewModel.shared.close()
+        }
+    }
+
+    // MARK: - Smart Shortcut Toggling & Seamless Morphing
+    
+    /// Handles intelligent hotkey triggering:
+    /// - 1st press (closed): opens the card directly
+    /// - 2nd press (same slot open): closes card and returns to previous P3 background
+    /// - Cross-shortcut press (different slot open): smoothly morphs content and size in-place without closing
+    public func toggleOrMorphSlot(_ slot: DinoSlot) {
+        let isOpen = BoringViewModel.shared.notchState == .open
+        let isCurrentSame = (activeSlot == slot)
+        
+        if isOpen && isCurrentSame {
+            // Case 2: 2nd press on same slot -> Close card and return to underlying P3 background
+            withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
+                BoringViewModel.shared.close()
+                self.dismissOnDemand()
+            }
+        } else if isOpen && !isCurrentSame {
+            // Case 3: Switch between shortcuts while open -> In-place seamless morph without closing!
+            withAnimation(.interactiveSpring(response: 0.36, dampingFraction: 0.76)) {
+                self.activateOnDemand(slot, timeout: nil)
+                BoringViewModel.shared.open()
+            }
+        } else {
+            // Case 1: 1st press while closed -> Open card directly
+            withAnimation(.interactiveSpring(response: 0.36, dampingFraction: 0.74)) {
+                self.activateOnDemand(slot, timeout: nil)
+                BoringViewModel.shared.open()
+            }
         }
     }
     
@@ -190,9 +381,73 @@ public final class DinoCoordinator: ObservableObject {
             return .standard
         case .calendar, .shelf, .download:
             return .large
-        case .idle:
-            return .compact
+        case .idle, .coding:
+            return .standard
         }
+    }
+    
+    // MARK: - Legacy Synchronization (SSOT)
+    
+    private func syncLegacyState(for slot: DinoSlot) {
+        guard !isSyncing else { return }
+        isSyncing = true
+        defer { isSyncing = false }
+        
+        switch slot {
+        case .shelf:
+            BoringViewCoordinator.shared.currentView = .shelf
+        case .music, .pomodoro, .calendar, .battery, .coding, .weather, .idle:
+            BoringViewCoordinator.shared.currentView = .home
+        case .download, .webcam, .hud:
+            break
+        }
+    }
+    
+    private func setupLegacyStateSync() {
+        // Observe Defaults[.activeModule] changes from UI / Settings
+        Defaults.publisher(.activeModule)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] change in
+                guard let self = self, !self.isSyncing else { return }
+                let module = change.newValue
+                if self.currentPriority <= .p2OnDemand {
+                    switch module {
+                    case .music:
+                        if self.activeSlot != .music { self.activateSlotDirectly(.music) }
+                    case .pomodoro:
+                        if self.activeSlot != .pomodoro { self.activateSlotDirectly(.pomodoro) }
+                    case .calendar:
+                        if self.activeSlot != .calendar { self.activateSlotDirectly(.calendar) }
+                    case .battery:
+                        if self.activeSlot != .battery { self.activateSlotDirectly(.battery) }
+                    case .shelf:
+                        if self.activeSlot != .shelf { self.activateSlotDirectly(.shelf) }
+                    case .coding:
+                        if self.activeSlot != .coding { self.activateSlotDirectly(.coding) }
+                    case .none:
+                        break
+                    }
+                }
+            }
+            .store(in: &cancellables)
+            
+        // Observe BoringViewCoordinator tab switches
+        BoringViewCoordinator.shared.$currentView
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] view in
+                guard let self = self, !self.isSyncing else { return }
+                switch view {
+                case .shelf:
+                    if self.activeSlot != .shelf { self.activateSlotDirectly(.shelf) }
+                case .calendar:
+                    if self.activeSlot != .calendar { self.activateSlotDirectly(.calendar) }
+                case .home:
+                    if self.activeSlot == .shelf || self.activeSlot == .calendar {
+                        self.activateSlotDirectly(self.backgroundSlot)
+                    }
+                }
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Background State Calculation
@@ -225,22 +480,24 @@ public final class DinoCoordinator: ObservableObject {
             withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
                 self.activeSlot = newBackground
                 self.currentPriority = (newBackground == .idle) ? .p4Idle : .p3Background
+                self.syncLegacyState(for: newBackground)
             }
         }
     }
     
-    private var cancellables = Set<AnyCancellable>()
-    
     private func setupBackgroundObservers() {
-        Publishers.CombineLatest(
+        Publishers.CombineLatest3(
             MusicManager.shared.$isPlaying,
+            MusicManager.shared.$isPlayerIdle,
             PomodoroManager.shared.$state
         )
         .receive(on: DispatchQueue.main)
-        .sink { [weak self] isPlaying, pomodoroState in
+        .sink { [weak self] isPlaying, isPlayerIdle, pomodoroState in
+            let hasMusic = isPlaying || !isPlayerIdle
+            let hasPomodoro = (pomodoroState != .idle)
             self?.updateBackgroundState(
-                isMusicPlaying: isPlaying,
-                isPomodoroRunning: (pomodoroState == .running),
+                isMusicPlaying: hasMusic,
+                isPomodoroRunning: hasPomodoro,
                 isDownloading: false
             )
         }
