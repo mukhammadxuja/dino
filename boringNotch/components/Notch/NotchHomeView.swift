@@ -603,7 +603,6 @@ struct NotchHomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .transition(.opacity)
-        .blur(radius: vm.notchState == .closed ? 30 : 0)
     }
 
     private var playerPage: some View {
@@ -626,7 +625,6 @@ struct NotchHomeView: View {
                         .scaledToFit()
                         .frame(width: sidePanelWidth, alignment: .trailing)
                         .opacity(vm.notchState == .closed ? 0 : 1)
-                        .blur(radius: vm.notchState == .closed ? 20 : 0)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

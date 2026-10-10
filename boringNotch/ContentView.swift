@@ -402,7 +402,7 @@ struct ContentView: View {
         }
 
         if animated {
-            withAnimation(.smooth) {
+            withAnimation(animationSpring) {
                 applyChange()
             }
         } else {
@@ -543,9 +543,6 @@ struct ContentView: View {
                     }
                     .onChange(of: coordinator.sneakPeek.show) { _, isShowing in
                         if isShowing && coordinator.sneakPeek.type == .music && vm.notchState == .closed {
-                            withAnimation(.spring(response: 0.55, dampingFraction: 0.72)) {
-                                coverRotationY -= 180
-                            }
                             transientVisibilityTask?.cancel()
                             withAnimation(animationSpring) {
                                 isIslandTransientlyVisible = true
@@ -693,7 +690,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var islandContainerView: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: (vm.notchState == .closed && isDualActivityActive) ? 8 : 0) {
             mainPillView
                 .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
                 .onTapGesture {
@@ -713,7 +710,7 @@ struct ContentView: View {
                 .transition(
                     .asymmetric(
                         insertion: .scale(scale: 0.5).combined(with: .opacity),
-                        removal: .scale(scale: 0.5).combined(with: .opacity)
+                        removal: .opacity
                     )
                 )
             }
@@ -849,12 +846,6 @@ struct ContentView: View {
                       }
 
                   }
-              }
-              .conditionalModifier(
-                  coordinator.sneakPeek.show && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && (vm.notchState == .closed)
-              ) { view in
-                  view
-                      .fixedSize()
               }
               .zIndex(2)
             if vm.notchState == .open {

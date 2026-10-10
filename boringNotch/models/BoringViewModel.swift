@@ -208,8 +208,13 @@ class BoringViewModel: NSObject, ObservableObject {
         self.notchSize = .init(width: openWidth, height: openHeight)
         self.notchState = .open
         
-        // Force music information update when notch is opened
-        MusicManager.shared.forceUpdate()
+        // Defer music information update until after the spring animation settles
+        // so background queries and @Published property updates do not cause frame drops during expansion
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(380))
+            guard self?.notchState == .open else { return }
+            MusicManager.shared.forceUpdate()
+        }
     }
 
     func close() {

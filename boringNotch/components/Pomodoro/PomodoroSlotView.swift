@@ -85,10 +85,13 @@ public struct PomodoroRulerPickerView: View {
             let centerX = width / 2.0
             let baselineY: CGFloat = 50.0
 
+            let visibleMin = max(displayMinMinute, Int(floor(Double(scrollPosition) - Double(centerX + 35) / Double(tickSpacing))))
+            let visibleMax = max(visibleMin, min(maxMinute, Int(ceil(Double(scrollPosition) + Double(width - centerX + 35) / Double(tickSpacing)))))
+
             ZStack(alignment: .top) {
                 // Ticks & Numbers (Moving horizontally based on scrollPosition)
                 ZStack(alignment: .top) {
-                    ForEach(displayMinMinute...maxMinute, id: \.self) { minute in
+                    ForEach(visibleMin...visibleMax, id: \.self) { minute in
                         let deltaMinute = CGFloat(Double(minute) - scrollPosition)
                         let x = centerX + (deltaMinute * tickSpacing)
 
