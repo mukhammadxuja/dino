@@ -157,6 +157,39 @@ final class PomodoroManager: ObservableObject {
         persistSession()
     }
 
+    func setCustomMinutes(_ minutes: Int) {
+        let clamped = max(1, min(120, minutes))
+        Defaults[.pomodoroFocusMinutes] = clamped
+        let newDuration = TimeInterval(clamped * 60)
+        if state == .idle {
+            remainingTime = newDuration
+            pausedRemaining = newDuration
+        } else if state == .paused {
+            pausedRemaining = newDuration
+            remainingTime = newDuration
+            persistSession()
+        } else if state == .running {
+            pausedRemaining = newDuration
+            remainingTime = newDuration
+            phaseEndDate = Date().addingTimeInterval(newDuration)
+            persistSession()
+        }
+    }
+
+    func restartCurrentPhase() {
+        stopCountdownSound()
+        let dur = duration(for: phase)
+        remainingTime = dur
+        pausedRemaining = dur
+        if state == .running {
+            phaseEndDate = Date().addingTimeInterval(dur)
+            startTicker()
+        } else {
+            phaseEndDate = nil
+        }
+        persistSession()
+    }
+
     func skip() {
         stopCountdownSound()
         playEndSoundIfEnabled()

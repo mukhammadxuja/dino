@@ -637,42 +637,27 @@ struct NotchHomeView: View {
     }
 
     private var pomodoroPage: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .center) {
-                Text("Pomodoro")
-                    .font(.system(.subheadline, design: .rounded))
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.white)
+        ZStack(alignment: .topTrailing) {
+            PomodoroOpenNotchView()
 
-                Spacer(minLength: 0)
-
+            if Defaults[.showMirror] && webcamManager.cameraAvailable {
                 Button {
-                    guard Defaults[.showMirror] && webcamManager.cameraAvailable else { return }
                     withAnimation(.easeInOut(duration: 0.18)) {
                         isPomodoroMirrorEnabled.toggle()
                     }
                 } label: {
                     Image(systemName: "video")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity((Defaults[.showMirror] && webcamManager.cameraAvailable) ? 0.9 : 0.35))
-                        .frame(width: 24, height: 24)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(isPomodoroMirrorEnabled ? 0.9 : 0.4))
+                        .frame(width: 22, height: 22)
                         .background(Color.white.opacity(0.10))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .disabled(!(Defaults[.showMirror] && webcamManager.cameraAvailable))
+                .padding(.top, 4)
+                .padding(.trailing, 8)
             }
-            .padding(.top, 4)
-            .padding(.horizontal, 8)
-
-            PomodoroHomeSection(
-                pomodoroManager: pomodoroManager,
-                webcamManager: webcamManager,
-                showMirror: isPomodoroMirrorEnabled
-            )
-            .padding(.top, 4)
         }
-        .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
@@ -745,146 +730,7 @@ private struct PomodoroHomeSection: View {
     let showMirror: Bool
 
     var body: some View {
-        GeometryReader { geo in
-            let size = min(geo.size.width, geo.size.height)
-            let clampedProgress = min(max(pomodoroManager.progress, 0), 1)
-            let cycleLimit = max(1, Defaults[.pomodoroCycleBeforeLongBreak])
-            let currentCycle = (pomodoroManager.completedFocusSessions % cycleLimit) + 1
-            let basePaddingX: CGFloat = 6
-            let basePaddingY: CGFloat = 4
-            let leftExtraPaddingX: CGFloat = basePaddingX * 2
-            let leftExtraPaddingY: CGFloat = basePaddingY * 2
-            let progressSize = min(geo.size.height - (basePaddingY * 2), 132)
-            let progressInnerPadding: CGFloat = 14
-            let progressRingLineWidth: CGFloat = 12
-            let progressCenterDiameter: CGFloat = max(0, progressSize * 0.50)
-
-            let primaryLabel: String = {
-                switch pomodoroManager.state {
-                case .idle:
-                    return "Start"
-                case .paused:
-                    return "Resume"
-                case .running:
-                    return "Stop"
-                }
-            }()
-
-            HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("\(pomodoroManager.phaseTitle) \(currentCycle)/\(cycleLimit)")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.75))
-                        .lineLimit(1)
-
-                    Text(pomodoroManager.formattedRemainingTime)
-                        .font(.system(size: size * 0.34, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .monospacedDigit()
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
-
-                    HStack(spacing: 6) {
-                        Button {
-                            pomodoroManager.reset()
-                        } label: {
-                            Image(systemName: "arrow.counterclockwise")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.85))
-                                .frame(height: 30)
-                                .padding(.horizontal, 8)
-                                .background(Color.white.opacity(0.10))
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            switch pomodoroManager.state {
-                            case .idle:
-                                pomodoroManager.start()
-                            case .paused:
-                                pomodoroManager.resume()
-                            case .running:
-                                pomodoroManager.pause()
-                            }
-                        } label: {
-                            Text(primaryLabel)
-                                .font(.system(.subheadline, design: .rounded))
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.white)
-                                .frame(width: 84, height: 30)
-                                .background(Color.white.opacity(0.10))
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            pomodoroManager.skip()
-                        } label: {
-                            Image(systemName: "forward.fill")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.85))
-                                .frame(height: 30)
-                                .padding(.horizontal, 8)
-                                .background(Color.white.opacity(0.10))
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, leftExtraPaddingX)
-                .padding(.vertical, leftExtraPaddingY)
-
-                ZStack {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.effectiveAccent.opacity(0.18))
-
-                    Group {
-                        if showMirror {
-                            CameraPreviewView(webcamManager: webcamManager)
-                                .scaledToFit()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                                .padding(progressInnerPadding)
-                        } else {
-                            ZStack {
-                                Circle()
-                                    .stroke(Color.white.opacity(0.12), lineWidth: progressRingLineWidth)
-
-                                Circle()
-                                    .trim(from: 0, to: clampedProgress)
-                                    .stroke(Color.effectiveAccent, style: StrokeStyle(lineWidth: progressRingLineWidth, lineCap: .round))
-                                    .rotationEffect(.degrees(-90))
-
-                                Button {
-                                    pomodoroManager.togglePlayPause()
-                                } label: {
-                                    Circle()
-                                        .fill(Color.black.opacity(0.55))
-                                        .frame(width: progressCenterDiameter, height: progressCenterDiameter)
-                                        .overlay {
-                                            Image(systemName: pomodoroManager.isRunning ? "pause.fill" : "play.fill")
-                                                .font(.system(size: 20, weight: .bold))
-                                                .foregroundStyle(.white)
-                                        }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(progressInnerPadding)
-                        }
-                    }
-                }
-                .frame(width: progressSize, height: progressSize)
-            }
-            .padding(.horizontal, basePaddingX)
-            .padding(.vertical, basePaddingY)
-            .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
-            )
-        }
+        PomodoroOpenNotchView()
     }
 }
 

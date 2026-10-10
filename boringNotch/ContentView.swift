@@ -697,9 +697,7 @@ struct ContentView: View {
             mainPillView
                 .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
                 .onTapGesture {
-                    if vm.notchState == .closed {
-                        openMusicWithSpring()
-                    }
+                    handleTap()
                 }
 
             if isCurrentDisplayIsland && isDualActivityActive && vm.notchState == .closed {
