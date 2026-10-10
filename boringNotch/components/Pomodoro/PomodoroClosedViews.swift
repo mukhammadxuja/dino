@@ -61,7 +61,7 @@ public struct PomodoroClosedNotchView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    pomodoroManager.reset()
+                    handleDismiss()
                 } label: {
                     ZStack {
                         Circle().fill(Color.red)
@@ -72,6 +72,7 @@ public struct PomodoroClosedNotchView: View {
                     .frame(width: buttonDiameter, height: buttonDiameter)
                 }
                 .buttonStyle(.plain)
+                .help(pomodoroManager.state != .idle ? "Reset Timer" : "Close Pomodoro")
             }
         }
         .frame(
@@ -79,6 +80,29 @@ public struct PomodoroClosedNotchView: View {
             alignment: .center
         )
         .padding(.horizontal, isIsland ? 0 : 4)
+    }
+
+    private func handleDismiss() {
+        if Defaults[.enableHaptics] {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        }
+        if pomodoroManager.state != .idle {
+            // Step 1: Countdown is running or paused -> reset timer to idle
+            withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
+                pomodoroManager.reset()
+            }
+        } else {
+            // Step 2: Already idle -> dismiss Pomodoro and collapse to default notch/island (or music)
+            withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
+                pomodoroManager.reset()
+                if MusicManager.shared.isPlaying || !MusicManager.shared.isPlayerIdle {
+                    Defaults[.activeModule] = .music
+                } else {
+                    Defaults[.activeModule] = .none
+                }
+                DinoCoordinator.shared.deactivateSlot(.pomodoro)
+            }
+        }
     }
 }
 

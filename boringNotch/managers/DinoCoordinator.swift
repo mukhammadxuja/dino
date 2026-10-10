@@ -141,6 +141,20 @@ public final class DinoCoordinator: ObservableObject {
         }
     }
     
+    /// Deactivate a specific slot if it is currently active
+    public func deactivateSlot(_ slot: DinoSlot) {
+        onDemandDismissTask?.cancel()
+        onDemandDismissTask = nil
+        
+        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
+            if self.activeSlot == slot {
+                self.activeSlot = (self.backgroundSlot == slot) ? .idle : self.backgroundSlot
+                self.currentPriority = (self.activeSlot == .idle) ? .p4Idle : .p3Background
+                self.isExpanded = false
+            }
+        }
+    }
+    
     /// Dismiss the active toast immediately
     public func dismissToast() {
         toastDismissTask?.cancel()
