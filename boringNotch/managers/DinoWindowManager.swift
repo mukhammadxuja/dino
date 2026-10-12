@@ -76,7 +76,7 @@ final class DinoWindowManager {
 
     func createLockScreenPlayerWindow(for screen: NSScreen, isScreenLocked: Bool) -> NSWindow {
         let rect = NSRect(origin: .zero, size: lockScreenPlayerSize)
-        let styleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel, .utilityWindow]
+        let styleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel]
         let window = BoringNotchSkyLightWindow(contentRect: rect, styleMask: styleMask, backing: .buffered, defer: false)
 
         let hostingView = NSHostingView(rootView: LockScreenPasscodePlayerView())

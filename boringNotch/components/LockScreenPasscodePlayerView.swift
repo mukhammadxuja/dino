@@ -24,179 +24,214 @@ struct LockScreenPasscodePlayerView: View {
         max(0, musicManager.songDuration)
     }
 
-    private var currentValue: Double {
-        min(max(0, sliderValue), duration)
-    }
-
-    private var remainingValue: Double {
-        max(0, duration - currentValue)
-    }
-
-    private var lyricLineText: String {
-        if musicManager.isFetchingLyrics {
-            return "Loading lyrics…"
-        }
-
-        if !musicManager.syncedLyrics.isEmpty {
-            return musicManager.lyricLine(at: currentValue)
-        }
-
-        let trimmed = musicManager.currentLyrics.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "No lyrics found" : trimmed.replacingOccurrences(of: "\n", with: " ")
-    }
+    private let playerCornerRadius: CGFloat = 32
 
     var body: some View {
         ZStack {
             if shouldShowPlayer {
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: 10) {
                     topRow
                     sliderBlock
                     controlsRow
                 }
-                .padding(.horizontal, 15)
-                .padding(.vertical, 13)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .frame(width: 355, height: 176)
                 .background {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(backgroundFill)
-                        .overlay { backgroundOverlayA }
-                        .overlay { backgroundOverlayB }
-                        .overlay { backgroundOverlayC }
+                    playerBackground
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .shadow(color: .black.opacity(0.4), radius: 22, y: 10)
-                .transition(.opacity)
+                .clipShape(RoundedRectangle(cornerRadius: playerCornerRadius, style: .continuous))
+                .animation(.easeInOut(duration: 0.35), value: lockScreenPlayerBackgroundStyle)
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.smooth, value: shouldShowPlayer)
+        .animation(.smooth(duration: 0.28), value: shouldShowPlayer)
     }
 
-    private var backgroundFill: AnyShapeStyle {
-        switch lockScreenPlayerBackgroundStyle {
-        case .glassBlur:
-            return AnyShapeStyle(.ultraThinMaterial)
-        case .liquidGlass:
-            return AnyShapeStyle(.thinMaterial)
-        case .solid:
-            return AnyShapeStyle(Color.black.opacity(0.32))
-        }
-    }
+    // MARK: - Surface Background
 
     @ViewBuilder
-    private var backgroundOverlayA: some View {
+    private var playerBackground: some View {
+        let shape = RoundedRectangle(cornerRadius: playerCornerRadius, style: .continuous)
+
         switch lockScreenPlayerBackgroundStyle {
-        case .glassBlur:
-            Color.white.opacity(0.025)
-        case .liquidGlass:
-            LinearGradient(
-                colors: [Color.white.opacity(0.10), Color.white.opacity(0.02), .clear],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+        case .glass:
+            ZStack {
+                VisualEffectBackground(material: .hudWindow, blendingMode: .withinWindow)
+                Color.black.opacity(0.32)
+            }
+            .clipShape(shape)
+            .overlay {
+                shape.stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.38), Color.white.opacity(0.14)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+            }
+
         case .solid:
-            Color.white.opacity(0.04)
+            ZStack {
+                Color.black
+            }
+            .clipShape(shape)
+            .overlay {
+                shape.stroke(Color.white.opacity(0.18), lineWidth: 0.9)
+            }
         }
     }
 
-    @ViewBuilder
-    private var backgroundOverlayB: some View {
-        switch lockScreenPlayerBackgroundStyle {
-        case .glassBlur:
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.16), lineWidth: 0.8)
-        case .liquidGlass:
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.20), lineWidth: 0.9)
-        case .solid:
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.22), lineWidth: 0.9)
-        }
-    }
-
-    @ViewBuilder
-    private var backgroundOverlayC: some View {
-        switch lockScreenPlayerBackgroundStyle {
-        case .glassBlur:
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.black.opacity(0.10), lineWidth: 0.5)
-                .blur(radius: 0.2)
-        case .liquidGlass:
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.black.opacity(0.12), lineWidth: 0.5)
-                .blur(radius: 0.25)
-        case .solid:
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.black.opacity(0.18), lineWidth: 0.6)
-                .blur(radius: 0.2)
-        }
-    }
+    // MARK: - Top Info Row
 
     private var topRow: some View {
-        GeometryReader { geo in
-            let width = geo.size.width
-            let textWidth = max(0, width - 58 - 12 - 8 - 28)
+        HStack(alignment: .bottom, spacing: 14) {
+            albumArtView
+                .frame(width: 62, height: 62)
 
-            HStack(spacing: 12) {
+            GeometryReader { geo in
+                VStack(alignment: .leading, spacing: 2) {
+                    Spacer(minLength: 0)
+                    songInfo(width: geo.size.width)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            }
+        }
+        .frame(height: 62)
+    }
+
+    // MARK: - Album Art
+
+    private var albumArtView: some View {
+        ZStack {
+            Button {
+                musicManager.openMusicApp()
+            } label: {
                 Image(nsImage: musicManager.albumArt)
                     .resizable()
                     .aspectRatio(1, contentMode: .fill)
-                    .frame(width: 58, height: 58)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .frame(width: 62, height: 62)
+                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .stroke(Color.white.opacity(0.14), lineWidth: 0.8)
+                    )
+            }
+            .buttonStyle(PlainButtonStyle())
+            .scaleEffect(musicManager.isPlaying ? 1.0 : 0.88)
+            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: musicManager.isPlaying)
 
-                VStack(alignment: .leading, spacing: 0) {
-                    MarqueeText(
-                        $musicManager.songTitle,
-                        font: .headline,
-                        nsFont: .headline,
-                        textColor: .white,
-                        frameWidth: textWidth
-                    )
-                    MarqueeText(
-                        $musicManager.artistName,
-                        font: .headline,
-                        nsFont: .headline,
-                        textColor: Defaults[.playerColorTinting]
-                            ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.6)
-                            : .gray,
-                        frameWidth: textWidth
-                    )
-                    .fontWeight(.medium)
-                    if enableLyrics {
+            // Subtle dark overlay when paused
+            Rectangle()
+                .aspectRatio(1, contentMode: .fit)
+                .foregroundColor(Color.black)
+                .opacity(musicManager.isPlaying ? 0 : 0.35)
+                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                .allowsHitTesting(false)
+        }
+        .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
+    }
+
+    // MARK: - Track Info
+
+    private func songInfo(width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .center, spacing: 6) {
+                MarqueeText(
+                    $musicManager.songTitle,
+                    font: .system(size: 15.5, weight: .bold, design: .default),
+                    nsFont: .headline,
+                    textColor: .white,
+                    frameWidth: max(0, width - 30)
+                )
+
+                Spacer(minLength: 2)
+
+                visualizerView
+            }
+            .frame(maxWidth: .infinity)
+
+            MarqueeText(
+                $musicManager.artistName,
+                font: .system(size: 13, weight: .medium, design: .default),
+                nsFont: .subheadline,
+                textColor: Color.white.opacity(0.65),
+                frameWidth: width
+            )
+
+            if Defaults[.enableLyrics] {
+                TimelineView(.animation(minimumInterval: 0.25, paused: !musicManager.isPlaying || musicManager.isPlayerIdle)) { timeline in
+                    let currentElapsed: Double = {
+                        guard musicManager.isPlaying else { return musicManager.elapsedTime }
+                        let delta = timeline.date.timeIntervalSince(musicManager.timestampDate)
+                        let progressed = musicManager.elapsedTime + (delta * musicManager.playbackRate)
+                        return min(max(progressed, 0), musicManager.songDuration)
+                    }()
+                    let line: String = {
+                        if musicManager.isFetchingLyrics { return "Loading lyrics…" }
+                        if !musicManager.syncedLyrics.isEmpty {
+                            return musicManager.lyricLine(at: currentElapsed)
+                        }
+                        let trimmed = musicManager.currentLyrics.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return trimmed.isEmpty ? "" : trimmed.replacingOccurrences(of: "\n", with: " ")
+                    }()
+                    if !line.isEmpty {
                         MarqueeText(
-                            .constant(lyricLineText),
-                            font: .subheadline,
-                            nsFont: .subheadline,
-                            textColor: musicManager.isFetchingLyrics ? .gray.opacity(0.7) : .gray,
-                            frameWidth: textWidth
+                            .constant(line),
+                            font: .system(size: 11.5, weight: .regular),
+                            nsFont: .caption1,
+                            textColor: Color.white.opacity(0.5),
+                            frameWidth: width
                         )
                         .lineLimit(1)
                         .opacity(musicManager.isPlaying ? 1 : 0)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
+            }
+        }
+    }
 
-                Spacer(minLength: 8)
+    // MARK: - Visualizer
 
+    private var visualizerView: some View {
+        Group {
+            if Defaults[.useMusicVisualizer] {
+                let isSolid = lockScreenPlayerBackgroundStyle == .solid
+                let tintColor: Color = isSolid
+                    ? .white
+                    : (Defaults[.playerColorTinting]
+                        ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65)
+                        : Color.white.opacity(0.85))
                 Rectangle()
-                    .fill(
-                        coloredSpectrogram
-                            ? Color(nsColor: musicManager.avgColor).gradient
-                            : Color.white.opacity(0.75).gradient
-                    )
-                    .frame(width: 28, height: 20)
+                    .fill(tintColor.gradient)
                     .mask {
-                        AudioSpectrumView(isPlaying: $musicManager.isPlaying)
-                            .frame(width: 16, height: 12)
+                        AudioSpectrumView(
+                            isPlaying: $musicManager.isPlaying,
+                            color: isSolid
+                                ? .white
+                                : (Defaults[.playerColorTinting]
+                                    ? NSColor(Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.65))
+                                    : .white)
+                        )
+                        .frame(width: 22, height: 16)
                     }
+                    .frame(width: 22, height: 16)
                     .opacity(musicManager.isPlaying ? 0.95 : 0.45)
             }
         }
-        .frame(height: 58)
     }
+
+    // MARK: - Progress Row
 
     private var sliderBlock: some View {
         TimelineView(.animation(minimumInterval: 0.1, paused: !musicManager.isPlaying || musicManager.isPlayerIdle)) { timeline in
             let pos: Double = {
-                if dragging { return sliderValue }
+                if dragging || Date().timeIntervalSince(lastDragged) < 1.5 {
+                    return sliderValue
+                }
                 return musicManager.estimatedPlaybackPosition(at: timeline.date)
             }()
             let current = min(max(0, pos), duration)
@@ -206,11 +241,14 @@ struct LockScreenPasscodePlayerView: View {
                 set: { sliderValue = $0 }
             )
 
-            HStack(alignment: .center, spacing: 10) {
-                Text(formatTime(current))
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.76))
+            HStack(alignment: .center, spacing: 8) {
+                Text(timeString(from: current))
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .foregroundColor(.white.opacity(0.6))
+                    .frame(width: 32, alignment: .leading)
 
                 CustomSlider(
                     value: sliderBinding,
@@ -219,29 +257,39 @@ struct LockScreenPasscodePlayerView: View {
                     dragging: $dragging,
                     lastDragged: $lastDragged,
                     onValueChange: { newValue in
+                        sliderValue = newValue
+                        lastDragged = Date()
                         MusicManager.shared.seek(to: newValue)
                     }
                 )
                 .frame(maxWidth: .infinity)
-                .frame(height: 10)
+                .frame(height: 12)
 
-                Text("-\(formatTime(remaining))")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.76))
+                Text("-" + timeString(from: remaining))
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .foregroundColor(.white.opacity(0.6))
+                    .frame(width: 38, alignment: .trailing)
             }
-            .padding(.top, 6)
+            .frame(height: 14)
+            .padding(.top, 2)
         }
     }
 
+    // MARK: - Controls Toolbar
+
     private var controlsRow: some View {
         let slots = activeSlots
-        return HStack(spacing: 12) {
+        return HStack(spacing: 16) {
             ForEach(Array(slots.enumerated()), id: \.offset) { _, slot in
                 slotView(for: slot)
+                    .frame(alignment: .center)
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.top, 2)
     }
 
     private var activeSlots: [MusicControlButton] {
@@ -255,33 +303,92 @@ struct LockScreenPasscodePlayerView: View {
 
     @ViewBuilder
     private func slotView(for slot: MusicControlButton) -> some View {
+        let hoverRadius: CGFloat = 11
+
         switch slot {
         case .shuffle:
-            playerButton(icon: "shuffle", active: musicManager.isShuffled) { MusicManager.shared.toggleShuffle() }
+            HoverButton(
+                icon: "shuffle",
+                iconColor: musicManager.isShuffled ? .white : .white.opacity(0.6),
+                scale: .medium,
+                cornerRadius: hoverRadius,
+                customFont: .system(size: 14, weight: .semibold),
+                customSize: 32
+            ) {
+                MusicManager.shared.toggleShuffle()
+            }
         case .previous:
-            playerButton(icon: "backward.fill") { MusicManager.shared.previousTrack() }
+            HoverButton(
+                icon: "backward.fill",
+                iconColor: .white,
+                scale: .medium,
+                cornerRadius: hoverRadius,
+                customFont: .system(size: 19, weight: .bold),
+                customSize: 36
+            ) {
+                MusicManager.shared.previousTrack()
+            }
         case .playPause:
-            playerButton(icon: musicManager.isPlaying ? "pause.fill" : "play.fill", size: 50, iconSize: 26) {
+            HoverButton(
+                icon: musicManager.isPlaying ? "pause.fill" : "play.fill",
+                iconColor: .white,
+                scale: .large,
+                cornerRadius: 14,
+                customFont: .system(size: 25, weight: .bold),
+                customSize: 44
+            ) {
                 MusicManager.shared.togglePlay()
             }
         case .next:
-            playerButton(icon: "forward.fill") { MusicManager.shared.nextTrack() }
-        case .repeatMode:
-            playerButton(icon: repeatIcon, active: musicManager.repeatMode != .off) { MusicManager.shared.toggleRepeat() }
-        case .favorite:
-            playerButton(icon: musicManager.isFavoriteTrack ? "heart.fill" : "heart", active: musicManager.isFavoriteTrack) {
-                MusicManager.shared.toggleFavoriteTrack()
+            HoverButton(
+                icon: "forward.fill",
+                iconColor: .white,
+                scale: .medium,
+                cornerRadius: hoverRadius,
+                customFont: .system(size: 19, weight: .bold),
+                customSize: 36
+            ) {
+                MusicManager.shared.nextTrack()
             }
-            .disabled(!musicManager.canFavoriteTrack)
-            .opacity(musicManager.canFavoriteTrack ? 1 : 0.45)
+        case .repeatMode:
+            HoverButton(
+                icon: repeatIcon,
+                iconColor: repeatIconColor,
+                scale: .medium,
+                cornerRadius: hoverRadius,
+                customFont: .system(size: 14, weight: .semibold),
+                customSize: 32
+            ) {
+                MusicManager.shared.toggleRepeat()
+            }
+        case .favorite:
+            FavoriteControlButton(cornerRadius: hoverRadius)
         case .goBackward:
-            playerButton(icon: "gobackward.15") { MusicManager.shared.skip(seconds: -15) }
+            HoverButton(
+                icon: "gobackward.15",
+                iconColor: .white,
+                scale: .medium,
+                cornerRadius: hoverRadius,
+                customFont: .system(size: 16, weight: .bold),
+                customSize: 32
+            ) {
+                MusicManager.shared.skip(seconds: -15)
+            }
         case .goForward:
-            playerButton(icon: "goforward.15") { MusicManager.shared.skip(seconds: 15) }
+            HoverButton(
+                icon: "goforward.15",
+                iconColor: .white,
+                scale: .medium,
+                cornerRadius: hoverRadius,
+                customFont: .system(size: 16, weight: .bold),
+                customSize: 32
+            ) {
+                MusicManager.shared.skip(seconds: 15)
+            }
         case .volume:
-            Color.clear.frame(width: 34, height: 34)
+            Color.clear.frame(width: 32, height: 32)
         case .none:
-            Color.clear.frame(width: 34, height: 34)
+            Color.clear.frame(width: 32, height: 32)
         }
     }
 
@@ -296,23 +403,16 @@ struct LockScreenPasscodePlayerView: View {
         }
     }
 
-    private func playerButton(
-        icon: String,
-        active: Bool = false,
-        size: CGFloat = 34,
-        iconSize: CGFloat = 16,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: iconSize, weight: .semibold))
-                .foregroundStyle(active ? .red : .white)
-                .frame(width: size, height: size)
+    private var repeatIconColor: Color {
+        switch musicManager.repeatMode {
+        case .off:
+            return .white.opacity(0.6)
+        case .all, .one:
+            return .white
         }
-        .buttonStyle(.plain)
     }
 
-    private func formatTime(_ seconds: Double) -> String {
+    private func timeString(from seconds: Double) -> String {
         let total = max(0, Int(seconds.rounded()))
         let h = total / 3600
         let m = (total % 3600) / 60

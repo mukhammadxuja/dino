@@ -21,6 +21,7 @@ class MusicManager: ObservableObject {
     private var controllerCancellables = Set<AnyCancellable>()
     private var debounceIdleTask: Task<Void, Never>?
     private var lyricsFetchTask: Task<Void, Never>?
+    private var seekTask: Task<Void, Never>?
 
     // Helper to check if macOS has removed support for NowPlayingController
     public private(set) var isNowPlayingDeprecated: Bool = false
@@ -657,8 +658,15 @@ class MusicManager: ObservableObject {
     }
 
     func seek(to position: TimeInterval) {
-        Task {
-            await activeController?.seek(to: position)
+        let clamped = min(max(0, position), songDuration)
+        DispatchQueue.main.async {
+            self.elapsedTime = clamped
+            self.timestampDate = Date()
+        }
+
+        seekTask?.cancel()
+        seekTask = Task {
+            await activeController?.seek(to: clamped)
         }
     }
     func skip(seconds: TimeInterval) {

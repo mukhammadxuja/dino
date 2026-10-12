@@ -102,12 +102,6 @@ struct MusicControlsView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
-
-            Spacer(minLength: 4)
-
-            visualizerView
-                .frame(width: 24, height: 24, alignment: .trailing)
-                .padding(.bottom, 4)
         }
         .frame(height: 66)
     }
@@ -127,10 +121,10 @@ struct MusicControlsView: View {
                         )
                         .frame(width: 22, height: 16)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                    .frame(width: 22, height: 16)
             } else {
                 LottieAnimationContainer()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                    .frame(width: 22, height: 16)
             }
         }
     }
@@ -138,7 +132,7 @@ struct MusicControlsView: View {
     private var progressRow: some View {
         TimelineView(.animation(minimumInterval: 0.1, paused: !musicManager.isPlaying || musicManager.isPlayerIdle)) { timeline in
             let currentPos: Double = {
-                if dragging {
+                if dragging || Date().timeIntervalSince(lastDragged) < 1.5 {
                     return sliderValue
                 }
                 return MusicManager.shared.estimatedPlaybackPosition(at: timeline.date)
@@ -165,9 +159,8 @@ struct MusicControlsView: View {
                     dragging: $dragging,
                     lastDragged: $lastDragged,
                     onValueChange: { newValue in
-                        MusicManager.shared.seek(to: newValue)
-                    },
-                    onDragChange: { newValue in
+                        sliderValue = newValue
+                        lastDragged = Date()
                         MusicManager.shared.seek(to: newValue)
                     }
                 )
@@ -189,13 +182,21 @@ struct MusicControlsView: View {
 
     private func songInfo(width: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            MarqueeText(
-                $musicManager.songTitle,
-                font: .system(size: 16, weight: .bold, design: .default),
-                nsFont: .headline,
-                textColor: .white,
-                frameWidth: width
-            )
+            HStack(alignment: .center, spacing: 6) {
+                MarqueeText(
+                    $musicManager.songTitle,
+                    font: .system(size: 16, weight: .bold, design: .default),
+                    nsFont: .headline,
+                    textColor: .white,
+                    frameWidth: max(0, width - 30)
+                )
+
+                Spacer(minLength: 2)
+
+                visualizerView
+            }
+            .frame(maxWidth: .infinity)
+
             MarqueeText(
                 $musicManager.artistName,
                 font: .system(size: 13.5, weight: .medium, design: .default),
@@ -837,7 +838,7 @@ struct CustomSlider: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let width = geometry.size.width
+            let width = max(1, geometry.size.width)
             let height = CGFloat(dragging ? 10 : 7.5)
             let rangeSpan = range.upperBound - range.lowerBound
 
@@ -853,25 +854,31 @@ struct CustomSlider: View {
                     .fill(color.opacity(0.80))
                     .frame(width: max(height, filledTrackWidth), height: height)
             }
+            .animation(.spring(response: 0.25, dampingFraction: 0.8), value: height)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
-                        withAnimation {
-                            dragging = true
-                        }
-                        let newValue = range.lowerBound + Double(gesture.location.x / width) * rangeSpan
-                        value = min(max(newValue, range.lowerBound), range.upperBound)
-                        onDragChange?(value)
+                        dragging = true
+                        let x = max(0, min(width, gesture.location.x))
+                        let ratio = width > 0 ? (x / width) : 0
+                        let newValue = range.lowerBound + Double(ratio) * rangeSpan
+                        let clamped = min(max(newValue, range.lowerBound), range.upperBound)
+                        value = clamped
+                        onDragChange?(clamped)
                     }
-                    .onEnded { _ in
-                        onValueChange?(value)
-                        dragging = false
+                    .onEnded { gesture in
+                        let x = max(0, min(width, gesture.location.x))
+                        let ratio = width > 0 ? (x / width) : 0
+                        let newValue = range.lowerBound + Double(ratio) * rangeSpan
+                        let clamped = min(max(newValue, range.lowerBound), range.upperBound)
+                        value = clamped
                         lastDragged = Date()
+                        dragging = false
+                        onValueChange?(clamped)
                     }
             )
-            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: dragging)
         }
     }
 }

@@ -235,10 +235,20 @@ enum HideNotchOption: String, Defaults.Serializable {
     case never
 }
 
-enum LockScreenPlayerBackgroundStyle: String, CaseIterable, Defaults.Serializable {
-    case glassBlur
-    case liquidGlass
+enum LockScreenPlayerBackgroundStyle: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case glass
     case solid
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .glass:
+            return "Glass"
+        case .solid:
+            return "Solid"
+        }
+    }
 }
 
 enum PomodoroClosedNotchDisplayMode: String, CaseIterable, Identifiable, Defaults.Serializable {
@@ -339,7 +349,7 @@ extension Defaults.Keys {
     static let lockScreenSoundVolume = Key<Float>("lockScreenSoundVolume", default: 0.5)
     static let lockScreenPlayerBackgroundStyle = Key<LockScreenPlayerBackgroundStyle>(
         "lockScreenPlayerBackgroundStyle",
-        default: .glassBlur
+        default: .glass
     )
     static let hideFromScreenRecording = Key<Bool>("hideFromScreenRecording", default: false)
     
