@@ -270,10 +270,8 @@ struct GeneralSettings: View {
     @Default(.menubarIcon) var menubarIcon
     @Default(.hideNotchOption) var hideNotchOption
     @Default(.hideFromScreenRecording) var hideFromScreenRecording
-    @Default(.gestureSensitivity) var gestureSensitivity
+    @Default(.gestureSensitivityMode) var gestureSensitivityMode
     @Default(.enableGestures) var enableGestures
-    @Default(.changeMediaWithGesture) var changeMediaWithGesture
-    @Default(.closeGestureEnabled) var closeGestureEnabled
     @Default(.openNotchOnHover) var openNotchOnHover
 
     var body: some View {
@@ -359,10 +357,10 @@ struct GeneralSettings: View {
                 // MARK: - 2. Gesture Control Card
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("Gesture control")
+                        Text("Trackpad gestures")
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.secondary)
-                        customBadge(text: "Beta")
+                        customBadge(text: "Smart")
                     }
 
                     VStack(spacing: 0) {
@@ -370,51 +368,82 @@ struct GeneralSettings: View {
                             icon: "hand.draw.fill",
                             iconColor: Color.indigo,
                             title: "Enable gestures",
-                            subtitle: "Trackpad swipe gestures on the notch or island",
+                            subtitle: "Multi-touch trackpad gestures on the notch & Dynamic Island",
                             isOn: $enableGestures
                         )
 
                         if enableGestures {
                             cardDivider
 
-                            settingRow(
-                                icon: "arrow.left.and.right.square.fill",
-                                iconColor: Color.blue,
-                                title: "Change media with horizontal gestures",
-                                subtitle: "Swipe left or right on trackpad to skip tracks",
-                                isOn: $changeMediaWithGesture
-                            )
-
-                            cardDivider
-
-                            settingRow(
-                                icon: "chevron.up.circle.fill",
-                                iconColor: Color.pink,
-                                title: "Close gesture",
-                                subtitle: "Two-finger swipe up to close the expanded notch",
-                                isOn: $closeGestureEnabled
-                            )
-
-                            cardDivider
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text("Gesture sensitivity")
-                                        .font(.system(size: 13.5, weight: .medium))
-                                    Spacer()
-                                    Text(
-                                        gestureSensitivity == 100
-                                            ? "High" : gestureSensitivity == 200 ? "Medium" : "Low"
-                                    )
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(.secondary)
+                            // Sensitivity Segmented Picker
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                        .fill(Color.orange.opacity(0.12))
+                                        .frame(width: 28, height: 28)
+                                    Image(systemName: "gauge.with.needle.fill")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(Color.orange)
                                 }
 
-                                Slider(value: $gestureSensitivity, in: 100...300, step: 100)
-                                    .tint(.effectiveAccent)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Gesture sensitivity")
+                                        .font(.system(size: 13.5, weight: .medium))
+                                        .foregroundColor(.primary)
+                                    Text("Controls how much swipe movement is needed to trigger actions")
+                                        .font(.system(size: 11.5))
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Picker("", selection: $gestureSensitivityMode) {
+                                    ForEach(GestureSensitivityEnum.allCases) { mode in
+                                        Text(mode.title).tag(mode)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                                .frame(width: 200)
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
+
+                            cardDivider
+
+                            // Gestures Cheatsheet / Guide
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("HOW TO USE GESTURES")
+                                    .font(.system(size: 10.5, weight: .bold))
+                                    .foregroundStyle(.secondary.opacity(0.8))
+                                    .padding(.top, 2)
+
+                                gestureGuideRow(
+                                    icon: "arrow.up.and.down",
+                                    action: "Swipe Down / Up",
+                                    description: "Open notch when closed, or close notch when expanded"
+                                )
+
+                                gestureGuideRow(
+                                    icon: "arrow.left.and.right",
+                                    action: "Swipe Left / Right",
+                                    description: "Next track (left) or restart / previous track (right)"
+                                )
+
+                                gestureGuideRow(
+                                    icon: "hand.tap.fill",
+                                    action: "Double Tap",
+                                    description: "Instantly Play or Pause music without opening the notch"
+                                )
+
+                                gestureGuideRow(
+                                    icon: "rectangle.split.3x1.fill",
+                                    action: "Swipe while Open",
+                                    description: "Quickly slide between Home, Shelf, and Calendar tabs"
+                                )
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(Color.primary.opacity(0.02))
                         }
                     }
                     .background(Color.white)
@@ -423,13 +452,6 @@ struct GeneralSettings: View {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
                     )
-
-                    Text(
-                        "Two-finger swipe up on notch to close, two-finger swipe down on notch to open when **Open notch on hover** option is disabled."
-                    )
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 4)
                 }
 
                 // MARK: - 3. App Quit Section
@@ -499,6 +521,36 @@ struct GeneralSettings: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+    }
+
+    @ViewBuilder
+    private func gestureGuideRow(
+        icon: String,
+        action: String,
+        description: String
+    ) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.primary.opacity(0.06))
+                    .frame(width: 24, height: 24)
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.75))
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(action)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.primary)
+                Text(description)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 2)
     }
 }
 

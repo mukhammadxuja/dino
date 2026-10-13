@@ -21,16 +21,124 @@ enum PanDirection {
 extension View {
     func panGesture(direction: PanDirection, threshold: CGFloat = 4, action: @escaping (CGFloat, NSEvent.Phase) -> Void) -> some View {
         self
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        let s = direction.signed(from: value.translation)
-                        guard s > 0, s.magnitude >= threshold else { return }
-                        action(s.magnitude, .changed)
-                    }
-                    .onEnded { _ in action(0, .ended) }
-            )
             .background(ScrollMonitor(direction: direction, threshold: threshold, action: action))
+    }
+
+    func horizontalSwipeGesture(threshold: CGFloat = 4, action: @escaping (CGFloat, PanDirection, NSEvent.Phase) -> Void) -> some View {
+        self
+            .background(HorizontalScrollMonitor(threshold: threshold, action: action))
+    }
+}
+
+private struct HorizontalScrollMonitor: NSViewRepresentable {
+    let threshold: CGFloat
+    let action: (CGFloat, PanDirection, NSEvent.Phase) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.installMonitor(on: view)
+        return view
+    }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) { coordinator.removeMonitor() }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(threshold: threshold, action: action)
+    }
+
+    @MainActor final class Coordinator: NSObject {
+        private let threshold: CGFloat
+        private let action: (CGFloat, PanDirection, NSEvent.Phase) -> Void
+        private var monitor: Any?
+        private var accumulatedX: CGFloat = 0
+        private var active = false
+        private var endTask: Task<Void, Never>?
+        private let noiseThreshold: CGFloat = 0.2
+
+        init(threshold: CGFloat, action: @escaping (CGFloat, PanDirection, NSEvent.Phase) -> Void) {
+            self.threshold = threshold
+            self.action = action
+        }
+
+        func installMonitor(on view: NSView) {
+            removeMonitor()
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.scrollWheel]) { [weak self, weak view] event in
+                guard let self = self, event.window === view?.window else { return event }
+                self.handleScroll(event)
+                return event
+            }
+        }
+
+        func removeMonitor() {
+            if let monitor = monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+            accumulatedX = 0
+            active = false
+            endTask?.cancel()
+            endTask = nil
+        }
+
+        private func scheduleEndTimeout(direction: PanDirection) {
+            endTask?.cancel()
+            endTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                if active {
+                    action(abs(accumulatedX), direction, .ended)
+                } else {
+                    action(0, direction, .ended)
+                }
+                active = false
+                accumulatedX = 0
+            }
+        }
+
+        private func handleScroll(_ event: NSEvent) {
+            // Ignore momentum / inertia after finger release to prevent extra track skips
+            guard event.momentumPhase.isEmpty else { return }
+
+            let currentDirection: PanDirection = accumulatedX >= 0 ? .right : .left
+
+            if event.phase == .ended || event.phase == .cancelled {
+                if active {
+                    action(abs(accumulatedX), currentDirection, .ended)
+                } else {
+                    action(0, currentDirection, .ended)
+                }
+                active = false
+                accumulatedX = 0
+                return
+            }
+
+            let absDX = abs(event.scrollingDeltaX)
+            let absDY = abs(event.scrollingDeltaY)
+            // Strict horizontal dominance
+            guard absDX >= 1.5 * absDY else { return }
+
+            let scale: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 8
+            let delta = event.scrollingDeltaX * scale
+            guard abs(delta) > noiseThreshold else { return }
+
+            // If direction reversed mid-swipe, reset accumulated
+            if (accumulatedX > 0 && delta < 0) || (accumulatedX < 0 && delta > 0) {
+                accumulatedX = 0
+            }
+
+            accumulatedX += delta
+            let direction: PanDirection = accumulatedX >= 0 ? .right : .left
+            let magnitude = abs(accumulatedX)
+
+            if !active && magnitude >= threshold {
+                active = true
+                action(magnitude, direction, .began)
+            } else if active {
+                action(magnitude, direction, .changed)
+            }
+
+            scheduleEndTimeout(direction: direction)
+        }
     }
 }
 
@@ -105,7 +213,12 @@ private struct ScrollMonitor: NSViewRepresentable {
         }
 
         private func handleScroll(_ event: NSEvent) {
-            if event.phase == .ended || event.momentumPhase == .ended {
+            // Completely ignore momentum phase events so inertia doesn't trigger track skips after finger release
+            if !event.momentumPhase.isEmpty {
+                return
+            }
+
+            if event.phase == .ended || event.phase == .cancelled {
                 if active {
                     action(accumulated.magnitude, .ended)
                 } else {

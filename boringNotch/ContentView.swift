@@ -33,6 +33,8 @@ struct ContentView: View {
     @State private var mediaGestureDirection: MediaGestureDirection = .none
     @State private var mediaGestureIconVisible: Bool = false
     @State private var mediaGestureTask: Task<Void, Never>?
+    @State private var hasTriggeredMediaGestureInCurrentSwipe: Bool = false
+    @State private var lastPreviousGestureAt: Date = .distantPast
     
     // Hover states for closed notch music areas
     @State private var showCoverHoverMusicDetails: Bool = false
@@ -450,7 +452,15 @@ struct ContentView: View {
                             handleHover(hovering)
                         }
                     }
-                    .onTapGesture {
+                    .onTapGesture(count: 2) {
+                        if Defaults[.enableGestures] && (musicManager.isPlaying || !musicManager.isPlayerIdle) {
+                            MusicManager.shared.playPause()
+                            if Defaults[.enableHaptics] {
+                                haptics.toggle()
+                            }
+                        }
+                    }
+                    .onTapGesture(count: 1) {
                         if !(isDualActivityActive && isCurrentDisplayIsland && vm.notchState == .closed) {
                             handleTap()
                         }
@@ -460,20 +470,11 @@ struct ContentView: View {
                             .panGesture(direction: .down) { translation, phase in
                                 handleDownGesture(translation: translation, phase: phase)
                             }
-                    }
-                    .conditionalModifier(Defaults[.closeGestureEnabled] && Defaults[.enableGestures]) { view in
-                        view
                             .panGesture(direction: .up) { translation, phase in
                                 handleUpGesture(translation: translation, phase: phase)
                             }
-                    }
-                    .conditionalModifier(Defaults[.changeMediaWithGesture] && Defaults[.enableGestures]) { view in
-                        view
-                            .panGesture(direction: .right) { translation, phase in
-                                handleHorizontalMediaGesture(translation: translation, phase: phase, direction: .right)
-                            }
-                            .panGesture(direction: .left) { translation, phase in
-                                handleHorizontalMediaGesture(translation: translation, phase: phase, direction: .left)
+                            .horizontalSwipeGesture { translation, direction, phase in
+                                handleHorizontalGesture(translation: translation, phase: phase, direction: direction)
                             }
                     }
                     .onReceive(NotificationCenter.default.publisher(for: .sharingDidFinish)) { _ in
@@ -954,10 +955,10 @@ struct ContentView: View {
         }
 
         withAnimation(animationSpring) {
-            gestureProgress = (translation / Defaults[.gestureSensitivity]) * 20
+            gestureProgress = (translation / effectiveGestureThreshold) * 20
         }
 
-        if translation > Defaults[.gestureSensitivity] {
+        if translation > effectiveGestureThreshold {
             if Defaults[.enableHaptics] {
                 haptics.toggle()
             }
@@ -972,7 +973,7 @@ struct ContentView: View {
         guard vm.notchState == .open && !vm.isHoveringCalendar else { return }
 
         withAnimation(animationSpring) {
-            gestureProgress = (translation / Defaults[.gestureSensitivity]) * -20
+            gestureProgress = (translation / effectiveGestureThreshold) * -20
         }
 
         if phase == .ended {
@@ -981,7 +982,7 @@ struct ContentView: View {
             }
         }
 
-        if translation > Defaults[.gestureSensitivity] {
+        if translation > effectiveGestureThreshold {
             withAnimation(animationSpring) {
                 isHovering = false
             }
@@ -996,7 +997,55 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Horizontal Gesture Dispatcher
+
+    private func handleHorizontalGesture(translation: CGFloat, phase: NSEvent.Phase, direction: PanDirection) {
+        if vm.notchState == .open {
+            handleOpenNotchTabSwipe(translation: translation, phase: phase, direction: direction)
+        } else {
+            handleHorizontalMediaGesture(translation: translation, phase: phase, direction: direction)
+        }
+    }
+
+    private func handleOpenNotchTabSwipe(translation: CGFloat, phase: NSEvent.Phase, direction: PanDirection) {
+        if phase == .began {
+            hasTriggeredMediaGestureInCurrentSwipe = false
+        }
+
+        guard !hasTriggeredMediaGestureInCurrentSwipe && translation > effectiveGestureThreshold * 0.6 else { return }
+
+        hasTriggeredMediaGestureInCurrentSwipe = true
+        withAnimation(.smooth) {
+            switch coordinator.currentView {
+            case .home:
+                if direction == .right {
+                    coordinator.currentView = .shelf
+                }
+            case .shelf:
+                if direction == .left {
+                    coordinator.currentView = .home
+                } else if direction == .right && Defaults[.showCalendar] {
+                    coordinator.currentView = .calendar
+                }
+            case .calendar:
+                if direction == .left {
+                    coordinator.currentView = .shelf
+                }
+            }
+        }
+
+        if Defaults[.enableHaptics] {
+            haptics.toggle()
+        }
+    }
+
     // MARK: - Horizontal Media Gesture
+
+    @State private var lastMediaSwipeTriggeredAt: Date = .distantPast
+
+    private var effectiveGestureThreshold: CGFloat {
+        Defaults[.gestureSensitivityMode].threshold
+    }
 
     private func handleHorizontalMediaGesture(translation: CGFloat, phase: NSEvent.Phase, direction: PanDirection) {
         // Only works when music is playing and notch is closed
@@ -1006,51 +1055,97 @@ struct ContentView: View {
 
         let gestureDirection: MediaGestureDirection = direction == .right ? .right : .left
 
-        if phase == .ended {
-            // Trigger the track change if threshold met
-            if translation > Defaults[.gestureSensitivity] * 0.5 {
-                if gestureDirection == .right {
-                    MusicManager.shared.previousTrack()
+        if phase == .began {
+            hasTriggeredMediaGestureInCurrentSwipe = false
+        }
+
+        let now = Date()
+        let timeSinceLastTrigger = now.timeIntervalSince(lastMediaSwipeTriggeredAt)
+
+        // Strict single-action lock per swipe + 0.75s cooldown to prevent multiple skips on hard swipes
+        if !hasTriggeredMediaGestureInCurrentSwipe && timeSinceLastTrigger > 0.75 && translation > effectiveGestureThreshold * 0.5 {
+            hasTriggeredMediaGestureInCurrentSwipe = true
+            lastMediaSwipeTriggeredAt = now
+
+            if gestureDirection == .left {
+                // Swipe left = Next track (matches next icon on the right)
+                MusicManager.shared.nextTrack()
+            } else {
+                // Swipe right = Apple-style Previous / Restart (matches prev icon on the left/cover)
+                let wasRecentlyTriggered = now.timeIntervalSince(lastPreviousGestureAt) < 2.0
+                lastPreviousGestureAt = now
+
+                // Calculate real playback position (elapsedTime + real time since last update)
+                let actualElapsed = musicManager.elapsedTime + (musicManager.isPlaying ? max(0, now.timeIntervalSince(musicManager.timestampDate)) : 0)
+
+                if actualElapsed > 3.0 && !wasRecentlyTriggered {
+                    // Song played > 3 seconds: restart current song
+                    MusicManager.shared.seek(to: 0)
                 } else {
-                    MusicManager.shared.nextTrack()
-                }
-                if Defaults[.enableHaptics] {
-                    haptics.toggle()
+                    // Song just started or double-swiped within 2 seconds: previous track
+                    MusicManager.shared.previousTrack()
                 }
             }
 
-            // Reset gesture state after a delay for smooth icon disappearance
+            // Flash confirmation animation: force icon to be visible for at least 0.45s upon action
+            mediaGestureDirection = gestureDirection
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
+                mediaGestureIconVisible = true
+            }
+
             mediaGestureTask?.cancel()
             mediaGestureTask = Task {
-                try? await Task.sleep(for: .milliseconds(400))
+                try? await Task.sleep(for: .milliseconds(450))
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
-                    withAnimation(.easeOut(duration: 0.3)) {
+                    withAnimation(.easeOut(duration: 0.25)) {
                         mediaGestureIconVisible = false
                     }
                 }
-                try? await Task.sleep(for: .milliseconds(300))
+                try? await Task.sleep(for: .milliseconds(250))
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
                     mediaGestureDirection = .none
                 }
             }
+
+            if Defaults[.enableHaptics] {
+                haptics.toggle()
+            }
+        }
+
+        if phase == .ended || phase == .cancelled {
+            hasTriggeredMediaGestureInCurrentSwipe = false
+
+            // If action wasn't triggered (partial swipe), dismiss immediately
+            if !hasTriggeredMediaGestureInCurrentSwipe && translation <= effectiveGestureThreshold * 0.5 {
+                mediaGestureTask?.cancel()
+                withAnimation(.easeOut(duration: 0.2)) {
+                    mediaGestureIconVisible = false
+                }
+                mediaGestureTask = Task {
+                    try? await Task.sleep(for: .milliseconds(200))
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        mediaGestureDirection = .none
+                    }
+                }
+            }
             return
         }
 
-        // Show the direction icon
-        if mediaGestureDirection != gestureDirection {
+        // Show the direction icon smoothly while dragging (preview hint)
+        if mediaGestureDirection != gestureDirection && !hasTriggeredMediaGestureInCurrentSwipe {
             mediaGestureDirection = gestureDirection
-            // Brief delay before showing icon for smooth appearance
             mediaGestureTask?.cancel()
-            withAnimation(.easeOut(duration: 0.15)) {
+            withAnimation(.easeOut(duration: 0.12)) {
                 mediaGestureIconVisible = false
             }
             mediaGestureTask = Task {
-                try? await Task.sleep(for: .milliseconds(150))
+                try? await Task.sleep(for: .milliseconds(80))
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
                         mediaGestureIconVisible = true
                     }
                 }

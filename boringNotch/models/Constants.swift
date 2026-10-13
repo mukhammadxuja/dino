@@ -251,6 +251,30 @@ enum LockScreenPlayerBackgroundStyle: String, CaseIterable, Identifiable, Defaul
     }
 }
 
+enum GestureSensitivityEnum: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case light
+    case balanced
+    case firm
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .light: return "Light"
+        case .balanced: return "Balanced"
+        case .firm: return "Firm"
+        }
+    }
+
+    var threshold: CGFloat {
+        switch self {
+        case .light: return 120.0
+        case .balanced: return 180.0
+        case .firm: return 260.0
+        }
+    }
+}
+
 enum PomodoroClosedNotchDisplayMode: String, CaseIterable, Identifiable, Defaults.Serializable {
     case off
     // Legacy values kept for compatibility with already-saved defaults
@@ -382,7 +406,8 @@ extension Defaults.Keys {
     static let enableGestures = Key<Bool>("enableGestures", default: true)
     static let closeGestureEnabled = Key<Bool>("closeGestureEnabled", default: true)
     static let changeMediaWithGesture = Key<Bool>("changeMediaWithGesture", default: true)
-    static let gestureSensitivity = Key<CGFloat>("gestureSensitivity", default: 200.0)
+    static let gestureSensitivity = Key<CGFloat>("gestureSensitivity", default: 180.0)
+    static let gestureSensitivityMode = Key<GestureSensitivityEnum>("gestureSensitivityMode", default: .balanced)
     
     // MARK: Media playback
     static let coloredSpectrogram = Key<Bool>("coloredSpectrogram", default: true)

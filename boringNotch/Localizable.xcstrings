@@ -6129,6 +6129,9 @@
         }
       }
     },
+    "Controls how much swipe movement is needed to trigger actions" : {
+
+    },
     "Copied to clipboard" : {
 
     },
@@ -10244,6 +10247,7 @@
       }
     },
     "Gesture control" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11557,6 +11561,7 @@
       }
     },
     "High" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11765,6 +11770,9 @@
       }
     },
     "Hover time\nbefore expanding" : {
+
+    },
+    "HOW TO USE GESTURES" : {
 
     },
     "https://github.com/pear-devs/pear-desktop" : {
@@ -12609,6 +12617,7 @@
       }
     },
     "Low" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -14035,6 +14044,7 @@
       }
     },
     "Medium" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -22474,6 +22484,9 @@
     "Top of Screen" : {
 
     },
+    "Trackpad gestures" : {
+
+    },
     "Two-finger swipe up on notch to close, two-finger swipe down on notch to open when **Open notch on hover** option is disabled" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -22574,9 +22587,6 @@
           }
         }
       }
-    },
-    "Two-finger swipe up on notch to close, two-finger swipe down on notch to open when **Open notch on hover** option is disabled." : {
-
     },
     "Uninstall" : {
       "extractionState" : "stale",
