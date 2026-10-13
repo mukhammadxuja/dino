@@ -274,6 +274,9 @@ struct GeneralSettings: View {
     @Default(.enableGestures) var enableGestures
     @Default(.openNotchOnHover) var openNotchOnHover
     @Default(.idleClickAction) var idleClickAction
+    @Default(.clipboardHistoryEnabled) var clipboardHistoryEnabled
+    @Default(.clipboardHistoryAutoPaste) var clipboardHistoryAutoPaste
+    @Default(.clipboardHistoryMaxItems) var clipboardHistoryMaxItems
 
     var body: some View {
         ScrollView {
@@ -389,7 +392,110 @@ struct GeneralSettings: View {
                     )
                 }
 
-                // MARK: - 2. Gesture Control Card
+                // MARK: - 2. Clipboard History Card
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Clipboard history")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.secondary)
+                        customBadge(text: "⌥V")
+                    }
+
+                    VStack(spacing: 0) {
+                        // Master Toggle: Enable Clipboard History
+                        settingRow(
+                            icon: "doc.on.clipboard.fill",
+                            iconColor: Color.orange,
+                            title: "Enable clipboard history",
+                            subtitle: "Track recent copied texts, links, images, and colors in a floating HUD",
+                            isOn: $clipboardHistoryEnabled
+                        )
+
+                        if clipboardHistoryEnabled {
+                            cardDivider
+
+                            // Shortcut recorder row
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                        .fill(Color.orange.opacity(0.12))
+                                        .frame(width: 28, height: 28)
+                                    Image(systemName: "keyboard.fill")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(Color.orange)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Global shortcut")
+                                        .font(.system(size: 13.5, weight: .medium))
+                                        .foregroundColor(.primary)
+                                    Text("Press shortcut from anywhere to open clipboard panel")
+                                        .font(.system(size: 11.5))
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                DinoShortcutRecorder(name: .clipboardHistoryPanel)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+
+                            cardDivider
+
+                            // Auto-paste toggle
+                            settingRow(
+                                icon: "arrow.right.doc.on.clipboard",
+                                iconColor: Color.blue,
+                                title: "Auto-paste on selection",
+                                subtitle: "Instantly paste the selected item into the previous active application",
+                                isOn: $clipboardHistoryAutoPaste
+                            )
+
+                            cardDivider
+
+                            // Max items picker
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                        .fill(Color.purple.opacity(0.12))
+                                        .frame(width: 28, height: 28)
+                                    Image(systemName: "tray.full.fill")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(Color.purple)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("History limit")
+                                        .font(.system(size: 13.5, weight: .medium))
+                                        .foregroundColor(.primary)
+                                    Text("Maximum number of clipboard items to keep in history")
+                                        .font(.system(size: 11.5))
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Picker("", selection: $clipboardHistoryMaxItems) {
+                                    Text("25 items").tag(25)
+                                    Text("50 items").tag(50)
+                                    Text("100 items").tag(100)
+                                }
+                                .frame(width: 120)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                        }
+                    }
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                    )
+                }
+
+                // MARK: - 3. Gesture Control Card
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Trackpad gestures")
@@ -7466,7 +7572,7 @@ struct Shortcuts: View {
     var body: some View {
         Form {
             Section {
-                KeyboardShortcuts.Recorder("Toggle Sneak Peek:", name: .toggleSneakPeek)
+                DinoShortcutRow("Toggle Sneak Peek:", name: .toggleSneakPeek)
             } header: {
                 Text("Media")
             } footer: {
@@ -7478,12 +7584,12 @@ struct Shortcuts: View {
                 .font(.caption)
             }
             Section {
-                KeyboardShortcuts.Recorder("Now Playing (Music):", name: .selectMusicModule)
-                KeyboardShortcuts.Recorder("Pomodoro Timer:", name: .selectPomodoroModule)
-                KeyboardShortcuts.Recorder("Calendar:", name: .selectCalendarModule)
-                KeyboardShortcuts.Recorder("Battery Status:", name: .selectBatteryModule)
-                KeyboardShortcuts.Recorder("Coding Activity:", name: .selectCodingModule)
-                KeyboardShortcuts.Recorder("Shelf (Upload):", name: .selectShelfModule)
+                DinoShortcutRow("Now Playing (Music):", name: .selectMusicModule)
+                DinoShortcutRow("Pomodoro Timer:", name: .selectPomodoroModule)
+                DinoShortcutRow("Calendar:", name: .selectCalendarModule)
+                DinoShortcutRow("Battery Status:", name: .selectBatteryModule)
+                DinoShortcutRow("Coding Activity:", name: .selectCodingModule)
+                DinoShortcutRow("Shelf (Upload):", name: .selectShelfModule)
             } header: {
                 Text("Switch Active Module")
             } footer: {
@@ -7494,10 +7600,13 @@ struct Shortcuts: View {
             }
 
             Section {
-                KeyboardShortcuts.Recorder("Toggle Notch Open:", name: .toggleNotchOpen)
+                DinoShortcutRow("Clipboard History (HUD):", name: .clipboardHistoryPanel)
+                DinoShortcutRow("Toggle Notch Open:", name: .toggleNotchOpen)
+            } header: {
+                Text("Panels & Overlays")
             }
             Section {
-                KeyboardShortcuts.Recorder("Pomodoro Skip Break:", name: .pomodoroEmergencyExit)
+                DinoShortcutRow("Pomodoro Skip Break:", name: .pomodoroEmergencyExit)
             } header: {
                 Text("Pomodoro")
             } footer: {

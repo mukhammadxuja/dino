@@ -67,6 +67,14 @@ public final class DinoHotKeyManager {
                 DinoCoordinator.shared.toggleOrMorphSlot(.shelf)
             }
         }
+
+        // Clipboard History Panel (`Option + V`)
+        KeyboardShortcuts.onKeyDown(for: .clipboardHistoryPanel) {
+            Task { @MainActor in
+                guard Defaults[.clipboardHistoryEnabled] else { return }
+                ClipboardPanelController.shared.toggle()
+            }
+        }
         
         // Emergency Exit / Escape: Close open card and restore P3 background immediately
         KeyboardShortcuts.onKeyDown(for: .pomodoroEmergencyExit) {
