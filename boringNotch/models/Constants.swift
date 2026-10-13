@@ -268,9 +268,31 @@ enum GestureSensitivityEnum: String, CaseIterable, Identifiable, Defaults.Serial
 
     var threshold: CGFloat {
         switch self {
-        case .light: return 120.0
-        case .balanced: return 180.0
-        case .firm: return 260.0
+        case .light: return 50.0
+        case .balanced: return 85.0
+        case .firm: return 140.0
+        }
+    }
+}
+
+enum IdleClickAction: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case none
+    case music
+    case pomodoro
+    case shelf
+    case weather
+    case calendar
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .none: return "Bounce only (Off)"
+        case .music: return "Music player"
+        case .pomodoro: return "Pomodoro timer"
+        case .shelf: return "Drop zones (Shelf)"
+        case .weather: return "Weather"
+        case .calendar: return "Calendar"
         }
     }
 }
@@ -356,6 +378,7 @@ extension Defaults.Keys {
     static let enableHaptics = Key<Bool>("enableHaptics", default: true)
     static let openNotchOnHover = Key<Bool>("openNotchOnHover", default: true)
     static let extendHoverArea = Key<Bool>("extendHoverArea", default: false)
+    static let idleClickAction = Key<IdleClickAction>("idleClickAction", default: .none)
     static let notchHeightMode = Key<WindowHeightMode>(
         "notchHeightMode",
         default: WindowHeightMode.matchRealNotchSize

@@ -216,8 +216,9 @@ class BoringViewModel: NSObject, ObservableObject {
             }
         }()
         let homeWidth: CGFloat = isIsland ? 385 : 435
-        let openWidth: CGFloat = (coordinator.currentView == .home) ? homeWidth : openNotchSize.width
-        let openHeight: CGFloat = (coordinator.currentView == .home) ? 188 : openNotchSize.height
+        let isUnifiedCard = (coordinator.currentView == .home || coordinator.currentView == .shelf)
+        let openWidth: CGFloat = isUnifiedCard ? homeWidth : openNotchSize.width
+        let openHeight: CGFloat = isUnifiedCard ? 188 : openNotchSize.height
         self.notchSize = .init(width: openWidth, height: openHeight)
         self.notchState = .open
         DinoCoordinator.shared.isExpanded = true

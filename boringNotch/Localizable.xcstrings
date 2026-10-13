@@ -1866,6 +1866,9 @@
         }
       }
     },
+    "Action to perform when clicking an idle notch or Dynamic Island" : {
+
+    },
     "Active, charging normally" : {
 
     },
@@ -5400,6 +5403,9 @@
           }
         }
       }
+    },
+    "Click when idle" : {
+
     },
     "Close" : {
       "localizations" : {

@@ -377,9 +377,9 @@ public final class DinoCoordinator: ObservableObject {
         switch activeSlot {
         case .battery, .hud:
             return .compact
-        case .music, .weather, .pomodoro, .webcam:
+        case .music, .weather, .pomodoro, .webcam, .shelf:
             return .standard
-        case .calendar, .shelf, .download:
+        case .calendar, .download:
             return .large
         case .idle, .coding:
             return .standard

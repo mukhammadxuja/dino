@@ -230,36 +230,9 @@ struct DinoSlotRouter: View {
     }
 
     private var shelfView: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .center) {
-                Text("Shelf")
-                    .font(.system(.subheadline, design: .rounded))
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.white)
-
-                Spacer(minLength: 0)
-
-                Button(action: {
-                    withAnimation(.smooth) {
-                        coordinator.currentView = .home
-                    }
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .frame(width: 24, height: 24)
-                        .background(Color.white.opacity(0.10))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.top, 4)
-            .padding(.horizontal, 8)
-
-            ShelfView()
-                .padding(.top, 4)
-        }
-        .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        ShelfView()
+            .padding(.horizontal, 2)
+            .padding(.top, 0)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }

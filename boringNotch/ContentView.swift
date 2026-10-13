@@ -296,10 +296,8 @@ struct ContentView: View {
 
     private var desiredOpenNotchWidth: CGFloat {
         switch coordinator.currentView {
-        case .home:
+        case .home, .shelf:
             return isCurrentDisplayIsland ? 385 : 435
-        case .shelf:
-            return 560
         case .calendar:
             return 560
         }
@@ -307,10 +305,8 @@ struct ContentView: View {
 
     private var desiredOpenNotchHeight: CGFloat {
         switch coordinator.currentView {
-        case .home:
+        case .home, .shelf:
             return 188
-        case .shelf:
-            return 190
         case .calendar:
             return 190
         }
@@ -822,13 +818,36 @@ struct ContentView: View {
             }
             doOpen()
         } else {
-            withAnimation(.spring(response: 0.22, dampingFraction: 0.52, blendDuration: 0)) {
-                emptyClickBounce = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.65, blendDuration: 0)) {
-                    emptyClickBounce = false
+            switch Defaults[.idleClickAction] {
+            case .none:
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.52, blendDuration: 0)) {
+                    emptyClickBounce = true
                 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.65, blendDuration: 0)) {
+                        emptyClickBounce = false
+                    }
+                }
+            case .music:
+                DinoCoordinator.shared.activateSlotDirectly(.music)
+                coordinator.currentView = .home
+                doOpen()
+            case .pomodoro:
+                DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
+                coordinator.currentView = .home
+                doOpen()
+            case .shelf:
+                DinoCoordinator.shared.activateSlotDirectly(.shelf)
+                coordinator.currentView = .shelf
+                doOpen()
+            case .weather:
+                DinoCoordinator.shared.activateSlotDirectly(.weather)
+                coordinator.currentView = .home
+                doOpen()
+            case .calendar:
+                DinoCoordinator.shared.activateSlotDirectly(.calendar)
+                coordinator.currentView = .home
+                doOpen()
             }
         }
     }
@@ -1012,24 +1031,37 @@ struct ContentView: View {
             hasTriggeredMediaGestureInCurrentSwipe = false
         }
 
-        guard !hasTriggeredMediaGestureInCurrentSwipe && translation > effectiveGestureThreshold * 0.6 else { return }
+        let threshold = effectiveGestureThreshold * 0.7
+        guard !hasTriggeredMediaGestureInCurrentSwipe && translation >= threshold else { return }
 
         hasTriggeredMediaGestureInCurrentSwipe = true
         withAnimation(.smooth) {
-            switch coordinator.currentView {
-            case .home:
-                if direction == .right {
+            let isShelf = (coordinator.currentView == .shelf || DinoCoordinator.shared.activeSlot == .shelf)
+            let isPomodoro = (!isShelf && DinoCoordinator.shared.activeSlot == .pomodoro)
+
+            if direction == .left {
+                // Swipe Left (forward): Music -> Pomodoro -> Shelf -> Music
+                if isPomodoro {
                     coordinator.currentView = .shelf
-                }
-            case .shelf:
-                if direction == .left {
+                    DinoCoordinator.shared.activateSlotDirectly(.shelf)
+                } else if isShelf {
                     coordinator.currentView = .home
-                } else if direction == .right && Defaults[.showCalendar] {
-                    coordinator.currentView = .calendar
+                    DinoCoordinator.shared.activateSlotDirectly(.music)
+                } else {
+                    coordinator.currentView = .home
+                    DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
                 }
-            case .calendar:
-                if direction == .left {
+            } else if direction == .right {
+                // Swipe Right (backward): Music -> Shelf -> Pomodoro -> Music
+                if isShelf {
+                    coordinator.currentView = .home
+                    DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
+                } else if isPomodoro {
+                    coordinator.currentView = .home
+                    DinoCoordinator.shared.activateSlotDirectly(.music)
+                } else {
                     coordinator.currentView = .shelf
+                    DinoCoordinator.shared.activateSlotDirectly(.shelf)
                 }
             }
         }
@@ -1062,8 +1094,8 @@ struct ContentView: View {
         let now = Date()
         let timeSinceLastTrigger = now.timeIntervalSince(lastMediaSwipeTriggeredAt)
 
-        // Strict single-action lock per swipe + 0.75s cooldown to prevent multiple skips on hard swipes
-        if !hasTriggeredMediaGestureInCurrentSwipe && timeSinceLastTrigger > 0.75 && translation > effectiveGestureThreshold * 0.5 {
+        // Strict single-action lock per swipe + 0.45s cooldown to prevent multiple skips on hard swipes
+        if !hasTriggeredMediaGestureInCurrentSwipe && timeSinceLastTrigger > 0.45 && translation >= effectiveGestureThreshold * 0.75 {
             hasTriggeredMediaGestureInCurrentSwipe = true
             lastMediaSwipeTriggeredAt = now
 
@@ -1118,7 +1150,7 @@ struct ContentView: View {
             hasTriggeredMediaGestureInCurrentSwipe = false
 
             // If action wasn't triggered (partial swipe), dismiss immediately
-            if !hasTriggeredMediaGestureInCurrentSwipe && translation <= effectiveGestureThreshold * 0.5 {
+            if !hasTriggeredMediaGestureInCurrentSwipe && translation < effectiveGestureThreshold * 0.5 {
                 mediaGestureTask?.cancel()
                 withAnimation(.easeOut(duration: 0.2)) {
                     mediaGestureIconVisible = false

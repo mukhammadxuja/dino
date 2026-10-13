@@ -273,6 +273,7 @@ struct GeneralSettings: View {
     @Default(.gestureSensitivityMode) var gestureSensitivityMode
     @Default(.enableGestures) var enableGestures
     @Default(.openNotchOnHover) var openNotchOnHover
+    @Default(.idleClickAction) var idleClickAction
 
     var body: some View {
         ScrollView {
@@ -345,6 +346,40 @@ struct GeneralSettings: View {
                                 set: { hideFromScreenRecording = !$0 }
                             )
                         )
+
+                        cardDivider
+
+                        // Row 6: Click when idle
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(Color.blue.opacity(0.12))
+                                    .frame(width: 28, height: 28)
+                                Image(systemName: "cursorarrow.click.2")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Color.blue)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Click when idle")
+                                    .font(.system(size: 13.5, weight: .medium))
+                                    .foregroundColor(.primary)
+                                Text("Action to perform when clicking an idle notch or Dynamic Island")
+                                    .font(.system(size: 11.5))
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Picker("", selection: $idleClickAction) {
+                                ForEach(IdleClickAction.allCases) { action in
+                                    Text(action.title).tag(action)
+                                }
+                            }
+                            .frame(width: 175)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
                     }
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -438,7 +473,7 @@ struct GeneralSettings: View {
                                 gestureGuideRow(
                                     icon: "rectangle.split.3x1.fill",
                                     action: "Swipe while Open",
-                                    description: "Quickly slide between Home, Shelf, and Calendar tabs"
+                                    description: "Carousel loop between Music, Pomodoro, and Shelf (Drop zone)"
                                 )
                             }
                             .padding(.horizontal, 16)

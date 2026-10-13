@@ -307,6 +307,10 @@ private struct RulerScrollMonitor: NSViewRepresentable {
                 }
                 let pointInView = view.convert(event.locationInWindow, from: nil)
                 if view.bounds.contains(pointInView) {
+                    guard event.modifierFlags.contains(.option) else {
+                        self.accumulatedDelta = 0
+                        return event
+                    }
                     self.accumulatedDelta += event.scrollingDeltaX
                     if abs(self.accumulatedDelta) > 4.0 {
                         self.onScroll(self.accumulatedDelta)

@@ -99,6 +99,9 @@ private struct HorizontalScrollMonitor: NSViewRepresentable {
             // Ignore momentum / inertia after finger release to prevent extra track skips
             guard event.momentumPhase.isEmpty else { return }
 
+            // Ignore when Option (⌥) modifier is held (reserved for fine-tuning controls like Pomodoro ruler)
+            guard !event.modifierFlags.contains(.option) else { return }
+
             let currentDirection: PanDirection = accumulatedX >= 0 ? .right : .left
 
             if event.phase == .ended || event.phase == .cancelled {
