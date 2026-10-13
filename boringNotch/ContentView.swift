@@ -195,6 +195,8 @@ struct ContentView: View {
     }
 
     private var computedChinWidth: CGFloat {
+        let activeSlot = DinoCoordinator.shared.activeSlot
+
         if isCurrentDisplayIsland {
             if isShowingSystemToastHUD {
                 return isCurrentScreenBuiltin ? 210 : 185
@@ -204,17 +206,22 @@ struct ContentView: View {
                 return isCurrentScreenBuiltin ? 170 : 145
             } else if isAntigravityActive {
                 return isCurrentScreenBuiltin ? 190 : 160
-            } else if isDualActivityActive {
+            } else if isDualActivityActive || DinoCoordinator.shared.isDualActivityActive {
                 return isCurrentScreenBuiltin ? 150 : 130
-            } else if shouldShowPomodoroInlineClosedVisual {
+            }
+
+            switch activeSlot {
+            case .music:
+                return isCurrentScreenBuiltin ? 150 : 130
+            case .pomodoro:
                 return isCurrentScreenBuiltin ? 172 : 144
-            } else if DinoCoordinator.shared.activeSlot == .weather {
+            case .weather:
                 return isCurrentScreenBuiltin ? 120 : 105
-            } else if shouldShowMusicClosedVisual {
-                return isCurrentScreenBuiltin ? 150 : 130
-            } else if shouldShowCalendarClosedVisual {
+            case .calendar:
                 return isCurrentScreenBuiltin ? 140 : 115
-            } else {
+            case .battery:
+                return isCurrentScreenBuiltin ? 170 : 145
+            case .idle, .shelf, .download, .webcam, .coding, .hud:
                 return isCurrentScreenBuiltin ? 88 : 70
             }
         }
@@ -231,7 +238,7 @@ struct ContentView: View {
             }
         } else if isShowingSystemToastHUD {
             chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 60)
-        } else if isDualActivityActive {
+        } else if isDualActivityActive || DinoCoordinator.shared.isDualActivityActive {
             if isCurrentDisplayIsland {
                 chinWidth = isCurrentScreenBuiltin ? 150 : 130
             } else if isCurrentScreenBuiltin {
@@ -242,31 +249,38 @@ struct ContentView: View {
             if isShowingMusicSneakPeek {
                 chinWidth += 32
             }
-        } else if shouldShowPomodoroInlineClosedVisual {
-            if isCurrentDisplayIsland {
-                chinWidth = isCurrentScreenBuiltin ? 172 : 144
-            } else if isCurrentScreenBuiltin {
-                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 40)
-            } else {
+        } else {
+            switch activeSlot {
+            case .music:
+                if isCurrentDisplayIsland {
+                    chinWidth = isCurrentScreenBuiltin ? 150 : 130
+                } else if isCurrentScreenBuiltin {
+                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 38)
+                } else {
+                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
+                }
+
+            case .pomodoro:
+                if isCurrentDisplayIsland {
+                    chinWidth = isCurrentScreenBuiltin ? 172 : 144
+                } else if isCurrentScreenBuiltin {
+                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 40)
+                } else {
+                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
+                }
+
+            case .weather:
+                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
+
+            case .calendar:
                 chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
-            }
-        } else if DinoCoordinator.shared.activeSlot == .weather {
-            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
-        } else if shouldShowMusicClosedVisual {
-            if isCurrentDisplayIsland {
-                chinWidth = isCurrentScreenBuiltin ? 150 : 130
-            } else if isCurrentScreenBuiltin {
-                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 38)
-            } else {
+
+            case .battery:
                 chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
+
+            case .idle, .shelf, .download, .webcam, .coding, .hud:
+                break
             }
-        } else if shouldShowCalendarClosedVisual {
-            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
-        } else if !coordinator.expandingView.show && vm.notchState == .closed
-            && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace]
-            && !vm.hideOnClosed
-        {
-            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
         }
 
         return chinWidth
@@ -342,14 +356,8 @@ struct ContentView: View {
     private var hasActiveFeature: Bool {
         if coordinator.expandingView.show { return true }
         if coordinator.sneakPeek.show { return true }
-        if isDualActivityActive { return true }
-        if shouldShowMusicClosedVisual { return true }
-        if shouldShowPomodoroInlineClosedVisual { return true }
-        if shouldShowCalendarClosedVisual { return true }
+        if isDualActivityActive || DinoCoordinator.shared.isDualActivityActive { return true }
         if DinoCoordinator.shared.activeSlot != .idle { return true }
-        if activeModule != .none && activeModule != .music && activeModule != .coding { return true }
-        if activeModule == .calendar && showCalendar { return true }
-        if !musicManager.isPlayerIdle || musicManager.isPlaying { return true }
         return false
     }
 
@@ -797,14 +805,19 @@ struct ContentView: View {
                     openMusicWithSpring()
                 }
                 return
-            } else if DinoCoordinator.shared.activeSlot == .pomodoro || shouldShowPomodoroInlineClosedVisual {
-                DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
-            } else if DinoCoordinator.shared.activeSlot == .music || shouldShowMusicClosedVisual {
-                DinoCoordinator.shared.activateSlotDirectly(.music)
-            } else if DinoCoordinator.shared.activeSlot == .calendar || shouldShowCalendarClosedVisual {
-                DinoCoordinator.shared.activateSlotDirectly(.calendar)
-            } else if DinoCoordinator.shared.activeSlot == .weather {
-                DinoCoordinator.shared.activateSlotDirectly(.weather)
+            } else {
+                switch DinoCoordinator.shared.activeSlot {
+                case .pomodoro:
+                    DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
+                case .music:
+                    DinoCoordinator.shared.activateSlotDirectly(.music)
+                case .calendar:
+                    DinoCoordinator.shared.activateSlotDirectly(.calendar)
+                case .weather:
+                    DinoCoordinator.shared.activateSlotDirectly(.weather)
+                default:
+                    break
+                }
             }
             doOpen()
         } else {

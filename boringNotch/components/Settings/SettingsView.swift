@@ -6000,8 +6000,13 @@ struct CalendarSettings: View {
                 .controlSize(.small)
                 .tint(.effectiveAccent)
                 .onChange(of: showCalendar) { _, enabled in
-                    if !enabled && Defaults[.activeModule] == .calendar {
-                        Defaults[.activeModule] = .none
+                    if !enabled {
+                        if Defaults[.activeModule] == .calendar {
+                            Defaults[.activeModule] = .none
+                        }
+                        if DinoCoordinator.shared.activeSlot == .calendar {
+                            DinoCoordinator.shared.activateSlotDirectly(DinoCoordinator.shared.backgroundSlot)
+                        }
                     }
                 }
         }

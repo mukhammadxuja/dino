@@ -393,6 +393,7 @@ public final class DinoCoordinator: ObservableObject {
         isSyncing = true
         defer { isSyncing = false }
         
+        // Sync tab view for expanded state
         switch slot {
         case .shelf:
             BoringViewCoordinator.shared.currentView = .shelf
@@ -401,36 +402,12 @@ public final class DinoCoordinator: ObservableObject {
         case .download, .webcam, .hud:
             break
         }
+        
+        // Update legacy Defaults[.activeModule] passively so Settings stay in sync
+        Defaults[.activeModule] = slot.asActiveModule
     }
     
     private func setupLegacyStateSync() {
-        // Observe Defaults[.activeModule] changes from UI / Settings
-        Defaults.publisher(.activeModule)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] change in
-                guard let self = self, !self.isSyncing else { return }
-                let module = change.newValue
-                if self.currentPriority <= .p2OnDemand {
-                    switch module {
-                    case .music:
-                        if self.activeSlot != .music { self.activateSlotDirectly(.music) }
-                    case .pomodoro:
-                        if self.activeSlot != .pomodoro { self.activateSlotDirectly(.pomodoro) }
-                    case .calendar:
-                        if self.activeSlot != .calendar { self.activateSlotDirectly(.calendar) }
-                    case .battery:
-                        if self.activeSlot != .battery { self.activateSlotDirectly(.battery) }
-                    case .shelf:
-                        if self.activeSlot != .shelf { self.activateSlotDirectly(.shelf) }
-                    case .coding:
-                        if self.activeSlot != .coding { self.activateSlotDirectly(.coding) }
-                    case .none:
-                        break
-                    }
-                }
-            }
-            .store(in: &cancellables)
-            
         // Observe BoringViewCoordinator tab switches
         BoringViewCoordinator.shared.$currentView
             .receive(on: DispatchQueue.main)

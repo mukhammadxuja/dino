@@ -30,7 +30,6 @@ public final class DinoHotKeyManager {
         // Calendar Module (`Cmd + Shift + A` or `Option + C`)
         let triggerCalendar: () -> Void = {
             Task { @MainActor in
-                Defaults[.showCalendar] = true
                 DinoCoordinator.shared.toggleOrMorphSlot(.calendar)
             }
         }
@@ -49,7 +48,6 @@ public final class DinoHotKeyManager {
         // Pomodoro Module (`Cmd + Shift + O` or `Option + O`)
         let triggerPomodoro: () -> Void = {
             Task { @MainActor in
-                Defaults[.pomodoroEnabled] = true
                 DinoCoordinator.shared.toggleOrMorphSlot(.pomodoro)
             }
         }

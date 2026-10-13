@@ -69,6 +69,8 @@ struct DinoSlotRouter: View {
         .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], delegate: GeneralDropTargetDelegate(isTargeted: $vm.generalDropTargeting))
     }
 
+    @ObservedObject private var dinoCoordinator = DinoCoordinator.shared
+
     // MARK: - Closed Slot View Routing
 
     @ViewBuilder
@@ -89,90 +91,78 @@ struct DinoSlotRouter: View {
                 gestureProgress: $gestureProgress
             )
             .transition(.opacity)
-        } else if DinoCoordinator.shared.activeSlot == .weather && vm.notchState == .closed {
-            WeatherClosedPillView()
-                .frame(
-                    width: isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 120 : 105) : (vm.closedNotchSize.width + 10),
-                    height: vm.effectiveClosedNotchHeight
+        } else if isDualActivityActive || dinoCoordinator.isDualActivityActive {
+            MusicLiveActivityView(
+                isCurrentDisplayIsland: isCurrentDisplayIsland,
+                isCurrentScreenBuiltin: isCurrentScreenBuiltin,
+                isShowingMusicSneakPeek: isShowingMusicSneakPeek,
+                mediaGestureDirection: mediaGestureDirection,
+                mediaGestureIconVisible: mediaGestureIconVisible,
+                coverRotationY: coverRotationY,
+                albumArtNamespace: albumArtNamespace,
+                isDualActivityActive: true,
+                useMusicVisualizer: useMusicVisualizer,
+                islandStyle: islandStyle,
+                showCoverHoverMusicDetails: $showCoverHoverMusicDetails,
+                coverHoverDismissTask: $coverHoverDismissTask,
+                onOpenPomodoro: onOpenPomodoro
+            )
+            .frame(alignment: .center)
+            .transition(.opacity)
+        } else {
+            switch dinoCoordinator.activeSlot {
+            case .music:
+                MusicLiveActivityView(
+                    isCurrentDisplayIsland: isCurrentDisplayIsland,
+                    isCurrentScreenBuiltin: isCurrentScreenBuiltin,
+                    isShowingMusicSneakPeek: isShowingMusicSneakPeek,
+                    mediaGestureDirection: mediaGestureDirection,
+                    mediaGestureIconVisible: mediaGestureIconVisible,
+                    coverRotationY: coverRotationY,
+                    albumArtNamespace: albumArtNamespace,
+                    isDualActivityActive: false,
+                    useMusicVisualizer: useMusicVisualizer,
+                    islandStyle: islandStyle,
+                    showCoverHoverMusicDetails: $showCoverHoverMusicDetails,
+                    coverHoverDismissTask: $coverHoverDismissTask,
+                    onOpenPomodoro: onOpenPomodoro
+                )
+                .frame(alignment: .center)
+                .transition(.opacity)
+
+            case .pomodoro:
+                PomodoroClosedNotchView(
+                    isCurrentDisplayIsland: isCurrentDisplayIsland,
+                    isCurrentScreenBuiltin: isCurrentScreenBuiltin
                 )
                 .transition(.opacity)
-        } else if isDualActivityActive {
-            MusicLiveActivityView(
-                isCurrentDisplayIsland: isCurrentDisplayIsland,
-                isCurrentScreenBuiltin: isCurrentScreenBuiltin,
-                isShowingMusicSneakPeek: isShowingMusicSneakPeek,
-                mediaGestureDirection: mediaGestureDirection,
-                mediaGestureIconVisible: mediaGestureIconVisible,
-                coverRotationY: coverRotationY,
-                albumArtNamespace: albumArtNamespace,
-                isDualActivityActive: isDualActivityActive,
-                useMusicVisualizer: useMusicVisualizer,
-                islandStyle: islandStyle,
-                showCoverHoverMusicDetails: $showCoverHoverMusicDetails,
-                coverHoverDismissTask: $coverHoverDismissTask,
-                onOpenPomodoro: onOpenPomodoro
-            )
-            .frame(alignment: .center)
-            .transition(.opacity)
-        } else if shouldShowPomodoroInlineClosedVisual {
-            PomodoroClosedNotchView(
-                isCurrentDisplayIsland: isCurrentDisplayIsland,
-                isCurrentScreenBuiltin: isCurrentScreenBuiltin
-            )
-            .transition(.opacity)
-        } else if shouldShowMusicClosedVisual {
-            MusicLiveActivityView(
-                isCurrentDisplayIsland: isCurrentDisplayIsland,
-                isCurrentScreenBuiltin: isCurrentScreenBuiltin,
-                isShowingMusicSneakPeek: isShowingMusicSneakPeek,
-                mediaGestureDirection: mediaGestureDirection,
-                mediaGestureIconVisible: mediaGestureIconVisible,
-                coverRotationY: coverRotationY,
-                albumArtNamespace: albumArtNamespace,
-                isDualActivityActive: isDualActivityActive,
-                useMusicVisualizer: useMusicVisualizer,
-                islandStyle: islandStyle,
-                showCoverHoverMusicDetails: $showCoverHoverMusicDetails,
-                coverHoverDismissTask: $coverHoverDismissTask,
-                onOpenPomodoro: onOpenPomodoro
-            )
-            .frame(alignment: .center)
-        } else if shouldShowCalendarClosedVisual {
-            CalendarClosedNotchView(
-                isCurrentDisplayIsland: isCurrentDisplayIsland,
-                isCurrentScreenBuiltin: isCurrentScreenBuiltin
-            )
-            .transition(.opacity)
-        } else if shouldShowNonMusicClosedVisual {
-            if showCalendar {
+
+            case .calendar:
                 CalendarClosedNotchView(
                     isCurrentDisplayIsland: isCurrentDisplayIsland,
                     isCurrentScreenBuiltin: isCurrentScreenBuiltin
                 )
                 .transition(.opacity)
-            } else if showNotHumanFace {
-                MinimalFaceFeatures()
+
+            case .weather:
+                WeatherClosedPillView()
                     .frame(
-                        width: isCurrentDisplayIsland ? 32 : getClosedNotchSize().width,
-                        height: isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 24 : 18) : vm.effectiveClosedNotchHeight,
-                        alignment: .center
+                        width: isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 120 : 105) : (vm.closedNotchSize.width + 10),
+                        height: vm.effectiveClosedNotchHeight
                     )
                     .transition(.opacity)
-            } else if showMirror {
-                CameraPreviewView(webcamManager: .shared)
-                    .frame(
-                        width: isCurrentDisplayIsland ? 32 : getClosedNotchSize().width,
-                        height: isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 24 : 18) : vm.effectiveClosedNotchHeight,
-                        alignment: .center
-                    )
+
+            case .battery:
+                BatteryClosedNotchLayoutView(isCurrentDisplayIsland: isCurrentDisplayIsland)
                     .transition(.opacity)
+
+            case .idle, .shelf, .download, .webcam, .coding, .hud:
+                if vm.notchState == .open {
+                    EmptyView()
+                } else {
+                    Rectangle().fill(.clear).frame(width: vm.closedNotchSize.width - 20, height: vm.effectiveClosedNotchHeight)
+                }
             }
-        } else if !coordinator.expandingView.show && vm.notchState == .closed && (!musicManager.isPlaying && musicManager.isPlayerIdle) && Defaults[.showNotHumanFace] && !vm.hideOnClosed {
-            boringFaceAnimation
-        } else if vm.notchState == .open {
-            EmptyView()
-        } else {
-            Rectangle().fill(.clear).frame(width: vm.closedNotchSize.width - 20, height: vm.effectiveClosedNotchHeight)
         }
 
         if coordinator.sneakPeek.show {
