@@ -277,6 +277,8 @@ struct GeneralSettings: View {
     @Default(.clipboardHistoryEnabled) var clipboardHistoryEnabled
     @Default(.clipboardHistoryAutoPaste) var clipboardHistoryAutoPaste
     @Default(.clipboardHistoryMaxItems) var clipboardHistoryMaxItems
+    @Default(.mirrorHUDEnabled) var mirrorHUDEnabled
+    @Default(.mirrorRingLight) var mirrorRingLight
 
     var body: some View {
         ScrollView {
@@ -485,6 +487,75 @@ struct GeneralSettings: View {
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
+                        }
+                    }
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                    )
+                }
+
+                // MARK: - 3. Mirror HUD Card
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Mirror (HUD)")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.secondary)
+                        customBadge(text: "⌥M")
+                    }
+
+                    VStack(spacing: 0) {
+                        // Master Toggle: Enable Mirror HUD
+                        settingRow(
+                            icon: "video.fill",
+                            iconColor: Color.blue,
+                            title: "Enable mirror HUD",
+                            subtitle: "Quickly check your appearance from the notch with zero background battery usage",
+                            isOn: $mirrorHUDEnabled
+                        )
+
+                        if mirrorHUDEnabled {
+                            cardDivider
+
+                            // Shortcut recorder row
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                        .fill(Color.blue.opacity(0.12))
+                                        .frame(width: 28, height: 28)
+                                    Image(systemName: "keyboard.fill")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(Color.blue)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Global shortcut")
+                                        .font(.system(size: 13.5, weight: .medium))
+                                        .foregroundColor(.primary)
+                                    Text("Press shortcut from anywhere to open mirror HUD")
+                                        .font(.system(size: 11.5))
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                DinoShortcutRecorder(name: .mirrorHUDPanel)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+
+                            cardDivider
+
+                            // Default Ring Light toggle
+                            settingRow(
+                                icon: "lightbulb.fill",
+                                iconColor: Color.yellow,
+                                title: "Soft Ring Light default",
+                                subtitle: "Automatically illuminate the viewport perimeter for low-light environments",
+                                isOn: $mirrorRingLight
+                            )
                         }
                     }
                     .background(Color.white)
@@ -7245,10 +7316,10 @@ struct Appearance: View {
             NotificationCenter.default.post(name: .displaySettingsChanged, object: nil)
         }
         .onChange(of: builtinFormFactor) {
-            NotificationCenter.default.post(name: .displaySettingsChanged, object: nil)
+            NotificationCenter.default.post(name: .formFactorChanged, object: nil)
         }
         .onChange(of: externalFormFactor) {
-            NotificationCenter.default.post(name: .displaySettingsChanged, object: nil)
+            NotificationCenter.default.post(name: .formFactorChanged, object: nil)
         }
         .onChange(of: islandVisibility) {
             NotificationCenter.default.post(name: .displaySettingsChanged, object: nil)
@@ -7601,9 +7672,10 @@ struct Shortcuts: View {
 
             Section {
                 DinoShortcutRow("Clipboard History (HUD):", name: .clipboardHistoryPanel)
+                DinoShortcutRow("Mirror (HUD):", name: .mirrorHUDPanel)
                 DinoShortcutRow("Toggle Notch Open:", name: .toggleNotchOpen)
             } header: {
-                Text("Panels & Overlays")
+                Text("Floating HUDs & Overlays")
             }
             Section {
                 DinoShortcutRow("Pomodoro Skip Break:", name: .pomodoroEmergencyExit)

@@ -68,6 +68,33 @@ struct IslandContainerLayout<Content: View>: View {
         }
     }
 
+    @ObservedObject private var dinoCoordinator = DinoCoordinator.shared
+
+    private var isMirrorOpen: Bool {
+        vm.notchState == .open && dinoCoordinator.activeSlot == .webcam
+    }
+
+    private var openHorizontalPadding: CGFloat {
+        if isMirrorOpen {
+            return isCurrentDisplayIsland ? 12 : (topCornerRadius + 14)
+        }
+        return isCurrentDisplayIsland ? 22 : (topCornerRadius + 14)
+    }
+
+    private var openTopPadding: CGFloat {
+        if isMirrorOpen {
+            return isCurrentDisplayIsland ? 12 : (vm.effectiveClosedNotchHeight + 8)
+        }
+        return 18
+    }
+
+    private var openBottomPadding: CGFloat {
+        if isMirrorOpen {
+            return isCurrentDisplayIsland ? 12 : 14
+        }
+        return 18
+    }
+
     // MARK: - Main Pill Shell
 
     @ViewBuilder
@@ -77,11 +104,11 @@ struct IslandContainerLayout<Content: View>: View {
             .padding(
                 .horizontal,
                 vm.notchState == .open
-                    ? (isCurrentDisplayIsland ? 22 : (topCornerRadius + 14))
+                    ? openHorizontalPadding
                     : (isCurrentDisplayIsland ? (isShowingMusicSneakPeek ? 10 : 8) : (topCornerRadius + 6))
             )
-            .padding(.top, vm.notchState == .open ? 18 : (isShowingMusicSneakPeek ? 4 : 0))
-            .padding(.bottom, vm.notchState == .open ? 18 : (isShowingMusicSneakPeek ? 6 : 0))
+            .padding(.top, vm.notchState == .open ? openTopPadding : (isShowingMusicSneakPeek ? 4 : 0))
+            .padding(.bottom, vm.notchState == .open ? openBottomPadding : (isShowingMusicSneakPeek ? 6 : 0))
             .background(surfaceBackground)
             .conditionalModifier(isCurrentDisplayIsland) { view in
                 view.clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))

@@ -429,6 +429,12 @@ extension Defaults.Keys {
     static let clipboardHistoryEnabled = Key<Bool>("clipboardHistoryEnabled", default: true)
     static let clipboardHistoryAutoPaste = Key<Bool>("clipboardHistoryAutoPaste", default: true)
     static let clipboardHistoryMaxItems = Key<Int>("clipboardHistoryMaxItems", default: 50)
+
+    // MARK: Mirror HUD
+    static let mirrorHUDEnabled = Key<Bool>("mirrorHUDEnabled", default: true)
+    static let mirrorRingLight = Key<Bool>("mirrorRingLight", default: false)
+    static let mirrorZoomLevel = Key<Double>("mirrorZoomLevel", default: 1.0)
+    static let mirrorIsFlipped = Key<Bool>("mirrorIsFlipped", default: true)
     
     // MARK: Gestures
     static let enableGestures = Key<Bool>("enableGestures", default: true)

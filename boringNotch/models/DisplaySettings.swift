@@ -99,4 +99,5 @@ extension Defaults.Keys {
 // MARK: - 7. Notification Names
 public extension Notification.Name {
     static let displaySettingsChanged = Notification.Name("displaySettingsChanged")
+    static let formFactorChanged = Notification.Name("formFactorChanged")
 }

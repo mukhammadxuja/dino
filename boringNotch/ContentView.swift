@@ -160,11 +160,17 @@ struct ContentView: View {
     }
 
     private var currentNotchShape: NotchShape {
-        NotchShape(
-            topCornerRadius: topCornerRadius,
-            bottomCornerRadius: ((vm.notchState == .open) && Defaults[.cornerRadiusScaling])
+        let bottomRadius: CGFloat = {
+            if DinoCoordinator.shared.activeSlot == .webcam && vm.notchState == .open {
+                return 24
+            }
+            return ((vm.notchState == .open) && Defaults[.cornerRadiusScaling])
                 ? cornerRadiusInsets.opened.bottom
                 : cornerRadiusInsets.closed.bottom
+        }()
+        return NotchShape(
+            topCornerRadius: topCornerRadius,
+            bottomCornerRadius: bottomRadius
         )
     }
 
@@ -172,6 +178,10 @@ struct ContentView: View {
 
     private var isShowingMusicSneakPeek: Bool {
         (showCoverHoverMusicDetails || (coordinator.sneakPeek.show && coordinator.sneakPeek.type == .music))
+            && musicManager.isPlaying
+            && !musicManager.isPlayerIdle
+            && !musicManager.songTitle.isEmpty
+            && Defaults[.enableSneakPeek]
             && vm.notchState == .closed
             && !vm.hideOnClosed
             && (Defaults[.sneakPeekStyles] == .standard || showCoverHoverMusicDetails)
@@ -294,7 +304,14 @@ struct ContentView: View {
             && vm.notchState == .closed
     }
 
+    private var mirrorCardSize: CGSize {
+        vm.mirrorSlotCardSize(isIsland: isCurrentDisplayIsland)
+    }
+
     private var desiredOpenNotchWidth: CGFloat {
+        if DinoCoordinator.shared.activeSlot == .webcam {
+            return mirrorCardSize.width
+        }
         switch coordinator.currentView {
         case .home, .shelf:
             return isCurrentDisplayIsland ? 385 : 435
@@ -304,6 +321,9 @@ struct ContentView: View {
     }
 
     private var desiredOpenNotchHeight: CGFloat {
+        if DinoCoordinator.shared.activeSlot == .webcam {
+            return mirrorCardSize.height
+        }
         switch coordinator.currentView {
         case .home, .shelf:
             return 188
@@ -389,6 +409,17 @@ struct ContentView: View {
             }
         } else {
             applyChange()
+        }
+    }
+
+    private func handleFormFactorAnimation() {
+        withAnimation(.interactiveSpring(response: 0.44, dampingFraction: 0.80)) {
+            vm.closedNotchSize = getClosedNotchSize(screenUUID: vm.screenUUID)
+            if vm.notchState == .open {
+                updateOpenNotchWidth()
+            } else {
+                vm.notchSize = vm.closedNotchSize
+            }
         }
     }
 
@@ -506,11 +537,20 @@ struct ContentView: View {
                     .onChange(of: vm.isCameraExpanded) { _, _ in
                         updateOpenNotchWidth()
                     }
-                    .onReceive(WebcamManager.shared.$cameraAvailable) { _ in
+                    .onReceive(DinoCoordinator.shared.$activeSlot) { _ in
                         updateOpenNotchWidth()
                     }
+                    .onChange(of: builtinFormFactor) { _, _ in
+                        handleFormFactorAnimation()
+                    }
+                    .onChange(of: externalFormFactor) { _, _ in
+                        handleFormFactorAnimation()
+                    }
                     .onReceive(MusicManager.shared.$songTitle) { newTitle in
-                        guard !newTitle.isEmpty else { return }
+                        guard !newTitle.isEmpty,
+                              musicManager.isPlaying,
+                              !musicManager.isPlayerIdle,
+                              Defaults[.enableSneakPeek] else { return }
                         withAnimation(.spring(response: 0.55, dampingFraction: 0.72)) {
                             coverRotationY -= 180
                         }

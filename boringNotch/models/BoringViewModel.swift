@@ -12,6 +12,23 @@ import SwiftUI
 class BoringViewModel: NSObject, ObservableObject {
     public static var activeInstance: BoringViewModel?
     public static var shared: BoringViewModel {
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            let mouseLocation = NSEvent.mouseLocation
+            for screen in NSScreen.screens {
+                if NSMouseInRect(mouseLocation, screen.frame, false),
+                   let uuid = screen.displayUUID,
+                   let vm = appDelegate.viewModels[uuid] {
+                    return vm
+                }
+            }
+            if let mainUUID = NSScreen.main?.displayUUID,
+               let vm = appDelegate.viewModels[mainUUID] {
+                return vm
+            }
+            if let firstVM = appDelegate.viewModels.values.first {
+                return firstVM
+            }
+        }
         if let active = activeInstance { return active }
         let fallback = BoringViewModel()
         activeInstance = fallback
@@ -202,6 +219,33 @@ class BoringViewModel: NSObject, ObservableObject {
         return false
     }
 
+    func mirrorSlotCardSize(isIsland: Bool) -> CGSize {
+        let isBuiltin = (screenUUID.flatMap { NSScreen.screen(withUUID: $0) } ?? NSScreen.main)?.isBuiltin ?? true
+        
+        let width: CGFloat
+        let hPadding: CGFloat
+        let topPadding: CGFloat
+        let bottomPadding: CGFloat
+        
+        if isIsland {
+            width = isBuiltin ? 150 : 130
+            hPadding = 12
+            topPadding = 12
+            bottomPadding = 12
+        } else {
+            let topCornerRadius: CGFloat = 10
+            let musicExpansion = (2 * max(0, effectiveClosedNotchHeight - 12) + (isBuiltin ? 38 : 24))
+            width = closedNotchSize.width + (2 * topCornerRadius) + 8 + musicExpansion
+            hPadding = topCornerRadius + 14
+            topPadding = effectiveClosedNotchHeight + 8
+            bottomPadding = 14
+        }
+        
+        let cameraSide = width - (2 * hPadding)
+        let height = topPadding + cameraSide + bottomPadding
+        return CGSize(width: width, height: height)
+    }
+
     func open() {
         let isIsland: Bool = {
             let screen = screenUUID.flatMap { NSScreen.screen(withUUID: $0) } ?? NSScreen.main
@@ -216,10 +260,18 @@ class BoringViewModel: NSObject, ObservableObject {
             }
         }()
         let homeWidth: CGFloat = isIsland ? 385 : 435
-        let isUnifiedCard = (coordinator.currentView == .home || coordinator.currentView == .shelf)
-        let openWidth: CGFloat = isUnifiedCard ? homeWidth : openNotchSize.width
-        let openHeight: CGFloat = isUnifiedCard ? 188 : openNotchSize.height
-        self.notchSize = .init(width: openWidth, height: openHeight)
+        let isUnifiedCard = (coordinator.currentView == .home || coordinator.currentView == .shelf || DinoCoordinator.shared.activeSlot == .webcam)
+        
+        let openSize: CGSize
+        if DinoCoordinator.shared.activeSlot == .webcam {
+            openSize = mirrorSlotCardSize(isIsland: isIsland)
+        } else if isUnifiedCard {
+            openSize = CGSize(width: homeWidth, height: 188)
+        } else {
+            openSize = openNotchSize
+        }
+        
+        self.notchSize = openSize
         self.notchState = .open
         DinoCoordinator.shared.isExpanded = true
         

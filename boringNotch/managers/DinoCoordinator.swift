@@ -265,6 +265,10 @@ public final class DinoCoordinator: ObservableObject {
         
         guard currentPriority == .p2OnDemand else { return }
         
+        if self.activeSlot == .webcam {
+            ScreenRingLightManager.shared.hide()
+        }
+        
         withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
             if let previous = interruptStack.popLast(), previous.priority <= .p3Background {
                 self.activeSlot = previous.slot
@@ -286,6 +290,10 @@ public final class DinoCoordinator: ObservableObject {
         onDemandDismissTask?.cancel()
         onDemandDismissTask = nil
         interruptStack.removeAll { $0.slot == slot }
+        
+        if slot == .webcam {
+            ScreenRingLightManager.shared.hide()
+        }
         
         withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
             if self.activeSlot == slot {
@@ -348,26 +356,40 @@ public final class DinoCoordinator: ObservableObject {
     /// - 2nd press (same slot open): closes card and returns to previous P3 background
     /// - Cross-shortcut press (different slot open): smoothly morphs content and size in-place without closing
     public func toggleOrMorphSlot(_ slot: DinoSlot) {
-        let isOpen = BoringViewModel.shared.notchState == .open
+        let appDelegate = NSApp.delegate as? AppDelegate
+        let allVMs: [BoringViewModel] = {
+            if let vms = appDelegate?.viewModels.values, !vms.isEmpty {
+                return Array(vms)
+            }
+            return [BoringViewModel.shared]
+        }()
+        
+        let isOpen = allVMs.contains { $0.notchState == .open }
         let isCurrentSame = (activeSlot == slot)
         
         if isOpen && isCurrentSame {
             // Case 2: 2nd press on same slot -> Close card and return to underlying P3 background
             withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
-                BoringViewModel.shared.close()
+                for vm in allVMs {
+                    vm.close()
+                }
                 self.dismissOnDemand()
             }
         } else if isOpen && !isCurrentSame {
             // Case 3: Switch between shortcuts while open -> In-place seamless morph without closing!
             withAnimation(.interactiveSpring(response: 0.36, dampingFraction: 0.76)) {
                 self.activateOnDemand(slot, timeout: nil)
-                BoringViewModel.shared.open()
+                for vm in allVMs {
+                    vm.open()
+                }
             }
         } else {
             // Case 1: 1st press while closed -> Open card directly
             withAnimation(.interactiveSpring(response: 0.36, dampingFraction: 0.74)) {
                 self.activateOnDemand(slot, timeout: nil)
-                BoringViewModel.shared.open()
+                for vm in allVMs {
+                    vm.open()
+                }
             }
         }
     }

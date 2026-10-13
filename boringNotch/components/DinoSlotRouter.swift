@@ -215,11 +215,15 @@ struct DinoSlotRouter: View {
     @ViewBuilder
     private var openNotchContent: some View {
         VStack {
-            switch coordinator.currentView {
-            case .home, .calendar:
-                NotchHomeView(albumArtNamespace: albumArtNamespace)
-            case .shelf:
-                shelfView
+            if dinoCoordinator.activeSlot == .webcam {
+                mirrorView
+            } else {
+                switch coordinator.currentView {
+                case .home, .calendar:
+                    NotchHomeView(albumArtNamespace: albumArtNamespace)
+                case .shelf:
+                    shelfView
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -227,6 +231,11 @@ struct DinoSlotRouter: View {
         .zIndex(1)
         .allowsHitTesting(vm.notchState == .open)
         .opacity(gestureProgress != 0 ? 1.0 - min(abs(gestureProgress) * 0.1, 0.3) : 1.0)
+    }
+
+    private var mirrorView: some View {
+        MirrorSlotView(isCurrentDisplayIsland: isCurrentDisplayIsland)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var shelfView: some View {

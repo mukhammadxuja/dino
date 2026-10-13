@@ -16,7 +16,15 @@ class WebcamManager: NSObject, ObservableObject {
         }
     }
     
-    private var captureSession: AVCaptureSession?
+    public private(set) var captureSession: AVCaptureSession?
+
+    public func createPreviewLayer() -> AVCaptureVideoPreviewLayer? {
+        guard let session = self.captureSession else { return nil }
+        let layer = AVCaptureVideoPreviewLayer(session: session)
+        layer.videoGravity = .resizeAspectFill
+        return layer
+    }
+
     @Published var isSessionRunning: Bool = false {
         didSet {
             objectWillChange.send()
@@ -174,11 +182,6 @@ class WebcamManager: NSObject, ObservableObject {
                 session.sessionPreset = .high
                 session.addInput(videoInput)
                 
-                let videoOutput = AVCaptureVideoDataOutput()
-                videoOutput.setSampleBufferDelegate(nil, queue: nil)
-                if session.canAddOutput(videoOutput) {
-                    session.addOutput(videoOutput)
-                }
                 session.commitConfiguration()
                 
                 self.captureSession = session
@@ -206,7 +209,7 @@ class WebcamManager: NSObject, ObservableObject {
             }
         }
     }
-    
+
     /// Cleans up an existing capture session, removing all inputs and outputs
     private func cleanupExistingSession() {
         if let existingSession = self.captureSession {

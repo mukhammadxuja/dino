@@ -632,6 +632,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             }
         }
 
+        NotificationCenter.default.addObserver(forName: Notification.Name.formFactorChanged, object: nil, queue: nil) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self else { return }
+                withAnimation(.interactiveSpring(response: 0.44, dampingFraction: 0.80)) {
+                    var allVMs = Array(self.viewModels.values)
+                    allVMs.append(self.vm)
+                    for viewModel in allVMs {
+                        viewModel.closedNotchSize = getClosedNotchSize(screenUUID: viewModel.screenUUID)
+                        if viewModel.notchState == .closed {
+                            viewModel.notchSize = viewModel.closedNotchSize
+                        }
+                    }
+                }
+            }
+        }
+
         NotificationCenter.default.addObserver(forName: Notification.Name.expandedDragDetectionChanged, object: nil, queue: nil) { [weak self] _ in
             Task { @MainActor in
                 self?.setupDragDetectors()

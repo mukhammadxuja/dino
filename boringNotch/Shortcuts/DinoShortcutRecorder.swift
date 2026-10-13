@@ -32,6 +32,7 @@ public final class ShortcutRegistry: ObservableObject {
 
     public let allManagedShortcuts: [ManagedShortcut] = [
         .init(name: .clipboardHistoryPanel, title: "Clipboard History (HUD)", category: "Panels"),
+        .init(name: .mirrorHUDPanel, title: "Mirror (HUD)", category: "Panels"),
         .init(name: .toggleNotchOpen, title: "Toggle Notch Open", category: "Panels"),
         .init(name: .toggleSneakPeek, title: "Sneak Peek", category: "Media"),
         .init(name: .selectMusicModule, title: "Now Playing (Music)", category: "Modules"),
