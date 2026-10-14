@@ -642,12 +642,6 @@ struct GeneralSettings: View {
                                 )
 
                                 gestureGuideRow(
-                                    icon: "hand.tap.fill",
-                                    action: "Double Tap",
-                                    description: "Instantly Play or Pause music without opening the notch"
-                                )
-
-                                gestureGuideRow(
                                     icon: "rectangle.split.3x1.fill",
                                     action: "Swipe while Open",
                                     description: "Carousel loop between Music, Pomodoro, and Shelf (Drop zone)"

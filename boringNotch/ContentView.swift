@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var hoverTask: Task<Void, Never>?
     @State private var isHovering: Bool = false
     @State private var anyDropDebounceTask: Task<Void, Never>?
+    @State private var openNotchHoverWatchdogTask: Task<Void, Never>?
 
     @State private var gestureProgress: CGFloat = .zero
 
@@ -479,19 +480,6 @@ struct ContentView: View {
                             handleHover(hovering)
                         }
                     }
-                    .onTapGesture(count: 2) {
-                        if Defaults[.enableGestures] && (musicManager.isPlaying || !musicManager.isPlayerIdle) {
-                            MusicManager.shared.playPause()
-                            if Defaults[.enableHaptics] {
-                                haptics.toggle()
-                            }
-                        }
-                    }
-                    .onTapGesture(count: 1) {
-                        if !(isDualActivityActive && isCurrentDisplayIsland && vm.notchState == .closed) {
-                            handleTap()
-                        }
-                    }
                     .conditionalModifier(Defaults[.enableGestures]) { view in
                         view
                             .panGesture(direction: .down) { translation, phase in
@@ -523,6 +511,10 @@ struct ContentView: View {
                         coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
                         if newState == .open {
                             updateOpenNotchWidth()
+                            startOpenNotchWatchdog()
+                        } else {
+                            openNotchHoverWatchdogTask?.cancel()
+                            openNotchHoverWatchdogTask = nil
                         }
                     }
                     .onChange(of: coordinator.currentView) { _, _ in
@@ -860,14 +852,8 @@ struct ContentView: View {
         } else {
             switch Defaults[.idleClickAction] {
             case .none:
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.52, blendDuration: 0)) {
-                    emptyClickBounce = true
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.65, blendDuration: 0)) {
-                        emptyClickBounce = false
-                    }
-                }
+                coordinator.currentView = (!ShelfStateViewModel.shared.isEmpty && Defaults[.openShelfByDefault]) ? .shelf : .home
+                doOpen()
             case .music:
                 DinoCoordinator.shared.activateSlotDirectly(.music)
                 coordinator.currentView = .home
@@ -898,6 +884,52 @@ struct ContentView: View {
         withAnimation(animationSpring) {
             vm.open()
             vm.notchSize = .init(width: desiredOpenNotchWidth, height: desiredOpenNotchHeight)
+        }
+    }
+
+    // MARK: - Open Notch Watchdog & Hover Safety
+
+    private func isMouseInsideOpenNotch() -> Bool {
+        guard let screen = currentTargetScreen else { return false }
+        let mouseLoc = NSEvent.mouseLocation
+        let screenFrame = screen.frame
+        let notchWidth = max(vm.notchSize.width, 385) + 30
+        let notchHeight = vm.notchSize.height + (isCurrentDisplayIsland ? 70 : 30)
+        let notchRect = CGRect(
+            x: screenFrame.midX - notchWidth / 2,
+            y: screenFrame.maxY - notchHeight,
+            width: notchWidth,
+            height: notchHeight
+        )
+        return NSMouseInRect(mouseLoc, notchRect, false)
+    }
+
+    private func startOpenNotchWatchdog() {
+        openNotchHoverWatchdogTask?.cancel()
+        openNotchHoverWatchdogTask = Task { @MainActor in
+            while !Task.isCancelled && vm.notchState == .open {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled && vm.notchState == .open else { break }
+
+                if SharingStateManager.shared.preventNotchClose || vm.isBatteryPopoverActive {
+                    continue
+                }
+
+                if !isMouseInsideOpenNotch() {
+                    try? await Task.sleep(for: .milliseconds(180))
+                    guard !Task.isCancelled && vm.notchState == .open else { break }
+
+                    if !isMouseInsideOpenNotch() && !SharingStateManager.shared.preventNotchClose && !vm.isBatteryPopoverActive {
+                        self.showCoverHoverMusicDetails = false
+                        self.coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
+                        self.vm.close()
+                        withAnimation(self.animationSpring) {
+                            self.isHovering = false
+                        }
+                        break
+                    }
+                }
+            }
         }
     }
 

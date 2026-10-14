@@ -42,8 +42,6 @@ struct IslandContainerLayout<Content: View>: View {
                 .onHover { hovering in
                     if isDualActivityActive && vm.notchState == .closed {
                         onMainPillHover(hovering)
-                    } else {
-                        onHover(hovering)
                     }
                 }
                 .onTapGesture {
