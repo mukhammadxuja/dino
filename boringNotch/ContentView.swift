@@ -1443,6 +1443,7 @@ struct MusicLiveActivityView: View {
     @State private var isVisualizerHovering: Bool = false
     @State private var isCoverHovering: Bool = false
     @State private var isSongDetailsHovered: Bool = false
+    @State private var isPomodoroHovered: Bool = false
     @State private var showCopiedFeedback: Bool = false
 
     public init(
@@ -1536,21 +1537,33 @@ struct MusicLiveActivityView: View {
                 if isDualActivityActive && !isCurrentDisplayIsland {
                     HStack {
                         Spacer(minLength: 0)
-                        Text(pomodoroManager.formattedRemainingTime)
-                            .font(.system(size: isCurrentScreenBuiltin ? 12.5 : 11.0, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
-                            .lineLimit(1)
+                        Button(action: {
+                            onOpenPomodoro?()
+                        }) {
+                            Text(pomodoroManager.formattedRemainingTime)
+                                .font(.system(size: isCurrentScreenBuiltin ? 12.5 : 11.0, weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
+                                .lineLimit(1)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3.5)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(isPomodoroHovered ? Color.white.opacity(0.18) : Color.clear)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.16)) {
+                                isPomodoroHovered = hovering
+                            }
+                        }
                         Spacer(minLength: 0)
                     }
                     .frame(
                         width: defaultCenterSpacerWidth,
                         height: vm.effectiveClosedNotchHeight
                     )
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onOpenPomodoro?()
-                    }
                 } else {
                     Rectangle()
                         .fill(Color.clear)
