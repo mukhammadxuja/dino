@@ -42,7 +42,7 @@ struct DinoSlotRouter: View {
     private var musicManager: MusicManager { MusicManager.shared }
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .top) {
             if vm.notchState == .closed || coordinator.helloAnimationRunning {
                 VStack(spacing: 0) {
                     if coordinator.helloAnimationRunning {
@@ -59,11 +59,14 @@ struct DinoSlotRouter: View {
                         closedSlotView
                     }
                 }
+                .transition(.opacity)
                 .zIndex(2)
             }
 
             if vm.notchState == .open {
                 openNotchContent
+                    .transition(.opacity)
+                    .zIndex(1)
             }
         }
         .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], delegate: GeneralDropTargetDelegate(isTargeted: $vm.generalDropTargeting))

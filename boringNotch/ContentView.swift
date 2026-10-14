@@ -501,7 +501,7 @@ struct ContentView: View {
                                 guard !Task.isCancelled else { return }
                                 await MainActor.run {
                                     if self.vm.notchState == .open && !self.isHovering && !self.vm.isBatteryPopoverActive && !SharingStateManager.shared.preventNotchClose {
-                                        self.vm.close()
+                                        self.closeWithSpring()
                                     }
                                 }
                             }
@@ -584,7 +584,7 @@ struct ContentView: View {
                                 guard !Task.isCancelled else { return }
                                 await MainActor.run {
                                     if !self.vm.isBatteryPopoverActive && !self.isHovering && self.vm.notchState == .open && !SharingStateManager.shared.preventNotchClose {
-                                        self.vm.close()
+                                        self.closeWithSpring()
                                     }
                                 }
                             }
@@ -645,7 +645,7 @@ struct ContentView: View {
 
                 vm.dropEvent = false
                 if !SharingStateManager.shared.preventNotchClose {
-                    vm.close()
+                    closeWithSpring()
                 }
             }
         }
@@ -744,9 +744,15 @@ struct ContentView: View {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             haptics.toggle()
         }
-        DinoCoordinator.shared.activateSlotDirectly(.music)
-        coordinator.currentView = .home
-        doOpen()
+        lastOpenedAt = Date()
+        showCoverHoverMusicDetails = false
+        coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
+        let targetSize = CGSize(width: desiredOpenNotchWidth, height: desiredOpenNotchHeight)
+        withAnimation(animationSpring) {
+            DinoCoordinator.shared.activateSlotDirectly(.music)
+            coordinator.currentView = .home
+            vm.open(targetSize: targetSize)
+        }
     }
 
     private func openPomodoroWithSpring() {
@@ -754,10 +760,16 @@ struct ContentView: View {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             haptics.toggle()
         }
-        DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
-        Defaults[.pomodoroEnabled] = true
-        coordinator.currentView = .home
-        doOpen()
+        lastOpenedAt = Date()
+        showCoverHoverMusicDetails = false
+        coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
+        let targetSize = CGSize(width: desiredOpenNotchWidth, height: desiredOpenNotchHeight)
+        withAnimation(animationSpring) {
+            DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
+            Defaults[.pomodoroEnabled] = true
+            coordinator.currentView = .home
+            vm.open(targetSize: targetSize)
+        }
     }
 
     private func handleMainPillHover(_ hovering: Bool) {
@@ -779,8 +791,8 @@ struct ContentView: View {
                 haptics.toggle()
             }
 
-            // Show music sneak peek (song title & artist)
-            if !MusicManager.shared.isPlayerIdle {
+            // Show music sneak peek (song title & artist) only if not in dual activity
+            if !MusicManager.shared.isPlayerIdle && !isDualActivityActive {
                 withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
                     showCoverHoverMusicDetails = true
                 }
@@ -889,6 +901,16 @@ struct ContentView: View {
         }
     }
 
+    private func closeWithSpring() {
+        let closeAnimation = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.74, blendDuration: 0)
+        withAnimation(closeAnimation) {
+            isHovering = false
+            showCoverHoverMusicDetails = false
+            coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
+            vm.close()
+        }
+    }
+
     // MARK: - Open Notch Watchdog & Hover Safety
 
     private func isMouseInsideOpenNotch() -> Bool {
@@ -931,12 +953,7 @@ struct ContentView: View {
                     guard !Task.isCancelled && vm.notchState == .open else { break }
 
                     if !isMouseInsideOpenNotch() && !SharingStateManager.shared.preventNotchClose && !vm.isBatteryPopoverActive {
-                        self.showCoverHoverMusicDetails = false
-                        self.coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
-                        self.vm.close()
-                        withAnimation(self.animationSpring) {
-                            self.isHovering = false
-                        }
+                        self.closeWithSpring()
                         break
                     }
                 }
@@ -1011,10 +1028,8 @@ struct ContentView: View {
                 
                 await MainActor.run {
                     if self.vm.notchState == .open && !self.vm.isBatteryPopoverActive && !SharingStateManager.shared.preventNotchClose {
-                        self.showCoverHoverMusicDetails = false
-                        self.coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
-                        // 1. Morph open notch back to closed island pill
-                        self.vm.close()
+                        // 1. Morph open notch back to closed island pill with spring
+                        self.closeWithSpring()
                         
                         // 2. Allow collapse animation to complete and stay visible briefly, then retract up and disappear
                         Task { @MainActor in
@@ -1089,12 +1104,9 @@ struct ContentView: View {
         }
 
         if translation > effectiveGestureThreshold {
-            withAnimation(animationSpring) {
-                isHovering = false
-            }
             if !SharingStateManager.shared.preventNotchClose { 
                 gestureProgress = .zero
-                vm.close()
+                closeWithSpring()
             }
 
             if Defaults[.enableHaptics] {
