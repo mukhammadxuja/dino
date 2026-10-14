@@ -33,9 +33,6 @@ struct BoringHeader: View {
                 Rectangle()
                     .fill(NSScreen.screen(withUUID: coordinator.selectedScreenUUID)?.safeAreaInsets.top ?? 0 > 0 ? .black : .clear)
                     .frame(width: vm.closedNotchSize.width)
-                    .mask {
-                        NotchShape()
-                    }
             }
 
             HStack(spacing: 6) {

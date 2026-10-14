@@ -246,7 +246,7 @@ class BoringViewModel: NSObject, ObservableObject {
         return CGSize(width: width, height: height)
     }
 
-    func open() {
+    func open(targetSize: CGSize? = nil) {
         let isIsland: Bool = {
             let screen = screenUUID.flatMap { NSScreen.screen(withUUID: $0) } ?? NSScreen.main
             let isBuiltin = screen?.isBuiltin ?? true
@@ -263,7 +263,9 @@ class BoringViewModel: NSObject, ObservableObject {
         let isUnifiedCard = (coordinator.currentView == .home || coordinator.currentView == .shelf || DinoCoordinator.shared.activeSlot == .webcam)
         
         let openSize: CGSize
-        if DinoCoordinator.shared.activeSlot == .webcam {
+        if let targetSize = targetSize {
+            openSize = targetSize
+        } else if DinoCoordinator.shared.activeSlot == .webcam {
             openSize = mirrorSlotCardSize(isIsland: isIsland)
         } else if isUnifiedCard {
             openSize = CGSize(width: homeWidth, height: 188)

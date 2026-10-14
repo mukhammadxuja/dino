@@ -156,9 +156,9 @@ struct ContentView: View {
     }
 
     private var topCornerRadius: CGFloat {
-       ((vm.notchState == .open) && Defaults[.cornerRadiusScaling])
-                ? cornerRadiusInsets.opened.top
-                : cornerRadiusInsets.closed.top
+        ((vm.notchState == .open) && Defaults[.cornerRadiusScaling])
+            ? cornerRadiusInsets.opened.top
+            : cornerRadiusInsets.closed.top
     }
 
     private var currentNotchShape: NotchShape {
@@ -512,7 +512,6 @@ struct ContentView: View {
                         coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
                         if newState == .open {
                             lastOpenedAt = Date()
-                            updateOpenNotchWidth()
                             startOpenNotchWatchdog()
                         } else {
                             openNotchHoverWatchdogTask?.cancel()
@@ -884,9 +883,9 @@ struct ContentView: View {
         lastOpenedAt = Date()
         showCoverHoverMusicDetails = false
         coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
+        let targetSize = CGSize(width: desiredOpenNotchWidth, height: desiredOpenNotchHeight)
         withAnimation(animationSpring) {
-            vm.open()
-            vm.notchSize = .init(width: desiredOpenNotchWidth, height: desiredOpenNotchHeight)
+            vm.open(targetSize: targetSize)
         }
     }
 

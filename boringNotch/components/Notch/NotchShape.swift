@@ -36,6 +36,27 @@ struct NotchShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
 
+        guard rect.width > 0 && rect.height > 0 else { return path }
+
+        var tRadius = max(0, topCornerRadius)
+        var bRadius = max(0, bottomCornerRadius)
+
+        // Ensure vertical curves fit within available height so vertical lines never invert/self-intersect
+        let sumRadii = tRadius + bRadius
+        if sumRadii > rect.height && sumRadii > 0 {
+            let scale = rect.height / sumRadii
+            tRadius *= scale
+            bRadius *= scale
+        }
+
+        // Ensure horizontal corners fit within available width
+        let totalWidthNeeded = (tRadius + bRadius) * 2
+        if totalWidthNeeded > rect.width && totalWidthNeeded > 0 {
+            let scale = rect.width / totalWidthNeeded
+            tRadius *= scale
+            bRadius *= scale
+        }
+
         path.move(
             to: CGPoint(
                 x: rect.minX,
@@ -45,55 +66,55 @@ struct NotchShape: Shape {
 
         path.addQuadCurve(
             to: CGPoint(
-                x: rect.minX + topCornerRadius,
-                y: rect.minY + topCornerRadius
+                x: rect.minX + tRadius,
+                y: rect.minY + tRadius
             ),
             control: CGPoint(
-                x: rect.minX + topCornerRadius,
+                x: rect.minX + tRadius,
                 y: rect.minY
             )
         )
 
         path.addLine(
             to: CGPoint(
-                x: rect.minX + topCornerRadius,
-                y: rect.maxY - bottomCornerRadius
+                x: rect.minX + tRadius,
+                y: rect.maxY - bRadius
             )
         )
 
         path.addQuadCurve(
             to: CGPoint(
-                x: rect.minX + topCornerRadius + bottomCornerRadius,
+                x: rect.minX + tRadius + bRadius,
                 y: rect.maxY
             ),
             control: CGPoint(
-                x: rect.minX + topCornerRadius,
+                x: rect.minX + tRadius,
                 y: rect.maxY
             )
         )
 
         path.addLine(
             to: CGPoint(
-                x: rect.maxX - topCornerRadius - bottomCornerRadius,
+                x: rect.maxX - tRadius - bRadius,
                 y: rect.maxY
             )
         )
 
         path.addQuadCurve(
             to: CGPoint(
-                x: rect.maxX - topCornerRadius,
-                y: rect.maxY - bottomCornerRadius
+                x: rect.maxX - tRadius,
+                y: rect.maxY - bRadius
             ),
             control: CGPoint(
-                x: rect.maxX - topCornerRadius,
+                x: rect.maxX - tRadius,
                 y: rect.maxY
             )
         )
 
         path.addLine(
             to: CGPoint(
-                x: rect.maxX - topCornerRadius,
-                y: rect.minY + topCornerRadius
+                x: rect.maxX - tRadius,
+                y: rect.minY + tRadius
             )
         )
 
@@ -103,7 +124,7 @@ struct NotchShape: Shape {
                 y: rect.minY
             ),
             control: CGPoint(
-                x: rect.maxX - topCornerRadius,
+                x: rect.maxX - tRadius,
                 y: rect.minY
             )
         )
