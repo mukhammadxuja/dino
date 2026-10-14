@@ -208,6 +208,31 @@ struct ContentView: View {
             && vm.notchState == .closed
     }
 
+    private var isClosedExpandingChin: Bool {
+        vm.notchState == .closed
+            && (isShowingMusicSneakPeek || isShowingSystemToastHUD || isDualActivityActive || (coordinator.expandingView.show && coordinator.expandingView.type == .battery))
+    }
+
+    private var containerFrameWidth: CGFloat? {
+        if vm.notchState == .open {
+            return vm.notchSize.width
+        }
+        if isClosedExpandingChin {
+            return nil
+        }
+        return vm.notchSize.width
+    }
+
+    private var containerFrameHeight: CGFloat? {
+        if vm.notchState == .open {
+            return vm.notchSize.height
+        }
+        if isClosedExpandingChin {
+            return nil
+        }
+        return vm.notchSize.height
+    }
+
     private var computedChinWidth: CGFloat {
         let activeSlot = DinoCoordinator.shared.activeSlot
 
@@ -450,8 +475,8 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 islandContainerView
                     .frame(
-                        width: vm.notchState == .open ? vm.notchSize.width : nil,
-                        height: vm.notchState == .open ? vm.notchSize.height : nil,
+                        width: containerFrameWidth,
+                        height: containerFrameHeight,
                         alignment: .top
                     )
                     .scaleEffect(

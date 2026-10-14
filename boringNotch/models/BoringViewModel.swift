@@ -296,13 +296,17 @@ class BoringViewModel: NSObject, ObservableObject {
         if SharingStateManager.shared.preventNotchClose {
             return
         }
-        self.notchSize = getClosedNotchSize(screenUUID: self.screenUUID)
-        self.closedNotchSize = self.notchSize
-        self.notchState = .closed
-        DinoCoordinator.shared.isExpanded = false
-        self.isBatteryPopoverActive = false
-        self.coordinator.sneakPeek.show = false
-        self.edgeAutoOpenActive = false
+        let targetClosedSize = getClosedNotchSize(screenUUID: self.screenUUID)
+        let closeAnimation = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.74, blendDuration: 0)
+        withAnimation(closeAnimation) {
+            self.notchSize = targetClosedSize
+            self.closedNotchSize = targetClosedSize
+            self.notchState = .closed
+            DinoCoordinator.shared.isExpanded = false
+            self.isBatteryPopoverActive = false
+            self.coordinator.sneakPeek.show = false
+            self.edgeAutoOpenActive = false
+        }
 
         // Set the current view to shelf if it contains files and the user enables openShelfByDefault
         // Otherwise, if the user has not enabled openLastShelfByDefault, set the view to home
