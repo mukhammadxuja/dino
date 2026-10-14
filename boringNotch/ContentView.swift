@@ -25,6 +25,7 @@ struct ContentView: View {
     @State private var isHovering: Bool = false
     @State private var anyDropDebounceTask: Task<Void, Never>?
     @State private var openNotchHoverWatchdogTask: Task<Void, Never>?
+    @State private var lastOpenedAt: Date = .distantPast
 
     @State private var gestureProgress: CGFloat = .zero
 
@@ -510,6 +511,7 @@ struct ContentView: View {
                         showCoverHoverMusicDetails = false
                         coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
                         if newState == .open {
+                            lastOpenedAt = Date()
                             updateOpenNotchWidth()
                             startOpenNotchWatchdog()
                         } else {
@@ -879,6 +881,7 @@ struct ContentView: View {
     }
 
     private func doOpen() {
+        lastOpenedAt = Date()
         showCoverHoverMusicDetails = false
         coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
         withAnimation(animationSpring) {
@@ -907,8 +910,12 @@ struct ContentView: View {
     private func startOpenNotchWatchdog() {
         openNotchHoverWatchdogTask?.cancel()
         openNotchHoverWatchdogTask = Task { @MainActor in
+            // Initial grace period: allow opening spring animation to settle before checking
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled && vm.notchState == .open else { return }
+
             while !Task.isCancelled && vm.notchState == .open {
-                try? await Task.sleep(for: .milliseconds(250))
+                try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled && vm.notchState == .open else { break }
 
                 if SharingStateManager.shared.preventNotchClose || vm.isBatteryPopoverActive {
@@ -916,7 +923,12 @@ struct ContentView: View {
                 }
 
                 if !isMouseInsideOpenNotch() {
-                    try? await Task.sleep(for: .milliseconds(180))
+                    let timeSinceOpen = Date().timeIntervalSince(self.lastOpenedAt)
+                    let graceRemaining = max(0, 0.7 - timeSinceOpen)
+                    let collapseDelay = max(0.35, Defaults[.collapseDelay])
+                    let totalDelay = graceRemaining + collapseDelay
+
+                    try? await Task.sleep(for: .seconds(totalDelay))
                     guard !Task.isCancelled && vm.notchState == .open else { break }
 
                     if !isMouseInsideOpenNotch() && !SharingStateManager.shared.preventNotchClose && !vm.isBatteryPopoverActive {
@@ -990,8 +1002,12 @@ struct ContentView: View {
             }
             
             hoverTask = Task {
-                let delay = max(0.20, Defaults[.collapseDelay])
-                try? await Task.sleep(for: .seconds(delay))
+                let timeSinceOpen = Date().timeIntervalSince(self.lastOpenedAt)
+                let graceRemaining = max(0, 0.7 - timeSinceOpen)
+                let collapseDelay = max(0.35, Defaults[.collapseDelay])
+                let totalDelay = graceRemaining + collapseDelay
+
+                try? await Task.sleep(for: .seconds(totalDelay))
                 guard !Task.isCancelled else { return }
                 
                 await MainActor.run {
