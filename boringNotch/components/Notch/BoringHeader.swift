@@ -34,10 +34,7 @@ struct BoringHeader: View {
                     .fill(NSScreen.screen(withUUID: coordinator.selectedScreenUUID)?.safeAreaInsets.top ?? 0 > 0 ? .black : .clear)
                     .frame(width: vm.closedNotchSize.width)
                     .mask {
-                        NotchShape(
-                            topCornerRadius: cornerRadiusInsets.closed.top,
-                            bottomCornerRadius: cornerRadiusInsets.closed.bottom
-                        )
+                        NotchShape()
                     }
             }
 
