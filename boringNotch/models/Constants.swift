@@ -549,6 +549,11 @@ extension Defaults.Keys {
     )
     static let pomodoroPersistedSession = Key<Data?>("pomodoroPersistedSession", default: nil)
     
+    // MARK: Code / Antigravity
+    static let codeActivityEnabled = Key<Bool>("codeActivityEnabled", default: false)
+    static let codeSoundNotifications = Key<Bool>("codeSoundNotifications", default: true)
+    static let codeShowInClosedNotch = Key<Bool>("codeShowInClosedNotch", default: true)
+    
     // MARK: Fullscreen Media Detection
     static let hideNotchOption = Key<HideNotchOption>("hideNotchOption", default: .nowPlayingOnly)
     

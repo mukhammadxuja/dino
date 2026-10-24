@@ -8,12 +8,9 @@
 import SwiftUI
 import Combine
 import Network
-
-import SwiftUI
-import Combine
-import Network
 import AppKit
 import AVFoundation
+import Defaults
 
 /// Represents all lifecycle phases of Antigravity AI Agent with unique colors and states
 public enum AntigravityPhase: Equatable {
@@ -261,14 +258,25 @@ public final class AntigravityManager: ObservableObject {
     
     /// Trigger a specific phase manually or from logs
     public func setPhase(_ phase: AntigravityPhase, autoDismissAfter: Double? = nil) {
+        guard Defaults[.codeActivityEnabled] else {
+            if self.isVisible || self.currentPhase != .idle {
+                self.isVisible = false
+                self.currentPhase = .idle
+                BoringViewCoordinator.shared.toggleExpandingView(status: false, type: .antigravity)
+            }
+            return
+        }
+
         NSLog("🚀 [Antigravity] PHASE CHANGED -> [%@] %@", phase.title, phase.subtitle)
         
         // Play notification sound when agent needs user response or finishes task
-        switch phase {
-        case .waitingInput, .askingPermission, .taskCompleted:
-            playCompletedSound()
-        default:
-            break
+        if Defaults[.codeSoundNotifications] {
+            switch phase {
+            case .waitingInput, .askingPermission, .taskCompleted:
+                playCompletedSound()
+            default:
+                break
+            }
         }
         
         withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
@@ -276,11 +284,13 @@ public final class AntigravityManager: ObservableObject {
             self.isVisible = (phase != .idle)
         }
         
-        // Expand closed notch width smoothly
-        BoringViewCoordinator.shared.toggleExpandingView(
-            status: (phase != .idle),
-            type: .antigravity
-        )
+        // Expand closed notch width smoothly if enabled for closed notch
+        if Defaults[.codeShowInClosedNotch] {
+            BoringViewCoordinator.shared.toggleExpandingView(
+                status: (phase != .idle),
+                type: .antigravity
+            )
+        }
         
         // Determine dismiss duration: Exactly 5 seconds for taskCompleted, 4.5s for normal steps, nil for waitingInput
         let effectiveDismissDelay: Double? = {
@@ -350,6 +360,10 @@ public final class AntigravityManager: ObservableObject {
             
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 300_000_000) // Poll every 300ms
+                
+                guard Defaults[.codeActivityEnabled] else {
+                    continue
+                }
                 
                 guard let transcriptPath = Self.findLatestTranscript(in: brainDir) else {
                     continue

@@ -302,7 +302,9 @@ struct ContentView: View {
     }
 
     private var isAntigravityActive: Bool {
-        ((coordinator.expandingView.type == .antigravity && coordinator.expandingView.show) || antigravityManager.isVisible)
+        Defaults[.codeActivityEnabled]
+            && Defaults[.codeShowInClosedNotch]
+            && ((coordinator.expandingView.type == .antigravity && coordinator.expandingView.show) || antigravityManager.isVisible)
             && antigravityManager.currentPhase != .idle
             && vm.notchState == .closed
     }
