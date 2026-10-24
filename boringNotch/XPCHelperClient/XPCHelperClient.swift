@@ -1,5 +1,6 @@
 import Foundation
 import Cocoa
+import ApplicationServices
 import AsyncXPCConnection
 
 final class XPCHelperClient: NSObject {
@@ -98,6 +99,10 @@ final class XPCHelperClient: NSObject {
     // MARK: - Accessibility
     
     nonisolated func requestAccessibilityAuthorization() {
+        // Direct system prompt for host app (boringNotch)
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        AXIsProcessTrustedWithOptions(options)
+
         Task {
             let service = await MainActor.run {
                 ensureRemoteService()
@@ -109,6 +114,13 @@ final class XPCHelperClient: NSObject {
     }
     
     nonisolated func isAccessibilityAuthorized() async -> Bool {
+        if AXIsProcessTrusted() {
+            await MainActor.run {
+                notifyAuthorizationChange(true)
+            }
+            return true
+        }
+
         do {
             let service = await MainActor.run {
                 ensureRemoteService()
@@ -118,16 +130,32 @@ final class XPCHelperClient: NSObject {
                     continuation.resume(returning: authorized)
                 }
             }
+            let isTrusted = result || AXIsProcessTrusted()
             await MainActor.run {
-                notifyAuthorizationChange(result)
+                notifyAuthorizationChange(isTrusted)
             }
-            return result
+            return isTrusted
         } catch {
-            return false
+            let mainTrusted = AXIsProcessTrusted()
+            await MainActor.run {
+                notifyAuthorizationChange(mainTrusted)
+            }
+            return mainTrusted
         }
     }
     
     nonisolated func ensureAccessibilityAuthorization(promptIfNeeded: Bool) async -> Bool {
+        if AXIsProcessTrusted() {
+            await MainActor.run {
+                notifyAuthorizationChange(true)
+            }
+            return true
+        }
+
+        if promptIfNeeded {
+            requestAccessibilityAuthorization()
+        }
+
         do {
             let service = await MainActor.run {
                 ensureRemoteService()
@@ -137,12 +165,17 @@ final class XPCHelperClient: NSObject {
                     continuation.resume(returning: authorized)
                 }
             }
+            let isTrusted = result || AXIsProcessTrusted()
             await MainActor.run {
-                notifyAuthorizationChange(result)
+                notifyAuthorizationChange(isTrusted)
             }
-            return result
+            return isTrusted
         } catch {
-            return false
+            let mainTrusted = AXIsProcessTrusted()
+            await MainActor.run {
+                notifyAuthorizationChange(mainTrusted)
+            }
+            return mainTrusted
         }
     }
     
