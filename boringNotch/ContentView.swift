@@ -58,6 +58,7 @@ struct ContentView: View {
     @State private var emptyClickBounce: Bool = false
     @State private var isScaleHovered: Bool = false
     @State private var scaleHoverTask: Task<Void, Never>?
+    @State private var idleBounceTask: Task<Void, Never>?
     
     // Displays & Island Mode
     @Default(.displaySelection) var displaySelection
@@ -835,6 +836,21 @@ struct ContentView: View {
         }
     }
 
+    private func triggerIdleBounce() {
+        idleBounceTask?.cancel()
+        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
+        withAnimation(.interactiveSpring(response: 0.16, dampingFraction: 0.45, blendDuration: 0)) {
+            emptyClickBounce = true
+        }
+        idleBounceTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
+            withAnimation(.interactiveSpring(response: 0.30, dampingFraction: 0.52, blendDuration: 0)) {
+                self.emptyClickBounce = false
+            }
+        }
+    }
+
     private func handleTap() {
         if vm.notchState == .open {
             return
@@ -865,8 +881,7 @@ struct ContentView: View {
         } else {
             switch Defaults[.idleClickAction] {
             case .none:
-                coordinator.currentView = (!ShelfStateViewModel.shared.isEmpty && Defaults[.openShelfByDefault]) ? .shelf : .home
-                doOpen()
+                triggerIdleBounce()
             case .music:
                 DinoCoordinator.shared.activateSlotDirectly(.music)
                 coordinator.currentView = .home
