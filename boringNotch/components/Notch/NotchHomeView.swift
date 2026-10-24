@@ -239,6 +239,7 @@ struct MusicControlsView: View {
                 }
             }
         }
+        
     }
 
     private var musicSlider: some View {

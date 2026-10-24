@@ -50,10 +50,16 @@ struct SystemEventIndicatorModifier: View {
                         .frame(width: 20, height: 15)
                         .foregroundStyle(.white)
                 case .mic:
-                    Image(systemName: value > 0 ? "mic.fill" : "mic.slash.fill")
-                        .foregroundStyle(value > 0 ? Color.white : Color.red)
-                        .contentTransition(.interpolate)
-                        .frame(width: 20, height: 15)
+                    ZStack {
+                        Capsule()
+                            .fill(value.isZero ? Color.red : Color.green)
+                            .frame(width: 24, height: 16)
+                        Image(systemName: value.isZero ? "mic.slash.fill" : "mic.fill")
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundStyle(Color.white)
+                    }
+                    .contentTransition(.interpolate)
+                    .frame(width: 24, height: 16)
                 case .micActivity:
                     ZStack {
                         if value > 0 {
@@ -71,15 +77,37 @@ struct SystemEventIndicatorModifier: View {
                     .contentTransition(.interpolate)
                     .frame(width: 24, height: 16)
                 case .camera:
-                    Image(systemName: value > 0 ? "video.fill" : "video.slash.fill")
-                        .foregroundStyle(value > 0 ? Color.green : Color.gray)
-                        .contentTransition(.interpolate)
-                        .frame(width: 20, height: 15)
+                    ZStack {
+                        if value > 0 {
+                            Capsule()
+                                .fill(Color.green)
+                                .frame(width: 24, height: 16)
+                            Image(systemName: "video.fill")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundStyle(Color.white)
+                        } else {
+                            Image(systemName: "video.slash.fill")
+                                .foregroundStyle(Color.gray)
+                        }
+                    }
+                    .contentTransition(.interpolate)
+                    .frame(width: 24, height: 16)
                 case .screenRecord:
-                    Image(systemName: value > 0 ? "record.circle.fill" : "record.circle")
-                        .foregroundStyle(value > 0 ? Color.red : Color.gray)
-                        .contentTransition(.interpolate)
-                        .frame(width: 20, height: 15)
+                    ZStack {
+                        if value > 0 {
+                            Capsule()
+                                .fill(Color.red)
+                                .frame(width: 24, height: 16)
+                            Image(systemName: "record.circle.fill")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundStyle(Color.white)
+                        } else {
+                            Image(systemName: "record.circle")
+                                .foregroundStyle(Color.gray)
+                        }
+                    }
+                    .contentTransition(.interpolate)
+                    .frame(width: 24, height: 16)
                 default:
                     EmptyView()
             }

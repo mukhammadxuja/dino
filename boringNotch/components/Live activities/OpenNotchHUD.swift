@@ -35,9 +35,15 @@ struct OpenNotchHUD: View {
                     Image(systemName: value > 0.5 ? "light.max" : "light.min")
                         .contentTransition(.interpolate)
                 case .mic:
-                    Image(systemName: value > 0 ? "mic.fill" : "mic.slash.fill")
-                        .foregroundColor(value > 0 ? .white : .red)
-                        .contentTransition(.interpolate)
+                    ZStack {
+                        Capsule()
+                            .fill(value.isZero ? Color.red : Color.green)
+                            .frame(width: 26, height: 18)
+                        Image(systemName: value.isZero ? "mic.slash.fill" : "mic.fill")
+                            .font(.system(size: 10.5, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .contentTransition(.interpolate)
                 case .micActivity:
                     ZStack {
                         if value > 0 {
@@ -54,13 +60,35 @@ struct OpenNotchHUD: View {
                     }
                     .contentTransition(.interpolate)
                 case .camera:
-                    Image(systemName: value > 0 ? "video.fill" : "video.slash.fill")
-                        .foregroundColor(value > 0 ? .green : .gray)
-                        .contentTransition(.interpolate)
+                    ZStack {
+                        if value > 0 {
+                            Capsule()
+                                .fill(Color.green)
+                                .frame(width: 26, height: 18)
+                            Image(systemName: "video.fill")
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundColor(.white)
+                        } else {
+                            Image(systemName: "video.slash.fill")
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .contentTransition(.interpolate)
                 case .screenRecord:
-                    Image(systemName: value > 0 ? "record.circle.fill" : "record.circle")
-                        .foregroundColor(value > 0 ? .red : .gray)
-                        .contentTransition(.interpolate)
+                    ZStack {
+                        if value > 0 {
+                            Capsule()
+                                .fill(Color.red)
+                                .frame(width: 26, height: 18)
+                            Image(systemName: "record.circle.fill")
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundColor(.white)
+                        } else {
+                            Image(systemName: "record.circle")
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .contentTransition(.interpolate)
                 default:
                     EmptyView()
                 }

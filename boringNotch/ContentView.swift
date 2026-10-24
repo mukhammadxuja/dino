@@ -214,7 +214,7 @@ struct ContentView: View {
 
         if isCurrentDisplayIsland {
             if isShowingSystemToastHUD {
-                return isCurrentScreenBuiltin ? 210 : 185
+                return isCurrentScreenBuiltin ? 210 : 150
             } else if isShowingMusicSneakPeek {
                 return isCurrentScreenBuiltin ? 190 : 165
             } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show && vm.notchState == .closed {
@@ -252,7 +252,11 @@ struct ContentView: View {
                 chinWidth = 640
             }
         } else if isShowingSystemToastHUD {
-            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 60)
+            if isCurrentScreenBuiltin {
+                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 60)
+            } else {
+                chinWidth = 150
+            }
         } else if isDualActivityActive || DinoCoordinator.shared.isDualActivityActive {
             if isCurrentDisplayIsland {
                 chinWidth = isCurrentScreenBuiltin ? 150 : 130

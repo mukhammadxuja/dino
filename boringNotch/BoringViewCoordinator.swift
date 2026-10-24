@@ -209,50 +209,109 @@ class BoringViewCoordinator: ObservableObject {
         }
     }
 
+    // MARK: - SneakPeek Sequential Queue (Variant B)
+    struct SneakPeekQueueItem: Equatable {
+        let type: SneakContentType
+        let duration: TimeInterval
+        let value: CGFloat
+        let icon: String
+    }
+
+    private var sneakPeekQueue: [SneakPeekQueueItem] = []
+    private var activeSneakPeekType: SneakContentType?
+    private var activeSneakPeekStartTime: Date = .distantPast
+
     func toggleSneakPeek(
         status: Bool, type: SneakContentType, duration: TimeInterval = 1.5, value: CGFloat = 0,
         icon: String = ""
     ) {
-        sneakPeekDuration = duration
+        if !status {
+            Task { @MainActor in
+                self.sneakPeekQueue.removeAll { $0.type == type }
+                if self.activeSneakPeekType == type {
+                    if !self.sneakPeekQueue.isEmpty {
+                        let nextItem = self.sneakPeekQueue.removeFirst()
+                        self.presentSneakPeek(
+                            type: nextItem.type,
+                            duration: nextItem.duration,
+                            value: nextItem.value,
+                            icon: nextItem.icon
+                        )
+                    } else {
+                        self.activeSneakPeekType = nil
+                        self.dismissSneakPeek()
+                    }
+                }
+            }
+            return
+        }
+
         if type != .music && type != .mic && type != .micActivity && type != .camera && type != .screenRecord {
-            // close()
             if !Defaults[.hudReplacement] {
                 return
             }
         }
+
         Task { @MainActor in
-            withAnimation(.smooth) {
-                self.sneakPeek.show = status
-                self.sneakPeek.type = type
-                self.sneakPeek.value = value
-                self.sneakPeek.icon = icon
+            let isCurrentlyShowing = self.sneakPeek.show
+            let isDifferentType = (self.activeSneakPeekType != nil && self.activeSneakPeekType != type)
+            let elapsedSinceStart = Date().timeIntervalSince(self.activeSneakPeekStartTime)
+
+            if isCurrentlyShowing && isDifferentType && elapsedSinceStart < 1.2 {
+                // Queue the incoming HUD item sequentially so both get full visibility
+                let item = SneakPeekQueueItem(type: type, duration: duration, value: value, icon: icon)
+                self.sneakPeekQueue.removeAll { $0.type == type }
+                self.sneakPeekQueue.append(item)
+                return
             }
 
-            // Sync with DinoCoordinator SSOT Priority Stack (P1 Toast)
-            if type != .music {
-                if status {
-                    let hudSlot: DinoSlot = {
-                        switch type {
-                        case .volume: return .hud(.volume(value: Double(value)))
-                        case .brightness: return .hud(.brightness(value: Double(value)))
-                        case .backlight: return .hud(.backlight(value: Double(value)))
-                        case .mic: return .hud(.micMute(isMuted: value.isZero))
-                        case .micActivity: return .hud(.micActivity(isActive: value > 0))
-                        case .camera: return .hud(.camera(isActive: value > 0))
-                        case .screenRecord: return .hud(.screenRecord(isRecording: value > 0))
-                        default: return .hud(.volume(value: Double(value)))
-                        }
-                    }()
-                    DinoCoordinator.shared.triggerToast(hudSlot, duration: duration)
-                } else {
-                    DinoCoordinator.shared.dismissToast()
-                }
-            }
+            self.presentSneakPeek(type: type, duration: duration, value: value, icon: icon)
         }
 
         if type == .mic {
             currentMicStatus = !value.isZero
         }
+    }
+
+    @MainActor
+    private func presentSneakPeek(type: SneakContentType, duration: TimeInterval, value: CGFloat, icon: String) {
+        activeSneakPeekType = type
+        activeSneakPeekStartTime = Date()
+        sneakPeekDuration = duration
+
+        withAnimation(.smooth) {
+            self.sneakPeek.show = true
+            self.sneakPeek.type = type
+            self.sneakPeek.value = value
+            self.sneakPeek.icon = icon
+        }
+
+        // Sync with DinoCoordinator SSOT Priority Stack (P1 Toast)
+        if type != .music {
+            let hudSlot: DinoSlot = {
+                switch type {
+                case .volume: return .hud(.volume(value: Double(value)))
+                case .brightness: return .hud(.brightness(value: Double(value)))
+                case .backlight: return .hud(.backlight(value: Double(value)))
+                case .mic: return .hud(.micMute(isMuted: value.isZero))
+                case .micActivity: return .hud(.micActivity(isActive: value > 0))
+                case .camera: return .hud(.camera(isActive: value > 0))
+                case .screenRecord: return .hud(.screenRecord(isRecording: value > 0))
+                default: return .hud(.volume(value: Double(value)))
+                }
+            }()
+            DinoCoordinator.shared.triggerToast(hudSlot, duration: duration)
+        }
+
+        scheduleSneakPeekHide(after: duration)
+    }
+
+    @MainActor
+    private func dismissSneakPeek() {
+        withAnimation(.smooth) {
+            self.sneakPeek.show = false
+        }
+        DinoCoordinator.shared.dismissToast()
     }
 
     private var sneakPeekDuration: TimeInterval = 1.5
@@ -266,17 +325,26 @@ class BoringViewCoordinator: ObservableObject {
             try? await Task.sleep(for: .seconds(duration))
             guard let self = self, !Task.isCancelled else { return }
             await MainActor.run {
-                self.toggleSneakPeek(status: false, type: .music, duration: 0.25)
-                self.sneakPeekDuration = 1.5
+                if !self.sneakPeekQueue.isEmpty {
+                    let nextItem = self.sneakPeekQueue.removeFirst()
+                    self.presentSneakPeek(
+                        type: nextItem.type,
+                        duration: nextItem.duration,
+                        value: nextItem.value,
+                        icon: nextItem.icon
+                    )
+                } else {
+                    self.activeSneakPeekType = nil
+                    self.dismissSneakPeek()
+                    self.sneakPeekDuration = 1.5
+                }
             }
         }
     }
 
     @Published var sneakPeek: sneakPeek = .init() {
         didSet {
-            if sneakPeek.show {
-                scheduleSneakPeekHide(after: sneakPeekDuration)
-            } else {
+            if !sneakPeek.show {
                 sneakPeekTask?.cancel()
             }
         }
