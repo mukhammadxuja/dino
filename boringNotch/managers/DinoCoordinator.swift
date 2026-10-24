@@ -35,6 +35,9 @@ public enum DinoSlot: Equatable, Hashable, Sendable {
         case brightness(value: Double)
         case backlight(value: Double)
         case micMute(isMuted: Bool)
+        case micActivity(isActive: Bool)
+        case camera(isActive: Bool)
+        case screenRecord(isRecording: Bool)
     }
     
     var asActiveModule: ActiveNotchModule {

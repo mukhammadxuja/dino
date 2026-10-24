@@ -50,15 +50,40 @@ struct SystemEventIndicatorModifier: View {
                         .frame(width: 20, height: 15)
                         .foregroundStyle(.white)
                 case .mic:
-                    Image(systemName: "mic")
-                        .symbolVariant(value > 0 ? .none : .slash)
+                    Image(systemName: value > 0 ? "mic.fill" : "mic.slash.fill")
+                        .foregroundStyle(value > 0 ? Color.white : Color.red)
                         .contentTransition(.interpolate)
                         .frame(width: 20, height: 15)
-                        .foregroundStyle(.white)
+                case .micActivity:
+                    ZStack {
+                        if value > 0 {
+                            Capsule()
+                                .fill(Color.orange)
+                                .frame(width: 24, height: 16)
+                            Image(systemName: "mic.fill")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundStyle(Color.white)
+                        } else {
+                            Image(systemName: "mic.slash.fill")
+                                .foregroundStyle(Color.gray)
+                        }
+                    }
+                    .contentTransition(.interpolate)
+                    .frame(width: 24, height: 16)
+                case .camera:
+                    Image(systemName: value > 0 ? "video.fill" : "video.slash.fill")
+                        .foregroundStyle(value > 0 ? Color.green : Color.gray)
+                        .contentTransition(.interpolate)
+                        .frame(width: 20, height: 15)
+                case .screenRecord:
+                    Image(systemName: value > 0 ? "record.circle.fill" : "record.circle")
+                        .foregroundStyle(value > 0 ? Color.red : Color.gray)
+                        .contentTransition(.interpolate)
+                        .frame(width: 20, height: 15)
                 default:
                     EmptyView()
             }
-            if (eventType != .mic) {
+            if (eventType != .mic && eventType != .micActivity && eventType != .camera && eventType != .screenRecord) {
                 DraggableProgressBar(value: $value)
                 if Defaults[.showClosedNotchHUDPercentage] {
                     Text("\(Int(value * 100))%")
@@ -67,9 +92,24 @@ struct SystemEventIndicatorModifier: View {
                         .monospacedDigit()
                         .frame(width: 35, alignment: .trailing)
                 }
-            } else {
-                Text("Mic \(value > 0 ? "unmuted" : "muted")")
+            } else if eventType == .mic {
+                Text(value > 0 ? "unmuted" : "muted")
                     .foregroundStyle(.gray)
+                    .lineLimit(1)
+                    .allowsTightening(true)
+            } else if eventType == .micActivity {
+                Text(value > 0 ? "Mic On" : "Mic Off")
+                    .foregroundStyle(value > 0 ? Color.orange : Color.gray)
+                    .lineLimit(1)
+                    .allowsTightening(true)
+            } else if eventType == .camera {
+                Text(value > 0 ? "Camera On" : "Camera Off")
+                    .foregroundStyle(value > 0 ? Color.green : Color.gray)
+                    .lineLimit(1)
+                    .allowsTightening(true)
+            } else if eventType == .screenRecord {
+                Text(value > 0 ? "Recording" : "Stopped")
+                    .foregroundStyle(value > 0 ? Color.red : Color.gray)
                     .lineLimit(1)
                     .allowsTightening(true)
             }

@@ -742,6 +742,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         DinoHotKeyManager.shared.registerAllShortcuts()
         _ = ClipboardManager.shared
+        _ = MicrophoneManager.shared
+        _ = PrivacyHUDManager.shared
 
         setupStrictModeObservers()
         setupScreenGlowObservers()

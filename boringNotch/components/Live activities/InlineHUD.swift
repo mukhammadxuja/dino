@@ -42,9 +42,38 @@ struct InlineHUD: View {
                                 .contentTransition(.interpolate)
                                 .frame(width: 20, height: 15, alignment: .center)
                         case .mic:
-                            Image(systemName: "mic")
+                            Image(systemName: value > 0 ? "mic.fill" : "mic.slash.fill")
                                 .symbolRenderingMode(.hierarchical)
-                                .symbolVariant(value > 0 ? .none : .slash)
+                                .foregroundStyle(value > 0 ? Color.white : Color.red)
+                                .contentTransition(.interpolate)
+                                .frame(width: 20, height: 15, alignment: .center)
+                        case .micActivity:
+                            ZStack {
+                                if value > 0 {
+                                    Capsule()
+                                        .fill(Color.orange)
+                                        .frame(width: 24, height: 16)
+                                    Image(systemName: "mic.fill")
+                                        .font(.system(size: 9.5, weight: .bold))
+                                        .foregroundStyle(Color.white)
+                                } else {
+                                    Image(systemName: "mic.slash.fill")
+                                        .symbolRenderingMode(.hierarchical)
+                                        .foregroundStyle(Color.gray)
+                                }
+                            }
+                            .contentTransition(.interpolate)
+                            .frame(width: 24, height: 16, alignment: .center)
+                        case .camera:
+                            Image(systemName: value > 0 ? "video.fill" : "video.slash.fill")
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(value > 0 ? Color.green : Color.gray)
+                                .contentTransition(.interpolate)
+                                .frame(width: 20, height: 15, alignment: .center)
+                        case .screenRecord:
+                            Image(systemName: value > 0 ? "record.circle.fill" : "record.circle")
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(value > 0 ? Color.red : Color.gray)
                                 .contentTransition(.interpolate)
                                 .frame(width: 20, height: 15, alignment: .center)
                         default:
@@ -54,12 +83,14 @@ struct InlineHUD: View {
                 .foregroundStyle(.white)
                 .symbolVariant(.fill)
                 
-                Text(Type2Name(type))
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                    .allowsTightening(true)
-                    .contentTransition(.numericText())
+                if type != .mic && type != .micActivity && type != .camera && type != .screenRecord {
+                    Text(Type2Name(type))
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                        .allowsTightening(true)
+                        .contentTransition(.numericText())
+                }
             }
             .frame(width: 100 - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.notchSize.height - (hoverAnimation ? 0 : 12), alignment: .leading)
             
@@ -70,7 +101,35 @@ struct InlineHUD: View {
             HStack {
                 if (type == .mic) {
                     Text(value.isZero ? "muted" : "unmuted")
-                        .foregroundStyle(.gray)
+                        .foregroundStyle(value.isZero ? Color.red.opacity(0.85) : Color.gray)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .lineLimit(1)
+                        .allowsTightening(true)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .contentTransition(.interpolate)
+                } else if (type == .micActivity) {
+                    Text(value > 0 ? "Mic On" : "Mic Off")
+                        .foregroundStyle(value > 0 ? Color.orange : Color.gray)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .lineLimit(1)
+                        .allowsTightening(true)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .contentTransition(.interpolate)
+                } else if (type == .camera) {
+                    Text(value > 0 ? "Camera On" : "Camera Off")
+                        .foregroundStyle(value > 0 ? Color.green : Color.gray)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .lineLimit(1)
+                        .allowsTightening(true)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .contentTransition(.interpolate)
+                } else if (type == .screenRecord) {
+                    Text(value > 0 ? "Recording" : "Stopped")
+                        .foregroundStyle(value > 0 ? Color.red : Color.gray)
+                        .font(.system(size: 11.5, weight: .medium))
                         .lineLimit(1)
                         .allowsTightening(true)
                         .multilineTextAlignment(.trailing)

@@ -8,6 +8,7 @@
 import AppKit
 import Combine
 import CoreAudio
+import CoreMediaIO
 import Foundation
 
 final class VolumeManager: NSObject, ObservableObject {
@@ -374,5 +375,522 @@ final class VolumeManager: NSObject, ObservableObject {
 extension Array where Element == Float32 {
     fileprivate var average: Float32? { isEmpty ? nil : reduce(0, +) / Float32(count) }
 }
+
+// MARK: - Microphone Manager (Input Devices & Mute Listener)
+final class MicrophoneManager: NSObject, ObservableObject {
+    static let shared = MicrophoneManager()
+
+    @Published private(set) var isMuted: Bool = false
+    @Published private(set) var rawVolume: Float32 = 1.0
+
+    private var previousVolumeBeforeMute: Float32 = 0.8
+    private var didInitialFetch = false
+    private var currentListeningDeviceID: AudioObjectID = kAudioObjectUnknown
+
+    override init() {
+        super.init()
+        setupInputListener()
+        fetchCurrentInputState(isExternalChange: false)
+    }
+
+    func start() {
+        // Ensures singleton is initialized and listening
+    }
+
+    // MARK: - Public Control API
+    @MainActor func toggleMute() {
+        let deviceID = systemInputDeviceID()
+        guard deviceID != kAudioObjectUnknown else { return }
+
+        let willBeMuted = !isMuted
+        setMuted(willBeMuted)
+
+        BoringViewCoordinator.shared.toggleSneakPeek(
+            status: true,
+            type: .mic,
+            duration: 1.8,
+            value: willBeMuted ? 0.0 : 1.0
+        )
+    }
+
+    func setMuted(_ muted: Bool) {
+        let deviceID = systemInputDeviceID()
+        guard deviceID != kAudioObjectUnknown else { return }
+
+        var muteAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        var handledHardware = false
+        if AudioObjectHasProperty(deviceID, &muteAddr) {
+            var sizeNeeded: UInt32 = 0
+            if AudioObjectGetPropertyDataSize(deviceID, &muteAddr, 0, nil, &sizeNeeded) == noErr,
+               sizeNeeded == UInt32(MemoryLayout<UInt32>.size) {
+                var val: UInt32 = muted ? 1 : 0
+                if AudioObjectSetPropertyData(deviceID, &muteAddr, 0, nil, sizeNeeded, &val) == noErr {
+                    handledHardware = true
+                }
+            }
+        }
+
+        if !handledHardware {
+            // Software mute fallback by setting input volume scalar
+            if muted {
+                let current = readInputVolume() ?? rawVolume
+                if current > 0.05 {
+                    previousVolumeBeforeMute = current
+                }
+                writeInputVolume(0.0)
+            } else {
+                let restore = max(0.2, min(1.0, previousVolumeBeforeMute))
+                writeInputVolume(restore)
+            }
+        }
+
+        DispatchQueue.main.async {
+            self.isMuted = muted
+            self.rawVolume = muted ? 0.0 : self.previousVolumeBeforeMute
+        }
+    }
+
+    // MARK: - CoreAudio Helpers
+    fileprivate func systemInputDeviceID() -> AudioObjectID {
+        var defaultDeviceID = kAudioObjectUnknown
+        var propertyAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var dataSize = UInt32(MemoryLayout<AudioObjectID>.size)
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &propertyAddress,
+            0,
+            nil,
+            &dataSize,
+            &defaultDeviceID
+        )
+        if status != noErr { return kAudioObjectUnknown }
+        return defaultDeviceID
+    }
+
+    private func setupInputListener() {
+        // Listen to default input device changes (e.g. user plugged in mic, connected AirPods)
+        var defaultDevAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject), &defaultDevAddr, nil
+        ) { [weak self] _, _ in
+            self?.rebindInputDeviceListeners()
+        }
+
+        rebindInputDeviceListeners()
+    }
+
+    private func rebindInputDeviceListeners() {
+        let deviceID = systemInputDeviceID()
+        guard deviceID != kAudioObjectUnknown else { return }
+        currentListeningDeviceID = deviceID
+
+        // 1. Mute listener
+        var muteAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        if AudioObjectHasProperty(deviceID, &muteAddr) {
+            AudioObjectAddPropertyListenerBlock(deviceID, &muteAddr, nil) { [weak self] _, _ in
+                self?.fetchCurrentInputState(isExternalChange: true)
+            }
+        }
+
+        // 2. Volume listener
+        for el in [kAudioObjectPropertyElementMain, UInt32(1), UInt32(2)] {
+            var volAddr = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyVolumeScalar,
+                mScope: kAudioDevicePropertyScopeInput,
+                mElement: el
+            )
+            if AudioObjectHasProperty(deviceID, &volAddr) {
+                AudioObjectAddPropertyListenerBlock(deviceID, &volAddr, nil) { [weak self] _, _ in
+                    self?.fetchCurrentInputState(isExternalChange: true)
+                }
+            }
+        }
+
+        fetchCurrentInputState(isExternalChange: false)
+    }
+
+    private func fetchCurrentInputState(isExternalChange: Bool) {
+        let deviceID = systemInputDeviceID()
+        guard deviceID != kAudioObjectUnknown else { return }
+
+        var muteAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        var hardwareMuted = false
+        if AudioObjectHasProperty(deviceID, &muteAddr) {
+            var sizeNeeded: UInt32 = 0
+            if AudioObjectGetPropertyDataSize(deviceID, &muteAddr, 0, nil, &sizeNeeded) == noErr,
+               sizeNeeded == UInt32(MemoryLayout<UInt32>.size) {
+                var muted: UInt32 = 0
+                var size = sizeNeeded
+                if AudioObjectGetPropertyData(deviceID, &muteAddr, 0, nil, &size, &muted) == noErr {
+                    hardwareMuted = (muted != 0)
+                }
+            }
+        }
+
+        let inputVol = readInputVolume() ?? (hardwareMuted ? 0.0 : 1.0)
+        let effectiveMuted = hardwareMuted || inputVol.isZero
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if !effectiveMuted && inputVol > 0.05 {
+                self.previousVolumeBeforeMute = inputVol
+            }
+            let stateChanged = (self.isMuted != effectiveMuted)
+            self.isMuted = effectiveMuted
+            self.rawVolume = inputVol
+
+            if self.didInitialFetch && isExternalChange && stateChanged {
+                BoringViewCoordinator.shared.toggleSneakPeek(
+                    status: true,
+                    type: .mic,
+                    duration: 1.8,
+                    value: effectiveMuted ? 0.0 : 1.0
+                )
+            }
+            self.didInitialFetch = true
+        }
+    }
+
+    private func readInputVolume() -> Float32? {
+        let deviceID = systemInputDeviceID()
+        guard deviceID != kAudioObjectUnknown else { return nil }
+
+        for el in [kAudioObjectPropertyElementMain, UInt32(1), UInt32(2)] {
+            var addr = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyVolumeScalar,
+                mScope: kAudioDevicePropertyScopeInput,
+                mElement: el
+            )
+            if AudioObjectHasProperty(deviceID, &addr) {
+                var sizeNeeded: UInt32 = 0
+                if AudioObjectGetPropertyDataSize(deviceID, &addr, 0, nil, &sizeNeeded) == noErr,
+                   sizeNeeded == UInt32(MemoryLayout<Float32>.size) {
+                    var vol: Float32 = 0
+                    var size = sizeNeeded
+                    if AudioObjectGetPropertyData(deviceID, &addr, 0, nil, &size, &vol) == noErr {
+                        return vol
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    private func writeInputVolume(_ value: Float32) {
+        let deviceID = systemInputDeviceID()
+        guard deviceID != kAudioObjectUnknown else { return }
+
+        for el in [kAudioObjectPropertyElementMain, UInt32(1), UInt32(2)] {
+            var addr = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyVolumeScalar,
+                mScope: kAudioDevicePropertyScopeInput,
+                mElement: el
+            )
+            if AudioObjectHasProperty(deviceID, &addr) {
+                var sizeNeeded: UInt32 = 0
+                if AudioObjectGetPropertyDataSize(deviceID, &addr, 0, nil, &sizeNeeded) == noErr,
+                   sizeNeeded == UInt32(MemoryLayout<Float32>.size) {
+                    var val = value
+                    AudioObjectSetPropertyData(deviceID, &addr, 0, nil, sizeNeeded, &val)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Privacy HUD Manager (Camera, Mic In-Use & Screen Recording Monitor)
+final class PrivacyHUDManager: NSObject, ObservableObject {
+    static let shared = PrivacyHUDManager()
+
+    @Published private(set) var isCameraActive: Bool = false
+    @Published private(set) var isMicInUse: Bool = false
+    @Published private(set) var isScreenRecording: Bool = false
+
+    private var didInitialCameraFetch = false
+    private var didInitialMicFetch = false
+    private var didInitialRecordingFetch = false
+    private var screenRecordPollTimer: Timer?
+
+    override init() {
+        super.init()
+        setupCameraListener()
+        setupMicInUseListener()
+        setupScreenRecordListener()
+    }
+
+    func start() {
+        // Initializes singleton
+    }
+
+    // MARK: - Camera Detection via CoreMediaIO
+    private func setupCameraListener() {
+        var devicesAddr = CMIOObjectPropertyAddress(
+            mSelector: CMIOObjectPropertySelector(kCMIOHardwarePropertyDevices),
+            mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
+            mElement: CMIOObjectPropertyElement(0)
+        )
+
+        CMIOObjectAddPropertyListenerBlock(
+            CMIOObjectID(kCMIOObjectSystemObject),
+            &devicesAddr,
+            DispatchQueue.main
+        ) { [weak self] _, _ in
+            self?.bindCameraListeners()
+        }
+
+        bindCameraListeners()
+    }
+
+    private func bindCameraListeners() {
+        let deviceIDs = getAllVideoDeviceIDs()
+        for devID in deviceIDs {
+            var isRunningAddr = CMIOObjectPropertyAddress(
+                mSelector: CMIOObjectPropertySelector(kCMIODevicePropertyDeviceIsRunningSomewhere),
+                mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
+                mElement: CMIOObjectPropertyElement(0)
+            )
+
+            CMIOObjectAddPropertyListenerBlock(
+                devID,
+                &isRunningAddr,
+                DispatchQueue.main
+            ) { [weak self] _, _ in
+                self?.evaluateCameraState()
+            }
+        }
+
+        evaluateCameraState()
+    }
+
+    private func getAllVideoDeviceIDs() -> [CMIOObjectID] {
+        var addr = CMIOObjectPropertyAddress(
+            mSelector: CMIOObjectPropertySelector(kCMIOHardwarePropertyDevices),
+            mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
+            mElement: CMIOObjectPropertyElement(0)
+        )
+        var dataSize: UInt32 = 0
+        var dataUsed: UInt32 = 0
+        let status = CMIOObjectGetPropertyDataSize(
+            CMIOObjectID(kCMIOObjectSystemObject),
+            &addr,
+            0,
+            nil,
+            &dataSize
+        )
+        guard status == kCMIOHardwareNoError, dataSize > 0 else { return [] }
+
+        let count = Int(dataSize) / MemoryLayout<CMIOObjectID>.size
+        var devices = [CMIOObjectID](repeating: 0, count: count)
+        let fetchStatus = devices.withUnsafeMutableBytes { ptr in
+            CMIOObjectGetPropertyData(
+                CMIOObjectID(kCMIOObjectSystemObject),
+                &addr,
+                0,
+                nil,
+                dataSize,
+                &dataUsed,
+                ptr.baseAddress
+            )
+        }
+        guard fetchStatus == kCMIOHardwareNoError else { return [] }
+        return devices
+    }
+
+    private func evaluateCameraState() {
+        let deviceIDs = getAllVideoDeviceIDs()
+        var runningSomewhere = false
+
+        for devID in deviceIDs {
+            var isRunningAddr = CMIOObjectPropertyAddress(
+                mSelector: CMIOObjectPropertySelector(kCMIODevicePropertyDeviceIsRunningSomewhere),
+                mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
+                mElement: CMIOObjectPropertyElement(0)
+            )
+            var isRunning: UInt32 = 0
+            var runningSize = UInt32(MemoryLayout<UInt32>.size)
+            var runningUsed: UInt32 = 0
+            let s = CMIOObjectGetPropertyData(
+                devID,
+                &isRunningAddr,
+                0,
+                nil,
+                runningSize,
+                &runningUsed,
+                &isRunning
+            )
+            if s == kCMIOHardwareNoError && isRunning != 0 {
+                runningSomewhere = true
+                break
+            }
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let stateChanged = (self.isCameraActive != runningSomewhere)
+            self.isCameraActive = runningSomewhere
+
+            if self.didInitialCameraFetch && stateChanged {
+                BoringViewCoordinator.shared.toggleSneakPeek(
+                    status: true,
+                    type: .camera,
+                    duration: runningSomewhere ? 2.5 : 1.8,
+                    value: runningSomewhere ? 1.0 : 0.0
+                )
+            }
+            self.didInitialCameraFetch = true
+        }
+    }
+
+    // MARK: - Microphone In-Use Detection (Privacy Indicator)
+    private func setupMicInUseListener() {
+        var defaultDevAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject),
+            &defaultDevAddr,
+            DispatchQueue.main
+        ) { [weak self] _, _ in
+            self?.bindMicInUseListener()
+        }
+
+        bindMicInUseListener()
+    }
+
+    private func bindMicInUseListener() {
+        let devID = MicrophoneManager.shared.systemInputDeviceID()
+        guard devID != kAudioObjectUnknown else { return }
+
+        var runningAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        if AudioObjectHasProperty(devID, &runningAddr) {
+            AudioObjectAddPropertyListenerBlock(
+                devID,
+                &runningAddr,
+                DispatchQueue.main
+            ) { [weak self] _, _ in
+                self?.evaluateMicInUseState()
+            }
+        }
+
+        evaluateMicInUseState()
+    }
+
+    func evaluateMicInUseState() {
+        let devID = MicrophoneManager.shared.systemInputDeviceID()
+        guard devID != kAudioObjectUnknown else { return }
+
+        var runningAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        var isRunning: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        let status = AudioObjectGetPropertyData(
+            devID,
+            &runningAddr,
+            0,
+            nil,
+            &size,
+            &isRunning
+        )
+
+        let active = (status == noErr && isRunning != 0)
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let stateChanged = (self.isMicInUse != active)
+            self.isMicInUse = active
+
+            if self.didInitialMicFetch && stateChanged {
+                BoringViewCoordinator.shared.toggleSneakPeek(
+                    status: true,
+                    type: .micActivity,
+                    duration: active ? 2.5 : 1.8,
+                    value: active ? 1.0 : 0.0
+                )
+            }
+            self.didInitialMicFetch = true
+        }
+    }
+
+    // MARK: - Screen Recording Detection (Video Only)
+    private func setupScreenRecordListener() {
+        screenRecordPollTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            self?.evaluateScreenRecordingState()
+        }
+        evaluateScreenRecordingState()
+    }
+
+    private func evaluateScreenRecordingState() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let isRunning = self?.checkScreenCaptureProcess() ?? false
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.evaluateMicInUseState()
+                let stateChanged = (self.isScreenRecording != isRunning)
+                self.isScreenRecording = isRunning
+
+                if self.didInitialRecordingFetch && stateChanged {
+                    BoringViewCoordinator.shared.toggleSneakPeek(
+                        status: true,
+                        type: .screenRecord,
+                        duration: isRunning ? 2.5 : 1.8,
+                        value: isRunning ? 1.0 : 0.0
+                    )
+                }
+                self.didInitialRecordingFetch = true
+            }
+        }
+    }
+
+    private func checkScreenCaptureProcess() -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        // Filter specifically for video recording (-v or -V), ignoring standard screenshots (-i, -c, etc.)
+        task.arguments = ["-f", "screencapture.* -[vV]"]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+}
+
 
 

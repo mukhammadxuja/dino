@@ -99,5 +99,12 @@ public final class DinoHotKeyManager {
                 }
             }
         }
+
+        // Toggle Microphone (`Fn + F5` or user configured shortcut)
+        KeyboardShortcuts.onKeyDown(for: .toggleMicrophone) {
+            Task { @MainActor in
+                MicrophoneManager.shared.toggleMute()
+            }
+        }
     }
 }

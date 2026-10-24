@@ -16,9 +16,12 @@ enum SneakContentType {
     case backlight
     case music
     case mic
+    case micActivity
     case battery
     case download
     case antigravity
+    case camera
+    case screenRecord
 }
 
 struct sneakPeek {
@@ -211,7 +214,7 @@ class BoringViewCoordinator: ObservableObject {
         icon: String = ""
     ) {
         sneakPeekDuration = duration
-        if type != .music {
+        if type != .music && type != .mic && type != .micActivity && type != .camera && type != .screenRecord {
             // close()
             if !Defaults[.hudReplacement] {
                 return
@@ -233,7 +236,10 @@ class BoringViewCoordinator: ObservableObject {
                         case .volume: return .hud(.volume(value: Double(value)))
                         case .brightness: return .hud(.brightness(value: Double(value)))
                         case .backlight: return .hud(.backlight(value: Double(value)))
-                        case .mic: return .hud(.micMute(isMuted: value == 1))
+                        case .mic: return .hud(.micMute(isMuted: value.isZero))
+                        case .micActivity: return .hud(.micActivity(isActive: value > 0))
+                        case .camera: return .hud(.camera(isActive: value > 0))
+                        case .screenRecord: return .hud(.screenRecord(isRecording: value > 0))
                         default: return .hud(.volume(value: Double(value)))
                         }
                     }()
@@ -245,7 +251,7 @@ class BoringViewCoordinator: ObservableObject {
         }
 
         if type == .mic {
-            currentMicStatus = value == 1
+            currentMicStatus = !value.isZero
         }
     }
 

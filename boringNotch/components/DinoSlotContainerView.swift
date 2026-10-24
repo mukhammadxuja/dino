@@ -131,8 +131,46 @@ public struct DinoSlotContainerView: View {
         case .micMute(let isMuted):
             HStack(spacing: 6) {
                 Image(systemName: isMuted ? "mic.slash.fill" : "mic.fill")
-                    .foregroundColor(isMuted ? .red : .green)
+                    .foregroundColor(isMuted ? .red : .white)
                 Text(isMuted ? "Muted" : "Unmuted")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 10)
+        case .micActivity(let isActive):
+            HStack(spacing: 6) {
+                ZStack {
+                    if isActive {
+                        Capsule()
+                            .fill(Color.orange)
+                            .frame(width: 22, height: 15)
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                    } else {
+                        Image(systemName: "mic.slash.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+                Text(isActive ? "Mic On" : "Mic Off")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(isActive ? .orange : .gray)
+            }
+            .padding(.horizontal, 10)
+        case .camera(let isActive):
+            HStack(spacing: 6) {
+                Image(systemName: isActive ? "video.fill" : "video.slash.fill")
+                    .foregroundColor(isActive ? .green : .gray)
+                Text(isActive ? "Camera On" : "Camera Off")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 10)
+        case .screenRecord(let isRecording):
+            HStack(spacing: 6) {
+                Image(systemName: isRecording ? "record.circle.fill" : "record.circle")
+                    .foregroundColor(isRecording ? .red : .gray)
+                Text(isRecording ? "Recording" : "Stopped")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.white)
             }
