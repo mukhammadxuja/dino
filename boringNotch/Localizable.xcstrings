@@ -1918,9 +1918,6 @@
     "Action to perform when clicking an idle notch or Dynamic Island" : {
 
     },
-    "Action triggered when pressing media keys with the Option modifier." : {
-
-    },
     "Active HUDs & Indicators" : {
 
     },
@@ -16777,6 +16774,7 @@
 
     },
     "Option key behaviour" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {

@@ -5584,7 +5584,6 @@ extension Color {
 
 struct HUD: View {
     @EnvironmentObject var vm: BoringViewModel
-    @Default(.optionKeyAction) var optionKeyAction
     @Default(.hudReplacement) var hudReplacement
     @Default(.hudVolumeEnabled) var hudVolumeEnabled
     @Default(.hudBrightnessEnabled) var hudBrightnessEnabled
@@ -5669,40 +5668,7 @@ struct HUD: View {
                             .background(Color.orange.opacity(0.04))
                         }
 
-                        if hudReplacement {
-                            cardDivider
 
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                        .fill(Color.blue.opacity(0.12))
-                                        .frame(width: 28, height: 28)
-                                    Image(systemName: "option")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .foregroundColor(.blue)
-                                }
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Option key behaviour")
-                                        .font(.system(size: 13, weight: .semibold))
-                                    Text("Action triggered when pressing media keys with the Option modifier.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Spacer(minLength: 20)
-
-                                Picker("", selection: $optionKeyAction) {
-                                    ForEach(OptionKeyAction.allCases) { opt in
-                                        Text(opt.rawValue).tag(opt)
-                                    }
-                                }
-                                .labelsHidden()
-                                .frame(width: 150)
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                        }
                     }
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
