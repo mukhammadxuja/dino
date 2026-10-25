@@ -745,7 +745,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         _ = MicrophoneManager.shared
         _ = PrivacyHUDManager.shared
         CapsLockManager.shared.start()
-        BluetoothHUDManager.shared.start()
+        if Defaults[.hudAirPodsEnabled] {
+            BluetoothHUDManager.shared.start()
+            AirPodsVideoCache.shared.prewarm()
+        }
+        if Defaults[.hudLocationEnabled] {
+            PrivacyHUDManager.shared.enableLocationTrackingIfNeeded()
+        }
 
         setupStrictModeObservers()
         setupScreenGlowObservers()

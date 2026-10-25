@@ -5634,7 +5634,6 @@ struct HUD: View {
                                 .labelsHidden()
                                 .toggleStyle(.switch)
                                 .controlSize(.small)
-                                .disabled(!accessibilityAuthorized)
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
@@ -5643,9 +5642,19 @@ struct HUD: View {
                             cardDivider
 
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Accessibility access is required to replace the system HUD.")
-                                    .font(.system(size: 11.5))
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.orange)
+                                        .font(.system(size: 13))
+                                    Text("Accessibility access is required to replace the system HUD.")
+                                        .font(.system(size: 11.5, weight: .semibold))
+                                        .foregroundStyle(.primary)
+                                }
+
+                                Text("If Dino is already checked in macOS System Settings, click (−) to remove and (+) to re-add it to refresh the macOS security cache.")
+                                    .font(.system(size: 10.5))
                                     .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
 
                                 HStack(spacing: 12) {
                                     Button("Request Accessibility") {
@@ -5665,7 +5674,7 @@ struct HUD: View {
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
-                            .background(Color.orange.opacity(0.04))
+                            .background(Color.orange.opacity(0.06))
                         }
 
 
@@ -5836,6 +5845,18 @@ struct HUD: View {
         .onReceive(NotificationCenter.default.publisher(for: .accessibilityAuthorizationChanged)) { notification in
             if let granted = notification.userInfo?["granted"] as? Bool {
                 accessibilityAuthorized = granted
+            }
+        }
+        .onChange(of: hudAirPodsEnabled) { _, isEnabled in
+            if isEnabled {
+                BluetoothHUDManager.shared.start()
+            } else {
+                BluetoothHUDManager.shared.stop()
+            }
+        }
+        .onChange(of: hudLocationEnabled) { _, isEnabled in
+            if isEnabled {
+                PrivacyHUDManager.shared.enableLocationTrackingIfNeeded()
             }
         }
     }

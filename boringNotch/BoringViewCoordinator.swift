@@ -158,8 +158,6 @@ class BoringViewCoordinator: ObservableObject {
 
                             if granted {
                                 await MediaKeyInterceptor.shared.start()
-                            } else {
-                                Defaults[.hudReplacement] = false
                             }
                         }
                     } else {
@@ -173,10 +171,14 @@ class BoringViewCoordinator: ObservableObject {
 
             if Defaults[.hudReplacement] {
                 let authorized = await XPCHelperClient.shared.isAccessibilityAuthorized()
-                if !authorized {
-                    Defaults[.hudReplacement] = false
-                } else {
+                if authorized {
                     await MediaKeyInterceptor.shared.start(promptIfNeeded: false)
+                } else {
+                    // Retry once after 700ms in case XPC helper was spinning up on app launch
+                    try? await Task.sleep(for: .milliseconds(700))
+                    if await XPCHelperClient.shared.isAccessibilityAuthorized() {
+                        await MediaKeyInterceptor.shared.start(promptIfNeeded: false)
+                    }
                 }
             }
         }
@@ -305,31 +307,33 @@ class BoringViewCoordinator: ObservableObject {
         activeSneakPeekStartTime = Date()
         sneakPeekDuration = duration
 
-        withAnimation(.smooth) {
+        let hudSlot: DinoSlot? = {
+            guard type != .music else { return nil }
+            switch type {
+            case .volume: return .hud(.volume(value: Double(value)))
+            case .brightness: return .hud(.brightness(value: Double(value)))
+            case .backlight: return .hud(.backlight(value: Double(value)))
+            case .mic: return .hud(.micMute(isMuted: value.isZero))
+            case .micActivity: return .hud(.micActivity(isActive: value > 0))
+            case .camera: return .hud(.camera(isActive: value > 0))
+            case .screenRecord: return .hud(.screenRecord(isRecording: value > 0))
+            case .capsLock: return .hud(.capsLock(isOn: value > 0))
+            case .location: return .hud(.location(isInUse: value > 0))
+            case .airPods: return .hud(.airPods(name: icon.isEmpty ? "AirPods Pro" : icon, battery: Int(value)))
+            default: return .hud(.volume(value: Double(value)))
+            }
+        }()
+
+        // Unify BoringViewCoordinator & DinoCoordinator state updates in a single interactiveSpring transaction
+        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78, blendDuration: 0)) {
             self.sneakPeek.show = true
             self.sneakPeek.type = type
             self.sneakPeek.value = value
             self.sneakPeek.icon = icon
-        }
 
-        // Sync with DinoCoordinator SSOT Priority Stack (P1 Toast)
-        if type != .music {
-            let hudSlot: DinoSlot = {
-                switch type {
-                case .volume: return .hud(.volume(value: Double(value)))
-                case .brightness: return .hud(.brightness(value: Double(value)))
-                case .backlight: return .hud(.backlight(value: Double(value)))
-                case .mic: return .hud(.micMute(isMuted: value.isZero))
-                case .micActivity: return .hud(.micActivity(isActive: value > 0))
-                case .camera: return .hud(.camera(isActive: value > 0))
-                case .screenRecord: return .hud(.screenRecord(isRecording: value > 0))
-                case .capsLock: return .hud(.capsLock(isOn: value > 0))
-                case .location: return .hud(.location(isInUse: value > 0))
-                case .airPods: return .hud(.airPods(name: icon.isEmpty ? "AirPods Pro" : icon, battery: Int(value)))
-                default: return .hud(.volume(value: Double(value)))
-                }
-            }()
-            DinoCoordinator.shared.triggerToast(hudSlot, duration: duration)
+            if let slot = hudSlot {
+                DinoCoordinator.shared.triggerToast(slot, duration: duration, animated: false)
+            }
         }
 
         scheduleSneakPeekHide(after: duration)
@@ -337,11 +341,11 @@ class BoringViewCoordinator: ObservableObject {
 
     @MainActor
     private func dismissSneakPeek() {
-        withAnimation(.smooth) {
+        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78, blendDuration: 0)) {
             self.sneakPeek.show = false
-        }
-        if DinoCoordinator.shared.currentPriority == .p1Toast {
-            DinoCoordinator.shared.dismissToast()
+            if DinoCoordinator.shared.currentPriority == .p1Toast {
+                DinoCoordinator.shared.dismissToast(animated: false)
+            }
         }
     }
 
@@ -388,7 +392,7 @@ class BoringViewCoordinator: ObservableObject {
         browser: BrowserType = .chromium
     ) {
         Task { @MainActor in
-            withAnimation(.smooth) {
+            withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78, blendDuration: 0)) {
                 self.expandingView.show = status
                 self.expandingView.type = type
                 self.expandingView.value = value

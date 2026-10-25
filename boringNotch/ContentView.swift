@@ -69,7 +69,7 @@ struct ContentView: View {
     @Default(.displayShowOn) var displayShowOn
 
     // Shared interactive spring for movement/resizing to avoid conflicting animations
-    private let animationSpring = Animation.interactiveSpring(response: 0.36, dampingFraction: 0.68, blendDuration: 0)
+    private let animationSpring = Animation.interactiveSpring(response: 0.35, dampingFraction: 0.78, blendDuration: 0)
 
     private let extendedHoverPadding: CGFloat = 30
     private let zeroHeightHoverPadding: CGFloat = 10

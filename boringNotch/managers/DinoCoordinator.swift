@@ -185,7 +185,7 @@ public final class DinoCoordinator: ObservableObject {
     
     /// Trigger a P1 Toast (e.g., Volume HUD, Brightness, Charger)
     /// Automatically interrupts the current view and restores it after `duration`.
-    public func triggerToast(_ slot: DinoSlot, duration: TimeInterval = 1.5) {
+    public func triggerToast(_ slot: DinoSlot, duration: TimeInterval = 1.5, animated: Bool = true) {
         toastDismissTask?.cancel()
         toastDismissTask = nil
         
@@ -216,9 +216,17 @@ public final class DinoCoordinator: ObservableObject {
             )
         }
         
-        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
+        let updateState = {
             self.activeSlot = slot
             self.currentPriority = .p1Toast
+        }
+        
+        if animated {
+            withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78, blendDuration: 0)) {
+                updateState()
+            }
+        } else {
+            updateState()
         }
         
         toastDismissTask = Task { @MainActor in
@@ -327,14 +335,14 @@ public final class DinoCoordinator: ObservableObject {
     }
     
     /// Dismiss the active toast immediately and restore interrupted state
-    public func dismissToast() {
+    public func dismissToast(animated: Bool = true) {
         toastDismissTask?.cancel()
         toastDismissTask = nil
         
         guard currentPriority == .p1Toast else { return }
         
-        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
-            if let previous = interruptStack.popLast() {
+        let updateState = {
+            if let previous = self.interruptStack.popLast() {
                 self.activeSlot = previous.slot
                 self.secondarySlot = previous.secondarySlot
                 self.currentPriority = previous.priority
@@ -344,6 +352,14 @@ public final class DinoCoordinator: ObservableObject {
                 self.currentPriority = (self.backgroundSlot == .idle) ? .p4Idle : .p3Background
                 self.syncLegacyState(for: self.backgroundSlot)
             }
+        }
+        
+        if animated {
+            withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78, blendDuration: 0)) {
+                updateState()
+            }
+        } else {
+            updateState()
         }
     }
     

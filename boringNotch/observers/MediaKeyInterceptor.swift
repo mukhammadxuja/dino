@@ -29,8 +29,12 @@ final class MediaKeyInterceptor {
     private var runLoopSource: CFRunLoopSource?
     private let step: Float = 1.0 / 16.0
     private var audioPlayer: AVAudioPlayer?
+    private var isFeedbackSoundEnabled: Bool = false
+    private var lastFeedbackCheck: Date = .distantPast
     
-    private init() {}
+    private init() {
+        prewarmAudio()
+    }
     
     // MARK: - Accessibility (via XPC)
     
@@ -45,6 +49,9 @@ final class MediaKeyInterceptor {
     // MARK: - Event Tap
     
     func start(promptIfNeeded: Bool = false) async {
+        if audioPlayer == nil {
+            prewarmAudio()
+        }
         guard eventTap == nil else { return }
         
         // Ensure HUD replacement is enabled
@@ -143,6 +150,39 @@ final class MediaKeyInterceptor {
         return true
     }
     
+    private func prewarmAudio() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            // 1. Pre-read and cache feedback sound setting from NSGlobalDomain
+            let feedback = UserDefaults.standard.persistentDomain(forName: "NSGlobalDomain")?["com.apple.sound.beep.feedback"] as? Int
+            let enabled = (feedback == 1)
+
+            // 2. Pre-load audio player and pre-warm audio hardware buffer
+            let defaultPath = "/System/Library/LoginPlugins/BezelServices.loginPlugin/Contents/Resources/volume.aiff"
+            var player: AVAudioPlayer? = nil
+            if FileManager.default.fileExists(atPath: defaultPath) {
+                do {
+                    player = try AVAudioPlayer(contentsOf: URL(fileURLWithPath: defaultPath))
+                    player?.volume = 1.0
+                    player?.numberOfLoops = 0
+                    player?.prepareToPlay()
+                } catch {
+                    print("⚠️ [MediaKeyInterceptor] Failed to pre-warm AVAudioPlayer: \(error.localizedDescription)")
+                }
+            } else {
+                print("⚠️ [MediaKeyInterceptor] Default bezel audio not found at: \(defaultPath)")
+            }
+
+            DispatchQueue.main.async {
+                self?.isFeedbackSoundEnabled = enabled
+                self?.lastFeedbackCheck = Date()
+                if let player = player {
+                    self?.audioPlayer = player
+                    print("🔊 [MediaKeyInterceptor] Pre-warmed Bezel audio player (feedback enabled: \(enabled))")
+                }
+            }
+        }
+    }
+
     private func prepareAudioPlayerIfNeeded() {
         guard audioPlayer == nil else { return }
 
@@ -166,19 +206,25 @@ final class MediaKeyInterceptor {
     }
 
     private func playFeedbackSound() {
-        guard let feedback = UserDefaults.standard.persistentDomain(forName: "NSGlobalDomain")?["com.apple.sound.beep.feedback"] as? Int,
-              feedback == 1 else { return }
+        // Refresh feedback sound setting in the background at most once every 5 seconds (zero disk I/O on keypress)
+        if Date().timeIntervalSince(lastFeedbackCheck) > 5.0 {
+            lastFeedbackCheck = Date()
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                let feedback = UserDefaults.standard.persistentDomain(forName: "NSGlobalDomain")?["com.apple.sound.beep.feedback"] as? Int
+                let enabled = (feedback == 1)
+                DispatchQueue.main.async {
+                    self?.isFeedbackSoundEnabled = enabled
+                }
+            }
+        }
 
-        prepareAudioPlayerIfNeeded()
+        guard isFeedbackSoundEnabled else { return }
+
         guard let player = audioPlayer else {
-            print("⚠️ [MediaKeyInterceptor] No audio player available to play feedback sound")
+            prepareAudioPlayerIfNeeded()
             return
         }
-        if let url = player.url {
-            print("🔊 [MediaKeyInterceptor] Playing feedback sound from: \(url.path)")
-        } else {
-            print("🔊 [MediaKeyInterceptor] Playing feedback sound (no url available for AVAudioPlayer)")
-        }
+
         if player.isPlaying {
             player.stop()
             player.currentTime = 0
@@ -191,17 +237,17 @@ final class MediaKeyInterceptor {
         
         switch keyType {
         case .soundUp:
-            Task { @MainActor in
-                self.playFeedbackSound()
+            DispatchQueue.main.async { [weak self] in
+                self?.playFeedbackSound()
                 VolumeManager.shared.increase(stepDivisor: stepDivisor)
             }
         case .soundDown:
-            Task { @MainActor in
-                self.playFeedbackSound()
+            DispatchQueue.main.async { [weak self] in
+                self?.playFeedbackSound()
                 VolumeManager.shared.decrease(stepDivisor: stepDivisor)
             }
         case .mute:
-            Task { @MainActor in
+            DispatchQueue.main.async {
                 VolumeManager.shared.toggleMuteAction()
             }
         case .brightnessUp, .keyboardBrightnessUp:
@@ -214,7 +260,7 @@ final class MediaKeyInterceptor {
     }
     
     private func adjustBrightness(delta: Float, keyboard: Bool) {
-        Task { @MainActor in
+        DispatchQueue.main.async {
             if keyboard {
                 KeyboardBacklightManager.shared.setRelative(delta: delta)
             } else {

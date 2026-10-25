@@ -384,6 +384,85 @@ struct InlineHUD: View {
         .environmentObject(BoringViewModel())
 }
 
+// MARK: - AirPods Video Asset Cache & Background Resolver
+final class AirPodsVideoCache {
+    static let shared = AirPodsVideoCache()
+    private(set) var cachedURL: URL?
+    private let queue = DispatchQueue(label: "com.boringnotch.airpodsVideoCache", qos: .userInitiated)
+    private var isResolving = false
+
+    private init() {
+        prewarm()
+    }
+
+    func prewarm() {
+        queue.async { [weak self] in
+            guard let self = self, self.cachedURL == nil, !self.isResolving else { return }
+            self.isResolving = true
+            let resolved = self.resolveVideoURLSync()
+            DispatchQueue.main.async {
+                self.cachedURL = resolved
+                self.isResolving = false
+            }
+        }
+    }
+
+    func resolveVideoURL(completion: @escaping (URL?) -> Void) {
+        if let cached = cachedURL, FileManager.default.fileExists(atPath: cached.path) {
+            completion(cached)
+            return
+        }
+
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            let resolved = self.resolveVideoURLSync()
+            DispatchQueue.main.async {
+                self.cachedURL = resolved
+                completion(resolved)
+            }
+        }
+    }
+
+    private func resolveVideoURLSync() -> URL? {
+        if let cached = cachedURL, FileManager.default.fileExists(atPath: cached.path) {
+            return cached
+        }
+
+        // 1. Check if resource is directly inside main bundle
+        if let bundleURL = Bundle.main.url(forResource: "airpods-pro", withExtension: "mp4") {
+            return bundleURL
+        }
+
+        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
+        let fileURL = tempDir.appendingPathComponent("boringnotch-airpods-pro.mp4")
+
+        // 2. Fast check: file already extracted in temp directory without reading entire file into RAM
+        if FileManager.default.fileExists(atPath: fileURL.path),
+           let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
+           let size = attrs[.size] as? UInt64, size > 1000 {
+            return fileURL
+        }
+
+        // 3. Extract from NSDataAsset in background thread
+        if let asset = NSDataAsset(name: "airpods-pro") {
+            do {
+                try asset.data.write(to: fileURL, options: .atomic)
+                return fileURL
+            } catch {
+                print("⚠️ [AirPodsVideoCache] Failed to write temp video: \(error.localizedDescription)")
+            }
+        }
+
+        // 4. Fallback file path if available
+        let fallbackPath = "/Users/macbookair/Desktop/Projects/My Projects/Dino/boringNotch/Assets.xcassets/airpods-pro.mp4"
+        if FileManager.default.fileExists(atPath: fallbackPath) {
+            return URL(fileURLWithPath: fallbackPath)
+        }
+
+        return nil
+    }
+}
+
 // MARK: - AirPods Video Animation Player
 struct AirPodsVideoView: View {
     @State private var player: AVQueuePlayer?
@@ -411,36 +490,20 @@ struct AirPodsVideoView: View {
 
     private func setupPlayer() {
         guard player == nil else { return }
-        guard let url = resolveVideoURL() else { return }
 
-        let item = AVPlayerItem(url: url)
-        let queuePlayer = AVQueuePlayer(playerItem: item)
-        queuePlayer.isMuted = true
-        queuePlayer.actionAtItemEnd = .none
-        let playerLooper = AVPlayerLooper(player: queuePlayer, templateItem: item)
+        AirPodsVideoCache.shared.resolveVideoURL { url in
+            guard let url = url, self.player == nil else { return }
 
-        self.player = queuePlayer
-        self.looper = playerLooper
-        queuePlayer.play()
-    }
+            let item = AVPlayerItem(url: url)
+            let queuePlayer = AVQueuePlayer(playerItem: item)
+            queuePlayer.isMuted = true
+            queuePlayer.actionAtItemEnd = .none
+            let playerLooper = AVPlayerLooper(player: queuePlayer, templateItem: item)
 
-    private func resolveVideoURL() -> URL? {
-        if let bundleURL = Bundle.main.url(forResource: "airpods-pro", withExtension: "mp4") {
-            return bundleURL
+            self.player = queuePlayer
+            self.looper = playerLooper
+            queuePlayer.play()
         }
-        if let asset = NSDataAsset(name: "airpods-pro") {
-            let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
-            let fileURL = tempDir.appendingPathComponent("boringnotch-airpods-pro.mp4")
-            if !FileManager.default.fileExists(atPath: fileURL.path) || (try? Data(contentsOf: fileURL).count) != asset.data.count {
-                try? asset.data.write(to: fileURL)
-            }
-            return fileURL
-        }
-        let fallbackPath = "/Users/macbookair/Desktop/Projects/My Projects/Dino/boringNotch/Assets.xcassets/airpods-pro.mp4"
-        if FileManager.default.fileExists(atPath: fallbackPath) {
-            return URL(fileURLWithPath: fallbackPath)
-        }
-        return nil
     }
 }
 

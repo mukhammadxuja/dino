@@ -10,6 +10,7 @@ import Combine
 import CoreAudio
 import CoreLocation
 import CoreMediaIO
+import Defaults
 import Foundation
 import IOBluetooth
 
@@ -27,11 +28,14 @@ final class VolumeManager: NSObject, ObservableObject {
     // Fallback software if hardware mute is not supported
     private var previousVolumeBeforeMute: Float32 = 0.2
     private var softwareMuted: Bool = false
+    private let audioHardwareQueue = DispatchQueue(label: "com.boringnotch.audioHardware", qos: .userInteractive)
 
     private override init() {
         super.init()
         setupAudioListener()
-        fetchCurrentVolume()
+        audioHardwareQueue.async { [weak self] in
+            self?.fetchCurrentVolume()
+        }
     }
 
     var shouldShowOverlay: Bool { Date().timeIntervalSince(lastChangeAt) < visibleDuration }
@@ -40,67 +44,132 @@ final class VolumeManager: NSObject, ObservableObject {
     @MainActor func increase(stepDivisor: Float = 1.0) {
         let divisor = max(stepDivisor, 0.25)
         let delta = step / Float32(divisor)
-        let current = readVolumeInternal() ?? rawVolume
+        let current = didInitialFetch ? rawVolume : (readVolumeInternal() ?? rawVolume)
         let target = max(0, min(1, current + delta))
-        setAbsolute(target)
+        
+        // 1. Immediately update UI state at 0-th millisecond
+        self.rawVolume = target
+        self.lastChangeAt = Date()
+        if self.isMuted && target > 0 {
+            self.isMuted = false
+        }
         BoringViewCoordinator.shared.toggleSneakPeek(status: true, type: .volume, value: CGFloat(target))
+        
+        // 2. Offload CoreAudio hardware driver calls to background queue
+        writeVolumeAsync(target)
     }
 
     @MainActor func decrease(stepDivisor: Float = 1.0) {
         let divisor = max(stepDivisor, 0.25)
         let delta = step / Float32(divisor)
-        let current = readVolumeInternal() ?? rawVolume
+        let current = didInitialFetch ? rawVolume : (readVolumeInternal() ?? rawVolume)
         let target = max(0, min(1, current - delta))
-        setAbsolute(target)
+        
+        // 1. Immediately update UI state at 0-th millisecond
+        self.rawVolume = target
+        self.lastChangeAt = Date()
+        if target == 0 {
+            self.isMuted = true
+        }
         BoringViewCoordinator.shared.toggleSneakPeek(status: true, type: .volume, value: CGFloat(target))
+        
+        // 2. Offload CoreAudio hardware driver calls to background queue
+        writeVolumeAsync(target)
     }
 
     @MainActor func toggleMuteAction() {
-        // Determine expected resulting state immediately and show HUD with that value
-        let deviceID = systemOutputDeviceID()
-        var willBeMuted = false
-        var resultingVolume: Float32 = rawVolume
+        let willBeMuted = !self.isMuted
+        let resultingVolume: Float32 = willBeMuted ? 0 : (rawVolume > 0 ? rawVolume : 0.25)
 
-        if deviceID == kAudioObjectUnknown {
-            willBeMuted = !softwareMuted
-            resultingVolume = willBeMuted ? 0 : previousVolumeBeforeMute
-        } else {
-            let currentMuted = isMutedInternal()
-            willBeMuted = !currentMuted
-            resultingVolume = willBeMuted ? 0 : (readVolumeInternal() ?? rawVolume)
+        // 1. Immediately update UI state at 0-th millisecond
+        self.isMuted = willBeMuted
+        self.lastChangeAt = Date()
+        BoringViewCoordinator.shared.toggleSneakPeek(status: true, type: .volume, value: CGFloat(resultingVolume))
+
+        // 2. Offload hardware mute toggle to background queue
+        audioHardwareQueue.async { [weak self] in
+            self?.toggleMuteInternal()
         }
-
-        toggleMuteInternal()
-        BoringViewCoordinator.shared.toggleSneakPeek(status: true, type: .volume, value: CGFloat(willBeMuted ? 0 : resultingVolume))
     }
     
-    func refresh() { fetchCurrentVolume() }
+    func refresh() {
+        audioHardwareQueue.async { [weak self] in
+            self?.fetchCurrentVolume()
+        }
+    }
 
     func adjustRelative(delta: Float32) {
-        if isMutedInternal() { toggleMuteInternal() }
-        guard let current = readVolumeInternal() else {
-            fetchCurrentVolume()
-            return
+        audioHardwareQueue.async { [weak self] in
+            guard let self = self else { return }
+            if self.isMutedInternal() { self.toggleMuteInternal() }
+            guard let current = self.readVolumeInternal() else {
+                self.fetchCurrentVolume()
+                return
+            }
+            let target = max(0, min(1, current + delta))
+            self.writeVolumeInternal(target)  
+            self.publish(volume: target, muted: self.isMutedInternal(), touchDate: true)
         }
-        let target = max(0, min(1, current + delta))
-        writeVolumeInternal(target)  
-        publish(volume: target, muted: isMutedInternal(), touchDate: true)
     }
 
     @MainActor func setAbsolute(_ value: Float32) {
         let clamped = max(0, min(1, value))
-        let currentlyMuted = isMutedInternal()
-        if currentlyMuted && clamped > 0 {
-            toggleMuteInternal()
+        self.rawVolume = clamped
+        self.lastChangeAt = Date()
+        if self.isMuted && clamped > 0 {
+            self.isMuted = false
+        } else if clamped == 0 && !self.isMuted {
+            self.isMuted = true
         }
 
-        writeVolumeInternal(clamped)
+        writeVolumeAsync(clamped)
+    }
 
-        if clamped == 0 && !currentlyMuted {
-            toggleMuteInternal()
+    private func writeVolumeAsync(_ value: Float32) {
+        audioHardwareQueue.async { [weak self] in
+            guard let self = self else { return }
+            let isMuted = self.isMutedInternal()
+            if isMuted && value > 0 {
+                self.setMuteInternal(false)
+            } else if value == 0 && !isMuted {
+                self.setMuteInternal(true)
+            }
+            self.writeVolumeInternal(value)
         }
+    }
 
-        publish(volume: clamped, muted: isMutedInternal(), touchDate: true)
+    private func setMuteInternal(_ muted: Bool) {
+        let deviceID = systemOutputDeviceID()
+        if deviceID == kAudioObjectUnknown {
+            if muted != softwareMuted {
+                performSoftwareMuteToggle(currentVolume: rawVolume)
+            }
+            return
+        }
+        var muteAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyMute,
+            mScope: kAudioDevicePropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectHasProperty(deviceID, &muteAddr) else {
+            if muted != softwareMuted {
+                let currentVol = readVolumeInternal() ?? rawVolume
+                performSoftwareMuteToggle(currentVolume: currentVol)
+            }
+            return
+        }
+        var sizeNeeded: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(deviceID, &muteAddr, 0, nil, &sizeNeeded) == noErr,
+            sizeNeeded == UInt32(MemoryLayout<UInt32>.size)
+        else {
+            if muted != softwareMuted {
+                let currentVol = readVolumeInternal() ?? rawVolume
+                performSoftwareMuteToggle(currentVolume: currentVol)
+            }
+            return
+        }
+        var val: UInt32 = muted ? 1 : 0
+        AudioObjectSetPropertyData(deviceID, &muteAddr, 0, nil, sizeNeeded, &val)
     }
 
     // MARK: - CoreAudio Helpers
@@ -183,8 +252,10 @@ final class VolumeManager: NSObject, ObservableObject {
         )
         AudioObjectAddPropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject), &defaultDevAddr, nil
-        ) { _, _ in
-            self.fetchCurrentVolume()
+        ) { [weak self] _, _ in
+            self?.audioHardwareQueue.async {
+                self?.fetchCurrentVolume()
+            }
         }
 
         var masterAddr = AudioObjectPropertyAddress(
@@ -193,8 +264,10 @@ final class VolumeManager: NSObject, ObservableObject {
             mElement: kAudioObjectPropertyElementMain
         )
         if AudioObjectHasProperty(deviceID, &masterAddr) {
-            AudioObjectAddPropertyListenerBlock(deviceID, &masterAddr, nil) { _, _ in
-                self.fetchCurrentVolume()
+            AudioObjectAddPropertyListenerBlock(deviceID, &masterAddr, nil) { [weak self] _, _ in
+                self?.audioHardwareQueue.async {
+                    self?.fetchCurrentVolume()
+                }
             }
         } else {
             for ch in [UInt32(1), UInt32(2)] {
@@ -204,8 +277,10 @@ final class VolumeManager: NSObject, ObservableObject {
                     mElement: ch
                 )
                 if AudioObjectHasProperty(deviceID, &chAddr) {
-                    AudioObjectAddPropertyListenerBlock(deviceID, &chAddr, nil) { _, _ in
-                        self.fetchCurrentVolume()
+                    AudioObjectAddPropertyListenerBlock(deviceID, &chAddr, nil) { [weak self] _, _ in
+                        self?.audioHardwareQueue.async {
+                            self?.fetchCurrentVolume()
+                        }
                     }
                 }
             }
@@ -218,8 +293,10 @@ final class VolumeManager: NSObject, ObservableObject {
             mElement: kAudioObjectPropertyElementMain
         )
         if AudioObjectHasProperty(deviceID, &muteAddr) {
-            AudioObjectAddPropertyListenerBlock(deviceID, &muteAddr, nil) { _, _ in
-                self.fetchCurrentVolume()
+            AudioObjectAddPropertyListenerBlock(deviceID, &muteAddr, nil) { [weak self] _, _ in
+                self?.audioHardwareQueue.async {
+                    self?.fetchCurrentVolume()
+                }
             }
         }
     }
@@ -966,12 +1043,21 @@ final class PrivacyHUDManager: NSObject, ObservableObject {
             )
         }
 
-        let loc = CLLocationManager()
-        loc.delegate = self
-        self.locationManager = loc
-        self.lastLocationAuthStatus = loc.authorizationStatus
+        if Defaults[.hudLocationEnabled] {
+            enableLocationTrackingIfNeeded()
+        }
+    }
 
-        if loc.authorizationStatus == .notDetermined {
+    func enableLocationTrackingIfNeeded() {
+        guard Defaults[.hudLocationEnabled] else { return }
+        if locationManager == nil {
+            let loc = CLLocationManager()
+            loc.delegate = self
+            self.locationManager = loc
+            self.lastLocationAuthStatus = loc.authorizationStatus
+        }
+
+        if let loc = locationManager, loc.authorizationStatus == .notDetermined {
             loc.requestWhenInUseAuthorization()
         }
     }
@@ -1110,11 +1196,19 @@ final class BluetoothHUDManager: NSObject {
     }
 
     func start() {
+        guard Defaults[.hudAirPodsEnabled] else { return }
         guard !isStarted else { return }
         isStarted = true
 
         setupBluetoothConnectListener()
         setupAudioOutputListener()
+    }
+
+    func stop() {
+        guard isStarted else { return }
+        isStarted = false
+        connectNotification?.unregister()
+        connectNotification = nil
     }
 
     private func setupBluetoothConnectListener() {
