@@ -130,7 +130,7 @@ struct ContentView: View {
             return true
         }
         if effectiveIslandVisibility == .onClick {
-            return isIslandClickedDown || isShowingMusicSneakPeek || isIslandTransientlyVisible
+            return isIslandClickedDown || isIslandTransientlyVisible
         }
         return isHovering || isShowingMusicSneakPeek || isIslandTransientlyVisible
     }
@@ -529,16 +529,19 @@ struct ContentView: View {
                 .allowsHitTesting(!isIslandShowing && vm.notchState == .closed)
             }
 
-            if isCurrentDisplayIsland && isIslandShowing && vm.notchState == .closed {
-                // Continuous hover bridge while island is dropped down
+            if isCurrentDisplayIsland && isIslandShowing && vm.notchState == .closed && effectiveIslandVisibility != .alwaysVisible {
+                // Continuous vertical hover bridge from menubar down to dropped island
                 Color.clear
                     .frame(
-                        width: max(120, vm.closedNotchSize.width),
-                        height: dropDownOffset + vm.effectiveClosedNotchHeight
+                        width: max(220, max(vm.closedNotchSize.width, computedChinWidth) + 40),
+                        height: dropDownOffset + vm.effectiveClosedNotchHeight + 10
                     )
                     .contentShape(Rectangle())
                     .onHover { hovering in
                         handleHover(hovering)
+                    }
+                    .onTapGesture {
+                        handleTap()
                     }
                     .zIndex(1)
             }
@@ -705,6 +708,7 @@ struct ContentView: View {
                         .frame(width: computedChinWidth, height: vm.chinHeight)
                 }
             }
+            .zIndex(2)
 
             CustomBatteryToastOverlay()
         }
@@ -922,6 +926,7 @@ struct ContentView: View {
             withAnimation(animationSpring) {
                 isHovering = false
                 isIslandClickedDown = false
+                showCoverHoverMusicDetails = false
             }
 
             coverHoverDismissTask = Task { @MainActor in
@@ -964,15 +969,19 @@ struct ContentView: View {
             } else {
                 switch DinoCoordinator.shared.activeSlot {
                 case .pomodoro:
-                    DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
+                    openPomodoroWithSpring()
+                    return
                 case .music:
-                    DinoCoordinator.shared.activateSlotDirectly(.music)
+                    openMusicWithSpring()
+                    return
                 case .calendar:
                     DinoCoordinator.shared.activateSlotDirectly(.calendar)
+                    coordinator.currentView = .calendar
                 case .weather:
                     DinoCoordinator.shared.activateSlotDirectly(.weather)
+                    coordinator.currentView = .home
                 default:
-                    break
+                    coordinator.currentView = .home
                 }
             }
             doOpen()
@@ -982,13 +991,9 @@ struct ContentView: View {
                 coordinator.currentView = .home
                 doOpen()
             case .music:
-                DinoCoordinator.shared.activateSlotDirectly(.music)
-                coordinator.currentView = .home
-                doOpen()
+                openMusicWithSpring()
             case .pomodoro:
-                DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
-                coordinator.currentView = .home
-                doOpen()
+                openPomodoroWithSpring()
             case .shelf:
                 DinoCoordinator.shared.activateSlotDirectly(.shelf)
                 coordinator.currentView = .shelf
@@ -1155,6 +1160,7 @@ struct ContentView: View {
                                 withAnimation(self.animationSpring) {
                                     self.isHovering = false
                                     self.isIslandClickedDown = false
+                                    self.showCoverHoverMusicDetails = false
                                 }
                             }
                         }
@@ -1162,6 +1168,7 @@ struct ContentView: View {
                         withAnimation(self.animationSpring) {
                             self.isHovering = false
                             self.isIslandClickedDown = false
+                            self.showCoverHoverMusicDetails = false
                         }
                     }
                     
