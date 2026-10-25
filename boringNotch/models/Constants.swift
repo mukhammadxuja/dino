@@ -504,15 +504,26 @@ extension Defaults.Keys {
     
     // MARK: HUD
     static let hudReplacement = Key<Bool>("hudReplacement", default: false)
-    static let inlineHUD = Key<Bool>("inlineHUD", default: false)
+    static let inlineHUD = Key<Bool>("inlineHUD", default: true)
     static let enableGradient = Key<Bool>("enableGradient", default: false)
-    static let systemEventIndicatorShadow = Key<Bool>("systemEventIndicatorShadow", default: false)
+    static let systemEventIndicatorShadow = Key<Bool>("systemEventIndicatorShadow", default: true)
     static let systemEventIndicatorUseAccent = Key<Bool>("systemEventIndicatorUseAccent", default: false)
-    static let showOpenNotchHUD = Key<Bool>("showOpenNotchHUD", default: true)
-    static let showOpenNotchHUDPercentage = Key<Bool>("showOpenNotchHUDPercentage", default: true)
-    static let showClosedNotchHUDPercentage = Key<Bool>("showClosedNotchHUDPercentage", default: false)
+    static let showOpenNotchHUD = Key<Bool>("showOpenNotchHUD", default: false)
+    static let showOpenNotchHUDPercentage = Key<Bool>("showOpenNotchHUDPercentage", default: false)
+    static let showClosedNotchHUDPercentage = Key<Bool>("showClosedNotchHUDPercentage", default: true)
     // Option key modifier behaviour for media keys
     static let optionKeyAction = Key<OptionKeyAction>("optionKeyAction", default: OptionKeyAction.openSettings)
+
+    // Individual HUD Toggles
+    static let hudVolumeEnabled = Key<Bool>("hudVolumeEnabled", default: true)
+    static let hudBrightnessEnabled = Key<Bool>("hudBrightnessEnabled", default: true)
+    static let hudBacklightEnabled = Key<Bool>("hudBacklightEnabled", default: true)
+    static let hudAirPodsEnabled = Key<Bool>("hudAirPodsEnabled", default: true)
+    static let hudCapsLockEnabled = Key<Bool>("hudCapsLockEnabled", default: true)
+    static let hudLocationEnabled = Key<Bool>("hudLocationEnabled", default: true)
+    static let hudCameraEnabled = Key<Bool>("hudCameraEnabled", default: true)
+    static let hudMicEnabled = Key<Bool>("hudMicEnabled", default: true)
+    static let hudScreenRecordEnabled = Key<Bool>("hudScreenRecordEnabled", default: true)
     
     // MARK: Shelf
     static let boringShelf = Key<Bool>("boringShelf", default: true)

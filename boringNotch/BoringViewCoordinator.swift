@@ -255,6 +255,29 @@ class BoringViewCoordinator: ObservableObject {
             }
         }
 
+        switch type {
+        case .volume:
+            guard Defaults[.hudVolumeEnabled] else { return }
+        case .brightness:
+            guard Defaults[.hudBrightnessEnabled] else { return }
+        case .backlight:
+            guard Defaults[.hudBacklightEnabled] else { return }
+        case .airPods:
+            guard Defaults[.hudAirPodsEnabled] else { return }
+        case .capsLock:
+            guard Defaults[.hudCapsLockEnabled] else { return }
+        case .location:
+            guard Defaults[.hudLocationEnabled] else { return }
+        case .camera:
+            guard Defaults[.hudCameraEnabled] else { return }
+        case .mic, .micActivity:
+            guard Defaults[.hudMicEnabled] else { return }
+        case .screenRecord:
+            guard Defaults[.hudScreenRecordEnabled] else { return }
+        default:
+            break
+        }
+
         Task { @MainActor in
             let isCurrentlyShowing = self.sneakPeek.show
             let isDifferentType = (self.activeSneakPeekType != nil && self.activeSneakPeekType != type)

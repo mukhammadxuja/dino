@@ -214,10 +214,17 @@ struct ContentView: View {
 
         if isCurrentDisplayIsland {
             if isShowingSystemToastHUD {
-                if coordinator.sneakPeek.type == .airPods {
-                    return isCurrentScreenBuiltin ? 230 : 210
+                let type = coordinator.sneakPeek.type
+                switch type {
+                case .airPods:
+                    return isCurrentScreenBuiltin ? 112 : 106
+                case .volume, .brightness, .backlight:
+                    return isCurrentScreenBuiltin ? 236 : 228
+                case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location:
+                    return isCurrentScreenBuiltin ? 180 : 175
+                default:
+                    return isCurrentScreenBuiltin ? 180 : 175
                 }
-                return isCurrentScreenBuiltin ? 210 : 150
             } else if isShowingMusicSneakPeek {
                 return isCurrentScreenBuiltin ? 190 : 165
             } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show && vm.notchState == .closed {
@@ -255,17 +262,28 @@ struct ContentView: View {
                 chinWidth = 640
             }
         } else if isShowingSystemToastHUD {
-            if coordinator.sneakPeek.type == .airPods {
-                if isCurrentScreenBuiltin {
-                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 95)
-                } else {
-                    chinWidth = 210
+            let type = coordinator.sneakPeek.type
+            if isCurrentScreenBuiltin {
+                switch type {
+                case .airPods:
+                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 50)
+                case .volume, .brightness, .backlight:
+                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 110)
+                case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location:
+                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 75)
+                default:
+                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 65)
                 }
             } else {
-                if isCurrentScreenBuiltin {
-                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 60)
-                } else {
-                    chinWidth = 150
+                switch type {
+                case .airPods:
+                    chinWidth = 106
+                case .volume, .brightness, .backlight:
+                    chinWidth = 228
+                case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location:
+                    chinWidth = 175
+                default:
+                    chinWidth = 175
                 }
             }
         } else if isDualActivityActive || DinoCoordinator.shared.isDualActivityActive {

@@ -87,6 +87,8 @@ struct DinoSlotRouter: View {
                 .transition(.opacity)
         } else if isShowingSystemToastHUD {
             InlineHUD(
+                isIsland: isCurrentDisplayIsland,
+                isScreenBuiltin: isCurrentScreenBuiltin,
                 type: $coordinator.sneakPeek.type,
                 value: $coordinator.sneakPeek.value,
                 icon: $coordinator.sneakPeek.icon,

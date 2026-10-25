@@ -12,17 +12,13 @@ import AVFoundation
 
 struct InlineHUD: View {
     @EnvironmentObject var vm: BoringViewModel
+    var isIsland: Bool = true
+    var isScreenBuiltin: Bool = true
     @Binding var type: SneakContentType
     @Binding var value: CGFloat
     @Binding var icon: String
     @Binding var hoverAnimation: Bool
     @Binding var gestureProgress: CGFloat
-    private var isExternalScreen: Bool {
-        if let uuid = vm.screenUUID, let screen = NSScreen.screen(withUUID: uuid) {
-            return !screen.isBuiltin
-        }
-        return !(NSScreen.main?.isBuiltin ?? true)
-    }
 
     @ViewBuilder
     private var leftIconView: some View {
@@ -178,7 +174,7 @@ struct InlineHUD: View {
                     .lineLimit(1)
                     .allowsTightening(true)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: isExternalScreen ? nil : .infinity, alignment: .trailing)
+                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
                     .contentTransition(.interpolate)
             } else if (type == .micActivity) {
                 Text(value > 0 ? "Mic On" : "Mic Off")
@@ -187,7 +183,7 @@ struct InlineHUD: View {
                     .lineLimit(1)
                     .allowsTightening(true)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: isExternalScreen ? nil : .infinity, alignment: .trailing)
+                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
                     .contentTransition(.interpolate)
             } else if (type == .camera) {
                 Text(value > 0 ? "Camera On" : "Camera Off")
@@ -196,7 +192,7 @@ struct InlineHUD: View {
                     .lineLimit(1)
                     .allowsTightening(true)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: isExternalScreen ? nil : .infinity, alignment: .trailing)
+                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
                     .contentTransition(.interpolate)
             } else if (type == .screenRecord) {
                 Text(value > 0 ? "Recording" : "Stopped")
@@ -205,7 +201,7 @@ struct InlineHUD: View {
                     .lineLimit(1)
                     .allowsTightening(true)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: isExternalScreen ? nil : .infinity, alignment: .trailing)
+                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
                     .contentTransition(.interpolate)
             } else if (type == .capsLock) {
                 Text(value > 0 ? "Caps On" : "Caps Off")
@@ -214,7 +210,7 @@ struct InlineHUD: View {
                     .lineLimit(1)
                     .allowsTightening(true)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: isExternalScreen ? nil : .infinity, alignment: .trailing)
+                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
                     .contentTransition(.interpolate)
             } else if (type == .location) {
                 Text(value > 0 ? "Location In Use" : "Location Off")
@@ -223,20 +219,14 @@ struct InlineHUD: View {
                     .lineLimit(1)
                     .allowsTightening(true)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: isExternalScreen ? nil : .infinity, alignment: .trailing)
+                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
                     .contentTransition(.interpolate)
             } else if (type == .airPods) {
-                HStack(spacing: 4) {
-                    Image(systemName: value > 20 ? "battery.75" : "battery.25")
-                        .foregroundStyle(value > 20 ? Color.green : Color.red)
-                        .font(.system(size: 10, weight: .bold))
-                    Text("\(Int(value > 1 ? value : value * 100))%")
-                        .font(.system(size: 11.5, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                }
-                .frame(maxWidth: isExternalScreen ? nil : .infinity, alignment: .trailing)
+                let batteryVal = Int(value > 1 ? value : value * 100)
+                AirPodsBatteryRingView(battery: batteryVal)
+                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
             } else {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     DraggableProgressBar(value: $value, onChange: { v in
                         if type == .volume {
                             VolumeManager.shared.setAbsolute(Float32(v))
@@ -244,114 +234,103 @@ struct InlineHUD: View {
                             BrightnessManager.shared.setAbsolute(value: Float32(v))
                         }
                     })
-                    .frame(width: isExternalScreen ? 55 : nil)
+                    .frame(width: 58)
                     if (type == .volume && value.isZero) {
                         Text("muted")
-                            .font(.caption)
-                            .fontWeight(.medium)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
                             .foregroundStyle(.gray)
                             .lineLimit(1)
-                            .allowsTightening(true)
-                            .multilineTextAlignment(.trailing)
-                    } else if Defaults[.showClosedNotchHUDPercentage] {
+                            .fixedSize(horizontal: true, vertical: false)
+                            .frame(minWidth: 32, alignment: .trailing)
+                    } else {
                         Text("\(Int(value * 100))%")
-                            .font(.caption)
-                            .fontWeight(.medium)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .monospacedDigit()
                             .foregroundStyle(.gray)
                             .lineLimit(1)
-                            .allowsTightening(true)
-                            .multilineTextAlignment(.trailing)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .frame(minWidth: 32, alignment: .trailing)
                     }
                 }
             }
         }
     }
 
+    private var isSliderHUD: Bool {
+        type == .volume || type == .brightness || type == .backlight
+    }
+
+    private var islandHUDWidth: CGFloat {
+        switch type {
+        case .airPods:
+            return isScreenBuiltin ? 112 : 106
+        case .volume, .brightness, .backlight:
+            return isScreenBuiltin ? 236 : 228
+        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location:
+            return isScreenBuiltin ? 180 : 175
+        default:
+            return isScreenBuiltin ? 180 : 175
+        }
+    }
+
+    private var leftWingWidth: CGFloat {
+        switch type {
+        case .airPods:
+            return 52
+        case .volume, .brightness, .backlight:
+            return 82
+        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location:
+            return 52
+        default:
+            return 60
+        }
+    }
+
+    private var rightWingWidth: CGFloat {
+        switch type {
+        case .airPods:
+            return 52
+        case .volume, .brightness, .backlight:
+            return 98
+        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location:
+            return 88
+        default:
+            return 80
+        }
+    }
+
+    private var islandLayout: some View {
+        HStack(spacing: 0) {
+            leftIconView
+            Spacer(minLength: isSliderHUD ? 25 : 12)
+            rightStatusView
+        }
+        .padding(.leading, 1)
+        .padding(.trailing, 4)
+        .frame(width: islandHUDWidth, height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
+    }
+
+    private var notchLayout: some View {
+        HStack {
+            leftIconView
+                .frame(width: leftWingWidth - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.notchSize.height - (hoverAnimation ? 0 : 12), alignment: .leading)
+            
+            Rectangle()
+                .fill(.black)
+                .frame(width: vm.closedNotchSize.width - 20)
+            
+            rightStatusView
+                .padding(.trailing, 4)
+                .frame(width: rightWingWidth - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.closedNotchSize.height - (hoverAnimation ? 0 : 12), alignment: .trailing)
+        }
+        .frame(height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
+    }
+
     var body: some View {
-        if isExternalScreen {
-            if type == .airPods {
-                HStack(spacing: 8) {
-                    AirPodsVideoView()
-                        .frame(width: 24, height: 24)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(icon.isEmpty ? "AirPods Pro" : icon)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                        Text("Connected")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.gray)
-                    }
-
-                    Spacer()
-
-                    HStack(spacing: 4) {
-                        Image(systemName: value > 20 ? "battery.75" : "battery.25")
-                            .foregroundStyle(value > 20 ? Color.green : Color.red)
-                            .font(.system(size: 11, weight: .bold))
-                        Text("\(Int(value > 1 ? value : value * 100))%")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .frame(width: 210, height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
-            } else {
-                HStack(spacing: 0) {
-                    leftIconView
-                    Spacer()
-                    rightStatusView
-                }
-                .padding(.horizontal, 4)
-                .frame(width: 150, height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
-            }
+        if isIsland {
+            islandLayout
         } else {
-            if type == .airPods {
-                HStack {
-                    HStack(spacing: 6) {
-                        AirPodsVideoView()
-                            .frame(width: 22, height: 22)
-                            .clipShape(RoundedRectangle(cornerRadius: 5))
-                        Text(icon.isEmpty ? "AirPods Pro" : icon)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                    }
-                    .frame(width: 110 - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.notchSize.height - (hoverAnimation ? 0 : 12), alignment: .leading)
-
-                    Rectangle()
-                        .fill(.black)
-                        .frame(width: vm.closedNotchSize.width - 20)
-
-                    HStack(spacing: 4) {
-                        Image(systemName: value > 20 ? "battery.75" : "battery.25")
-                            .foregroundStyle(value > 20 ? Color.green : Color.red)
-                            .font(.system(size: 10, weight: .bold))
-                        Text("\(Int(value > 1 ? value : value * 100))%")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                    }
-                    .padding(.trailing, 4)
-                    .frame(width: 85 - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.closedNotchSize.height - (hoverAnimation ? 0 : 12), alignment: .trailing)
-                }
-                .frame(height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
-            } else {
-                HStack {
-                    leftIconView
-                        .frame(width: 100 - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.notchSize.height - (hoverAnimation ? 0 : 12), alignment: .leading)
-                    
-                    Rectangle()
-                        .fill(.black)
-                        .frame(width: vm.closedNotchSize.width - 20)
-                    
-                    rightStatusView
-                        .padding(.trailing, 4)
-                        .frame(width: 100 - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.closedNotchSize.height - (hoverAnimation ? 0 : 12), alignment: .center)
-                }
-                .frame(height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
-            }
+            notchLayout
         }
     }
     
@@ -486,3 +465,30 @@ struct AirPodsVideoPlayerRepresentable: NSViewRepresentable {
     }
 }
 
+// MARK: - AirPods Battery Circular Progress Ring
+struct AirPodsBatteryRingView: View {
+    let battery: Int
+
+    private var batteryFraction: CGFloat {
+        CGFloat(max(0, min(100, battery))) / 100.0
+    }
+
+    private var ringColor: Color {
+        battery <= 20 ? Color.red : Color(red: 0.20, green: 0.88, blue: 0.45)
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(ringColor.opacity(0.25), lineWidth: 2.6)
+            Circle()
+                .trim(from: 0, to: batteryFraction)
+                .stroke(
+                    ringColor,
+                    style: StrokeStyle(lineWidth: 2.6, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: 17, height: 17)
+    }
+}

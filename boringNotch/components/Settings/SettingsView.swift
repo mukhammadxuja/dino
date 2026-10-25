@@ -5584,120 +5584,277 @@ extension Color {
 
 struct HUD: View {
     @EnvironmentObject var vm: BoringViewModel
-    @Default(.inlineHUD) var inlineHUD
-    @Default(.enableGradient) var enableGradient
     @Default(.optionKeyAction) var optionKeyAction
     @Default(.hudReplacement) var hudReplacement
-    @ObservedObject var coordinator = BoringViewCoordinator.shared
+    @Default(.hudVolumeEnabled) var hudVolumeEnabled
+    @Default(.hudBrightnessEnabled) var hudBrightnessEnabled
+    @Default(.hudBacklightEnabled) var hudBacklightEnabled
+    @Default(.hudAirPodsEnabled) var hudAirPodsEnabled
+    @Default(.hudCapsLockEnabled) var hudCapsLockEnabled
+    @Default(.hudLocationEnabled) var hudLocationEnabled
+    @Default(.hudCameraEnabled) var hudCameraEnabled
+    @Default(.hudMicEnabled) var hudMicEnabled
+    @Default(.hudScreenRecordEnabled) var hudScreenRecordEnabled
+
     @State private var accessibilityAuthorized = false
-    
+    @State private var expandedHUDId: String? = nil
+
     var body: some View {
-        Form {
-            Section {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Replace system HUD")
-                            .font(.headline)
-                        Text("Replaces the standard macOS volume, display brightness, and keyboard brightness HUDs with a custom design.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 40)
-                    Defaults.Toggle("", key: .hudReplacement)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .disabled(!accessibilityAuthorized)
-                }
-                
-                if !accessibilityAuthorized {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Accessibility access is required to replace the system HUD.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // MARK: - 1. System HUD Replacement Card
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("System HUD")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.secondary)
 
+                    VStack(spacing: 0) {
+                        // Master Toggle Row
                         HStack(spacing: 12) {
-                            Button("Request Accessibility") {
-                                XPCHelperClient.shared.requestAccessibilityAuthorization()
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .fill(Color.orange.opacity(0.12))
+                                    .frame(width: 28, height: 28)
+                                Image(systemName: "dial.medium.fill")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.orange)
                             }
-                            .buttonStyle(.borderedProminent)
 
-                            Button("Open System Settings") {
-                                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                                    NSWorkspace.shared.open(url)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Replace system HUD")
+                                    .font(.system(size: 13, weight: .semibold))
+                                Text("Replaces standard macOS volume, display brightness, and keyboard brightness HUDs with a custom design.")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Spacer(minLength: 20)
+
+                            Defaults.Toggle("", key: .hudReplacement)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .controlSize(.small)
+                                .disabled(!accessibilityAuthorized)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+
+                        if !accessibilityAuthorized {
+                            cardDivider
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Accessibility access is required to replace the system HUD.")
+                                    .font(.system(size: 11.5))
+                                    .foregroundStyle(.secondary)
+
+                                HStack(spacing: 12) {
+                                    Button("Request Accessibility") {
+                                        XPCHelperClient.shared.requestAccessibilityAuthorization()
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+
+                                    Button("Open System Settings") {
+                                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                                            NSWorkspace.shared.open(url)
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
                                 }
                             }
-                            .buttonStyle(.bordered)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(Color.orange.opacity(0.04))
+                        }
+
+                        if hudReplacement {
+                            cardDivider
+
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                        .fill(Color.blue.opacity(0.12))
+                                        .frame(width: 28, height: 28)
+                                    Image(systemName: "option")
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(.blue)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Option key behaviour")
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text("Action triggered when pressing media keys with the Option modifier.")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer(minLength: 20)
+
+                                Picker("", selection: $optionKeyAction) {
+                                    ForEach(OptionKeyAction.allCases) { opt in
+                                        Text(opt.rawValue).tag(opt)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(width: 150)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
                         }
                     }
-                    .padding(.top, 6)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                    )
                 }
-            }
-            
-            Section {
-                Picker("Option key behaviour", selection: $optionKeyAction) {
-                    ForEach(OptionKeyAction.allCases) { opt in
-                        Text(opt.rawValue).tag(opt)
+
+                // MARK: - 2. Active HUDs & System Indicators Card
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Active HUDs & Indicators")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.secondary)
+                        customBadge(text: "Inline")
                     }
-                }
-                
-                Picker("Progress bar style", selection: $enableGradient) {
-                    Text("Hierarchical")
-                        .tag(false)
-                    Text("Gradient")
-                        .tag(true)
-                }
-                Defaults.Toggle(key: .systemEventIndicatorShadow) {
-                    Text("Enable glowing effect")
-                }
-                Defaults.Toggle(key: .systemEventIndicatorUseAccent) {
-                    Text("Tint progress bar with accent color")
-                }
-            } header: {
-                Text("General")
-            }
-            .disabled(!hudReplacement)
-            
-            Section {
-                Defaults.Toggle(key: .showOpenNotchHUD) {
-                    Text("Show HUD in open notch")
-                }
-                Defaults.Toggle(key: .showOpenNotchHUDPercentage) {
-                    Text("Show percentage")
-                }
-                .disabled(!Defaults[.showOpenNotchHUD])
-            } header: {
-                HStack {
-                    Text("Open Notch")
-                    customBadge(text: "Beta")
-                }
-            }
-            .disabled(!hudReplacement)
-            
-            Section {
-                Picker("HUD style", selection: $inlineHUD) {
-                    Text("Default")
-                        .tag(false)
-                    Text("Inline")
-                        .tag(true)
-                }
-                .onChange(of: Defaults[.inlineHUD]) {
-                    if Defaults[.inlineHUD] {
-                        withAnimation {
-                            Defaults[.systemEventIndicatorShadow] = false
-                            Defaults[.enableGradient] = false
-                        }
+
+                    VStack(spacing: 0) {
+                        // 1. Volume
+                        hudRow(
+                            id: "volume",
+                            title: "Volume",
+                            subtitle: "Audio volume slider and mute notification toast",
+                            icon: "speaker.wave.2.fill",
+                            iconColor: .blue,
+                            isOn: $hudVolumeEnabled,
+                            previewView: AnyView(previewVolumeHUD),
+                            descriptionText: "Fires when adjusting system volume with keyboard keys or menu bar. Shows speaker symbol, animated volume slider, and percentage."
+                        )
+
+                        cardDivider
+
+                        // 2. Display Brightness
+                        hudRow(
+                            id: "brightness",
+                            title: "Display Brightness",
+                            subtitle: "Screen brightness slider with level percentage",
+                            icon: "sun.max.fill",
+                            iconColor: .orange,
+                            isOn: $hudBrightnessEnabled,
+                            previewView: AnyView(previewBrightnessHUD),
+                            descriptionText: "Fires when adjusting screen brightness using function keys. Shows sun icon with smooth slider and real-time percentage."
+                        )
+
+                        cardDivider
+
+                        // 3. Keyboard Backlight
+                        hudRow(
+                            id: "backlight",
+                            title: "Keyboard Backlight",
+                            subtitle: "Keyboard illumination level slider indicator",
+                            icon: "keyboard.fill",
+                            iconColor: .purple,
+                            isOn: $hudBacklightEnabled,
+                            previewView: AnyView(previewBacklightHUD),
+                            descriptionText: "Fires when adjusting keyboard illumination level. Shows keyboard glyph, progress bar, and lighting status."
+                        )
+
+                        cardDivider
+
+                        // 4. AirPods & Bluetooth Connect
+                        hudRow(
+                            id: "airpods",
+                            title: "AirPods & Bluetooth Audio",
+                            subtitle: "iOS Dynamic Island connection animation and circular battery ring",
+                            icon: "airpodspro",
+                            iconColor: .green,
+                            isOn: $hudAirPodsEnabled,
+                            previewView: AnyView(previewAirPodsHUD),
+                            descriptionText: "Fires automatically when AirPods or wireless headphones connect. Displays an animated 3D AirPods model on the left and a circular battery progress ring on the right."
+                        )
+
+                        cardDivider
+
+                        // 5. Caps Lock Indicator
+                        hudRow(
+                            id: "capslock",
+                            title: "Caps Lock Indicator",
+                            subtitle: "Instant notch feedback when Caps Lock is engaged or released",
+                            icon: "capslock.fill",
+                            iconColor: .indigo,
+                            isOn: $hudCapsLockEnabled,
+                            previewView: AnyView(previewCapsLockHUD),
+                            descriptionText: "Fires instantly whenever Caps Lock is pressed. Shows a highlighted badge and 'Caps On' or 'Caps Off' indicator."
+                        )
+
+                        cardDivider
+
+                        // 6. Location In-Use Privacy
+                        hudRow(
+                            id: "location",
+                            title: "Location In-Use",
+                            subtitle: "Privacy indicator when Location Services are requested or active",
+                            icon: "location.fill",
+                            iconColor: .cyan,
+                            isOn: $hudLocationEnabled,
+                            previewView: AnyView(previewLocationHUD),
+                            descriptionText: "Fires when any application or system service accesses your location. Displays a blue location capsule with 'Location In Use' status."
+                        )
+
+                        cardDivider
+
+                        // 7. Camera In-Use Privacy
+                        hudRow(
+                            id: "camera",
+                            title: "Camera In-Use",
+                            subtitle: "Privacy indicator when the webcam or Continuity Camera is active",
+                            icon: "video.fill",
+                            iconColor: .green,
+                            isOn: $hudCameraEnabled,
+                            previewView: AnyView(previewCameraHUD),
+                            descriptionText: "Fires when any app starts using the webcam. Shows a green privacy capsule and 'Camera On' alert."
+                        )
+
+                        cardDivider
+
+                        // 8. Microphone In-Use Privacy
+                        hudRow(
+                            id: "mic",
+                            title: "Microphone In-Use",
+                            subtitle: "Privacy indicator when the system microphone is recording audio",
+                            icon: "mic.fill",
+                            iconColor: .orange,
+                            isOn: $hudMicEnabled,
+                            previewView: AnyView(previewMicHUD),
+                            descriptionText: "Fires when an app accesses the microphone. Displays an orange audio capsule and 'Mic On' indicator."
+                        )
+
+                        cardDivider
+
+                        // 9. Screen Recording Indicator
+                        hudRow(
+                            id: "screenrecord",
+                            title: "Screen Recording",
+                            subtitle: "Privacy alert when screen capture or screen recording is active",
+                            icon: "record.circle.fill",
+                            iconColor: .red,
+                            isOn: $hudScreenRecordEnabled,
+                            previewView: AnyView(previewScreenRecordHUD),
+                            descriptionText: "Fires when macOS screencapture, QuickTime, or meeting software records the screen. Displays a red recording capsule."
+                        )
                     }
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                    )
                 }
-                
-                Defaults.Toggle(key: .showClosedNotchHUDPercentage) {
-                    Text("Show percentage")
-                }
-            } header: {
-                Text("Closed Notch")
             }
-            .disabled(!Defaults[.hudReplacement])
+            .padding(20)
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("HUDs")
@@ -5715,6 +5872,240 @@ struct HUD: View {
                 accessibilityAuthorized = granted
             }
         }
+    }
+
+    private var cardDivider: some View {
+        Divider()
+            .padding(.horizontal, 16)
+    }
+
+    @ViewBuilder
+    private func hudRow(
+        id: String,
+        title: String,
+        subtitle: String,
+        icon: String,
+        iconColor: Color,
+        isOn: Binding<Bool>,
+        previewView: AnyView,
+        descriptionText: String
+    ) -> some View {
+        let isExpanded = (expandedHUDId == id)
+
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(iconColor.opacity(0.12))
+                        .frame(width: 28, height: 28)
+                    Image(systemName: icon)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(iconColor)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 12)
+
+                Toggle("", isOn: isOn)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        expandedHUDId = (isExpanded ? nil : id)
+                    }
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("LIVE PREVIEW")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary.opacity(0.8))
+                        Spacer()
+                    }
+
+                    HStack {
+                        Spacer()
+                        previewView
+                        Spacer()
+                    }
+                    .padding(.vertical, 10)
+                    .background(Color.black.opacity(0.92))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                    Text(descriptionText)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color.primary.opacity(0.02))
+            }
+        }
+    }
+
+    private var previewVolumeHUD: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "speaker.wave.2.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.25)).frame(width: 70, height: 6)
+                Capsule().fill(Color.white).frame(width: 52, height: 6)
+            }
+            Text("75%")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundColor(.gray)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+    }
+
+    private var previewBrightnessHUD: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "sun.max.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.25)).frame(width: 70, height: 6)
+                Capsule().fill(Color.white).frame(width: 45, height: 6)
+            }
+            Text("65%")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundColor(.gray)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+    }
+
+    private var previewBacklightHUD: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "keyboard.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.25)).frame(width: 70, height: 6)
+                Capsule().fill(Color.white).frame(width: 35, height: 6)
+            }
+            Text("50%")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundColor(.gray)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+    }
+
+    private var previewAirPodsHUD: some View {
+        HStack(spacing: 24) {
+            Image(systemName: "airpodspro")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.white)
+            AirPodsBatteryRingView(battery: 94)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 28)
+    }
+
+    private var previewCapsLockHUD: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Capsule().fill(Color.effectiveAccent).frame(width: 22, height: 15)
+                Image(systemName: "capslock.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            Text("Caps On")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+    }
+
+    private var previewLocationHUD: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Capsule().fill(Color.blue).frame(width: 22, height: 15)
+                Image(systemName: "location.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            Text("Location In Use")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundColor(.blue)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+    }
+
+    private var previewCameraHUD: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Capsule().fill(Color.green).frame(width: 22, height: 15)
+                Image(systemName: "video.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            Text("Camera On")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundColor(.green)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+    }
+
+    private var previewMicHUD: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Capsule().fill(Color.orange).frame(width: 22, height: 15)
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            Text("Mic On")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundColor(.orange)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+    }
+
+    private var previewScreenRecordHUD: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Capsule().fill(Color.red).frame(width: 22, height: 15)
+                Image(systemName: "record.circle.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            Text("Recording")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundColor(.red)
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 28)
     }
 }
 
