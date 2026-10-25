@@ -117,6 +117,7 @@ public struct PomodoroCompanionCircleView: View {
     var onOpenPomodoro: () -> Void
 
     @State private var isCircleHovered: Bool = false
+    @State private var pomodoroHoverTask: Task<Void, Never>?
 
     public init(
         isCurrentScreenBuiltin: Bool,
@@ -217,16 +218,28 @@ public struct PomodoroCompanionCircleView: View {
             withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.80)) {
                 isCircleHovered = hovering
             }
+            pomodoroHoverTask?.cancel()
             if hovering {
                 if Defaults[.enableHaptics] {
                     NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
                 }
                 NSCursor.pointingHand.push()
+                if Defaults[.openNotchOnHover] && Defaults[.islandVisibility] != .onClick && vm.notchState == .closed {
+                    pomodoroHoverTask = Task {
+                        try? await Task.sleep(for: .seconds(Defaults[.minimumHoverDuration]))
+                        guard !Task.isCancelled else { return }
+                        await MainActor.run {
+                            guard self.vm.notchState == .closed else { return }
+                            self.onOpenPomodoro()
+                        }
+                    }
+                }
             } else {
                 NSCursor.pop()
             }
         }
         .onTapGesture {
+            pomodoroHoverTask?.cancel()
             onOpenPomodoro()
         }
     }

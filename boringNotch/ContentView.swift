@@ -583,9 +583,7 @@ struct ContentView: View {
                     }
                     .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
                     .onHover { hovering in
-                        if !(isDualActivityActive && isCurrentDisplayIsland && vm.notchState == .closed) {
-                            handleHover(hovering)
-                        }
+                        handleHover(hovering)
                     }
                     .conditionalModifier(Defaults[.enableGestures]) { view in
                         view
@@ -847,6 +845,11 @@ struct ContentView: View {
     }
 
     private func openMusicWithSpring() {
+        islandRetractTask?.cancel()
+        islandRetractTask = nil
+        hoverTask?.cancel()
+        isHovering = true
+        isIslandClickedDown = true
         if Defaults[.enableHaptics] {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             haptics.toggle()
@@ -863,6 +866,11 @@ struct ContentView: View {
     }
 
     private func openPomodoroWithSpring() {
+        islandRetractTask?.cancel()
+        islandRetractTask = nil
+        hoverTask?.cancel()
+        isHovering = true
+        isIslandClickedDown = true
         if Defaults[.enableHaptics] {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             haptics.toggle()
@@ -930,12 +938,6 @@ struct ContentView: View {
             }
 
             hoverTask?.cancel()
-            withAnimation(animationSpring) {
-                isHovering = false
-                isIslandClickedDown = false
-                showCoverHoverMusicDetails = false
-            }
-
             coverHoverDismissTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled else { return }
@@ -1018,6 +1020,11 @@ struct ContentView: View {
     }
 
     private func doOpen() {
+        islandRetractTask?.cancel()
+        islandRetractTask = nil
+        hoverTask?.cancel()
+        isHovering = true
+        isIslandClickedDown = true
         lastOpenedAt = Date()
         showCoverHoverMusicDetails = false
         coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
