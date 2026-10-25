@@ -214,6 +214,9 @@ struct ContentView: View {
 
         if isCurrentDisplayIsland {
             if isShowingSystemToastHUD {
+                if coordinator.sneakPeek.type == .airPods {
+                    return isCurrentScreenBuiltin ? 230 : 210
+                }
                 return isCurrentScreenBuiltin ? 210 : 150
             } else if isShowingMusicSneakPeek {
                 return isCurrentScreenBuiltin ? 190 : 165
@@ -252,10 +255,18 @@ struct ContentView: View {
                 chinWidth = 640
             }
         } else if isShowingSystemToastHUD {
-            if isCurrentScreenBuiltin {
-                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 60)
+            if coordinator.sneakPeek.type == .airPods {
+                if isCurrentScreenBuiltin {
+                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 95)
+                } else {
+                    chinWidth = 210
+                }
             } else {
-                chinWidth = 150
+                if isCurrentScreenBuiltin {
+                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 60)
+                } else {
+                    chinWidth = 150
+                }
             }
         } else if isDualActivityActive || DinoCoordinator.shared.isDualActivityActive {
             if isCurrentDisplayIsland {

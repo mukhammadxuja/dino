@@ -7,6 +7,8 @@
 
 import SwiftUI
 import Defaults
+import AVKit
+import AVFoundation
 
 struct InlineHUD: View {
     @EnvironmentObject var vm: BoringViewModel
@@ -110,6 +112,44 @@ struct InlineHUD: View {
                         }
                         .contentTransition(.interpolate)
                         .frame(width: 24, height: 16, alignment: .center)
+                    case .capsLock:
+                        ZStack {
+                            if value > 0 {
+                                Capsule()
+                                    .fill(Color.accentColor)
+                                    .frame(width: 24, height: 16)
+                                Image(systemName: "capslock.fill")
+                                    .font(.system(size: 9.5, weight: .bold))
+                                    .foregroundStyle(Color.white)
+                            } else {
+                                Image(systemName: "capslock")
+                                    .symbolRenderingMode(.hierarchical)
+                                    .foregroundStyle(Color.gray)
+                            }
+                        }
+                        .contentTransition(.interpolate)
+                        .frame(width: 24, height: 16, alignment: .center)
+                    case .location:
+                        ZStack {
+                            if value > 0 {
+                                Capsule()
+                                    .fill(Color.blue)
+                                    .frame(width: 24, height: 16)
+                                Image(systemName: "location.fill")
+                                    .font(.system(size: 9.5, weight: .bold))
+                                    .foregroundStyle(Color.white)
+                            } else {
+                                Image(systemName: "location.slash.fill")
+                                    .symbolRenderingMode(.hierarchical)
+                                    .foregroundStyle(Color.gray)
+                            }
+                        }
+                        .contentTransition(.interpolate)
+                        .frame(width: 24, height: 16, alignment: .center)
+                    case .airPods:
+                        AirPodsVideoView()
+                            .frame(width: 24, height: 24)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
                     default:
                         EmptyView()
                 }
@@ -117,7 +157,7 @@ struct InlineHUD: View {
             .foregroundStyle(.white)
             .symbolVariant(.fill)
             
-            if type != .mic && type != .micActivity && type != .camera && type != .screenRecord {
+            if type != .mic && type != .micActivity && type != .camera && type != .screenRecord && type != .capsLock && type != .location && type != .airPods {
                 Text(Type2Name(type))
                     .font(.subheadline)
                     .fontWeight(.medium)
@@ -167,6 +207,34 @@ struct InlineHUD: View {
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: isExternalScreen ? nil : .infinity, alignment: .trailing)
                     .contentTransition(.interpolate)
+            } else if (type == .capsLock) {
+                Text(value > 0 ? "Caps On" : "Caps Off")
+                    .foregroundStyle(value > 0 ? Color.white : Color.gray)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .lineLimit(1)
+                    .allowsTightening(true)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: isExternalScreen ? nil : .infinity, alignment: .trailing)
+                    .contentTransition(.interpolate)
+            } else if (type == .location) {
+                Text(value > 0 ? "Location In Use" : "Location Off")
+                    .foregroundStyle(value > 0 ? Color.blue : Color.gray)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .lineLimit(1)
+                    .allowsTightening(true)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: isExternalScreen ? nil : .infinity, alignment: .trailing)
+                    .contentTransition(.interpolate)
+            } else if (type == .airPods) {
+                HStack(spacing: 4) {
+                    Image(systemName: value > 20 ? "battery.75" : "battery.25")
+                        .foregroundStyle(value > 20 ? Color.green : Color.red)
+                        .font(.system(size: 10, weight: .bold))
+                    Text("\(Int(value > 1 ? value : value * 100))%")
+                        .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
+                .frame(maxWidth: isExternalScreen ? nil : .infinity, alignment: .trailing)
             } else {
                 HStack(spacing: 4) {
                     DraggableProgressBar(value: $value, onChange: { v in
@@ -201,27 +269,89 @@ struct InlineHUD: View {
 
     var body: some View {
         if isExternalScreen {
-            HStack(spacing: 0) {
-                leftIconView
-                Spacer()
-                rightStatusView
+            if type == .airPods {
+                HStack(spacing: 8) {
+                    AirPodsVideoView()
+                        .frame(width: 24, height: 24)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(icon.isEmpty ? "AirPods Pro" : icon)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                        Text("Connected")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.gray)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 4) {
+                        Image(systemName: value > 20 ? "battery.75" : "battery.25")
+                            .foregroundStyle(value > 20 ? Color.green : Color.red)
+                            .font(.system(size: 11, weight: .bold))
+                        Text("\(Int(value > 1 ? value : value * 100))%")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .frame(width: 210, height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
+            } else {
+                HStack(spacing: 0) {
+                    leftIconView
+                    Spacer()
+                    rightStatusView
+                }
+                .padding(.horizontal, 4)
+                .frame(width: 150, height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
             }
-            .padding(.horizontal, 4)
-            .frame(width: 150, height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
         } else {
-            HStack {
-                leftIconView
-                    .frame(width: 100 - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.notchSize.height - (hoverAnimation ? 0 : 12), alignment: .leading)
-                
-                Rectangle()
-                    .fill(.black)
-                    .frame(width: vm.closedNotchSize.width - 20)
-                
-                rightStatusView
+            if type == .airPods {
+                HStack {
+                    HStack(spacing: 6) {
+                        AirPodsVideoView()
+                            .frame(width: 22, height: 22)
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                        Text(icon.isEmpty ? "AirPods Pro" : icon)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                    }
+                    .frame(width: 110 - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.notchSize.height - (hoverAnimation ? 0 : 12), alignment: .leading)
+
+                    Rectangle()
+                        .fill(.black)
+                        .frame(width: vm.closedNotchSize.width - 20)
+
+                    HStack(spacing: 4) {
+                        Image(systemName: value > 20 ? "battery.75" : "battery.25")
+                            .foregroundStyle(value > 20 ? Color.green : Color.red)
+                            .font(.system(size: 10, weight: .bold))
+                        Text("\(Int(value > 1 ? value : value * 100))%")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                    }
                     .padding(.trailing, 4)
-                    .frame(width: 100 - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.closedNotchSize.height - (hoverAnimation ? 0 : 12), alignment: .center)
+                    .frame(width: 85 - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.closedNotchSize.height - (hoverAnimation ? 0 : 12), alignment: .trailing)
+                }
+                .frame(height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
+            } else {
+                HStack {
+                    leftIconView
+                        .frame(width: 100 - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.notchSize.height - (hoverAnimation ? 0 : 12), alignment: .leading)
+                    
+                    Rectangle()
+                        .fill(.black)
+                        .frame(width: vm.closedNotchSize.width - 20)
+                    
+                    rightStatusView
+                        .padding(.trailing, 4)
+                        .frame(width: 100 - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.closedNotchSize.height - (hoverAnimation ? 0 : 12), alignment: .center)
+                }
+                .frame(height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
             }
-            .frame(height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
         }
     }
     
@@ -274,3 +404,85 @@ struct InlineHUD: View {
         .padding()
         .environmentObject(BoringViewModel())
 }
+
+// MARK: - AirPods Video Animation Player
+struct AirPodsVideoView: View {
+    @State private var player: AVQueuePlayer?
+    @State private var looper: AVPlayerLooper?
+
+    var body: some View {
+        Group {
+            if let p = player {
+                AirPodsVideoPlayerRepresentable(player: p)
+            } else {
+                Image(systemName: "airpodspro")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+        }
+        .onAppear {
+            setupPlayer()
+        }
+        .onDisappear {
+            player?.pause()
+            player = nil
+            looper = nil
+        }
+    }
+
+    private func setupPlayer() {
+        guard player == nil else { return }
+        guard let url = resolveVideoURL() else { return }
+
+        let item = AVPlayerItem(url: url)
+        let queuePlayer = AVQueuePlayer(playerItem: item)
+        queuePlayer.isMuted = true
+        queuePlayer.actionAtItemEnd = .none
+        let playerLooper = AVPlayerLooper(player: queuePlayer, templateItem: item)
+
+        self.player = queuePlayer
+        self.looper = playerLooper
+        queuePlayer.play()
+    }
+
+    private func resolveVideoURL() -> URL? {
+        if let bundleURL = Bundle.main.url(forResource: "airpods-pro", withExtension: "mp4") {
+            return bundleURL
+        }
+        if let asset = NSDataAsset(name: "airpods-pro") {
+            let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
+            let fileURL = tempDir.appendingPathComponent("boringnotch-airpods-pro.mp4")
+            if !FileManager.default.fileExists(atPath: fileURL.path) || (try? Data(contentsOf: fileURL).count) != asset.data.count {
+                try? asset.data.write(to: fileURL)
+            }
+            return fileURL
+        }
+        let fallbackPath = "/Users/macbookair/Desktop/Projects/My Projects/Dino/boringNotch/Assets.xcassets/airpods-pro.mp4"
+        if FileManager.default.fileExists(atPath: fallbackPath) {
+            return URL(fileURLWithPath: fallbackPath)
+        }
+        return nil
+    }
+}
+
+struct AirPodsVideoPlayerRepresentable: NSViewRepresentable {
+    let player: AVQueuePlayer
+
+    func makeNSView(context: Context) -> AVPlayerView {
+        let view = AVPlayerView()
+        view.controlsStyle = .none
+        view.showsFullScreenToggleButton = false
+        view.showsSharingServiceButton = false
+        view.player = player
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.clear.cgColor
+        return view
+    }
+
+    func updateNSView(_ nsView: AVPlayerView, context: Context) {
+        if nsView.player !== player {
+            nsView.player = player
+        }
+    }
+}
+

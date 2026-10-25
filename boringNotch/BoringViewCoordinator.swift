@@ -22,6 +22,9 @@ enum SneakContentType {
     case antigravity
     case camera
     case screenRecord
+    case capsLock
+    case location
+    case airPods
 }
 
 struct sneakPeek {
@@ -246,7 +249,7 @@ class BoringViewCoordinator: ObservableObject {
             return
         }
 
-        if type != .music && type != .mic && type != .micActivity && type != .camera && type != .screenRecord {
+        if type != .music && type != .mic && type != .micActivity && type != .camera && type != .screenRecord && type != .capsLock && type != .location && type != .airPods {
             if !Defaults[.hudReplacement] {
                 return
             }
@@ -297,6 +300,9 @@ class BoringViewCoordinator: ObservableObject {
                 case .micActivity: return .hud(.micActivity(isActive: value > 0))
                 case .camera: return .hud(.camera(isActive: value > 0))
                 case .screenRecord: return .hud(.screenRecord(isRecording: value > 0))
+                case .capsLock: return .hud(.capsLock(isOn: value > 0))
+                case .location: return .hud(.location(isInUse: value > 0))
+                case .airPods: return .hud(.airPods(name: icon.isEmpty ? "AirPods Pro" : icon, battery: Int(value)))
                 default: return .hud(.volume(value: Double(value)))
                 }
             }()

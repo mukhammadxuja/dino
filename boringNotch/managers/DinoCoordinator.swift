@@ -38,6 +38,9 @@ public enum DinoSlot: Equatable, Hashable, Sendable {
         case micActivity(isActive: Bool)
         case camera(isActive: Bool)
         case screenRecord(isRecording: Bool)
+        case capsLock(isOn: Bool)
+        case location(isInUse: Bool)
+        case airPods(name: String, battery: Int?)
     }
     
     var asActiveModule: ActiveNotchModule {

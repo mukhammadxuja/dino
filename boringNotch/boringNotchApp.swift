@@ -744,6 +744,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         _ = ClipboardManager.shared
         _ = MicrophoneManager.shared
         _ = PrivacyHUDManager.shared
+        CapsLockManager.shared.start()
+        BluetoothHUDManager.shared.start()
 
         setupStrictModeObservers()
         setupScreenGlowObservers()

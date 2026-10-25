@@ -8,8 +8,10 @@
 import AppKit
 import Combine
 import CoreAudio
+import CoreLocation
 import CoreMediaIO
 import Foundation
+import IOBluetooth
 
 final class VolumeManager: NSObject, ObservableObject {
     static let shared = VolumeManager()
@@ -627,17 +629,23 @@ final class PrivacyHUDManager: NSObject, ObservableObject {
     @Published private(set) var isCameraActive: Bool = false
     @Published private(set) var isMicInUse: Bool = false
     @Published private(set) var isScreenRecording: Bool = false
+    @Published private(set) var isLocationActive: Bool = false
 
     private var didInitialCameraFetch = false
     private var didInitialMicFetch = false
     private var didInitialRecordingFetch = false
+    private var didInitialLocationFetch = false
     private var screenRecordPollTimer: Timer?
+    private var locationManager: CLLocationManager?
+    private var lastLocationAuthStatus: CLAuthorizationStatus?
+    private var lastLocationTriggerTime: Date = .distantPast
 
     override init() {
         super.init()
         setupCameraListener()
         setupMicInUseListener()
         setupScreenRecordListener()
+        setupLocationListener()
     }
 
     func start() {
@@ -932,7 +940,320 @@ final class PrivacyHUDManager: NSObject, ObservableObject {
 
         return false
     }
+
+    // MARK: - Location In-Use Detection (Privacy Indicator)
+    private func setupLocationListener() {
+        let center = CFNotificationCenterGetDarwinNotifyCenter()
+        let observer = Unmanaged.passUnretained(self).toOpaque()
+        let names = [
+            "com.apple.locationd.registration",
+            "com.apple.locationd/Prefs",
+            "com.apple.locationd.status",
+            "com.apple.locationd.active"
+        ]
+        for name in names {
+            CFNotificationCenterAddObserver(
+                center,
+                observer,
+                { _, observer, _, _, _ in
+                    guard let observer = observer else { return }
+                    let manager = Unmanaged<PrivacyHUDManager>.fromOpaque(observer).takeUnretainedValue()
+                    manager.evaluateLocationState()
+                },
+                name as CFString,
+                nil,
+                .deliverImmediately
+            )
+        }
+
+        let loc = CLLocationManager()
+        loc.delegate = self
+        self.locationManager = loc
+        self.lastLocationAuthStatus = loc.authorizationStatus
+
+        if loc.authorizationStatus == .notDetermined {
+            loc.requestWhenInUseAuthorization()
+        }
+    }
+
+    private func evaluateLocationState() {
+        guard didInitialLocationFetch else {
+            didInitialLocationFetch = true
+            return
+        }
+        triggerLocationHUD()
+    }
+
+    func updateLocationState(_ active: Bool) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let stateChanged = (self.isLocationActive != active)
+            self.isLocationActive = active
+
+            if self.didInitialLocationFetch && stateChanged {
+                BoringViewCoordinator.shared.toggleSneakPeek(
+                    status: true,
+                    type: .location,
+                    duration: active ? 2.5 : 1.8,
+                    value: active ? 1.0 : 0.0
+                )
+            }
+            self.didInitialLocationFetch = true
+        }
+    }
 }
+
+extension PrivacyHUDManager: CLLocationManagerDelegate {
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        let old = lastLocationAuthStatus
+        lastLocationAuthStatus = status
+
+        if status == .authorizedAlways || status == .authorized {
+            if old != status {
+                triggerLocationHUD()
+                manager.requestLocation()
+            }
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        triggerLocationHUD()
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        // CoreLocation requires didFailWithError when requestLocation() is used
+    }
+
+    func triggerLocationHUD() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let now = Date()
+            guard now.timeIntervalSince(self.lastLocationTriggerTime) > 2.0 else { return }
+            self.lastLocationTriggerTime = now
+
+            self.isLocationActive = true
+            BoringViewCoordinator.shared.toggleSneakPeek(
+                status: true,
+                type: .location,
+                duration: 2.5,
+                value: 1.0
+            )
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+                self?.isLocationActive = false
+            }
+        }
+    }
+}
+
+// MARK: - Caps Lock Indicator Manager
+final class CapsLockManager: NSObject {
+    static let shared = CapsLockManager()
+
+    private var globalMonitor: Any?
+    private var localMonitor: Any?
+    private var lastState: Bool = false
+    private var isStarted = false
+
+    override init() {
+        super.init()
+    }
+
+    func start() {
+        guard !isStarted else { return }
+        isStarted = true
+
+        lastState = NSEvent.modifierFlags.contains(.capsLock)
+
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            self?.handleFlagsChanged(event)
+        }
+
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            self?.handleFlagsChanged(event)
+            return event
+        }
+    }
+
+    private func handleFlagsChanged(_ event: NSEvent) {
+        let currentState = event.modifierFlags.contains(.capsLock)
+        if currentState != lastState {
+            lastState = currentState
+            DispatchQueue.main.async {
+                BoringViewCoordinator.shared.toggleSneakPeek(
+                    status: true,
+                    type: .capsLock,
+                    duration: 1.5,
+                    value: currentState ? 1.0 : 0.0
+                )
+            }
+        }
+    }
+
+    deinit {
+        if let g = globalMonitor { NSEvent.removeMonitor(g) }
+        if let l = localMonitor { NSEvent.removeMonitor(l) }
+    }
+}
+
+// MARK: - Bluetooth & AirPods Connect HUD Manager
+final class BluetoothHUDManager: NSObject {
+    static let shared = BluetoothHUDManager()
+
+    private var connectNotification: IOBluetoothUserNotification?
+    private var didInitialFetch = false
+    private var isStarted = false
+    private var lastConnectedDeviceAddress: String = ""
+
+    override init() {
+        super.init()
+    }
+
+    func start() {
+        guard !isStarted else { return }
+        isStarted = true
+
+        setupBluetoothConnectListener()
+        setupAudioOutputListener()
+    }
+
+    private func setupBluetoothConnectListener() {
+        connectNotification = IOBluetoothDevice.register(
+            forConnectNotifications: self,
+            selector: #selector(deviceConnected(_:device:))
+        ) as? IOBluetoothUserNotification
+    }
+
+    @objc private func deviceConnected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.handleDeviceConnection(device)
+        }
+    }
+
+    private func handleDeviceConnection(_ device: IOBluetoothDevice) {
+        guard let name = device.name, !name.isEmpty else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                if let retryName = device.name, !retryName.isEmpty {
+                    self?.handleDeviceConnection(device)
+                }
+            }
+            return
+        }
+
+        let addr = device.addressString ?? name
+        if addr == lastConnectedDeviceAddress { return }
+        lastConnectedDeviceAddress = addr
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            if self?.lastConnectedDeviceAddress == addr {
+                self?.lastConnectedDeviceAddress = ""
+            }
+        }
+
+        let battery = readBattery(for: device)
+        triggerAirPodsHUD(deviceName: name, battery: battery)
+    }
+
+    func triggerAirPodsHUD(deviceName: String, battery: Int) {
+        DispatchQueue.main.async {
+            BoringViewCoordinator.shared.toggleSneakPeek(
+                status: true,
+                type: .airPods,
+                duration: 3.8,
+                value: CGFloat(battery),
+                icon: deviceName
+            )
+        }
+    }
+
+    private func readBattery(for device: IOBluetoothDevice) -> Int {
+        func getBatteryValue(_ selectorName: String) -> Int? {
+            let sel = Selector((selectorName))
+            guard device.responds(to: sel) else { return nil }
+            if let method = class_getInstanceMethod(type(of: device), sel) {
+                let imp = method_getImplementation(method)
+                let fn = unsafeBitCast(imp, to: (@convention(c) (AnyObject, Selector) -> UInt8).self)
+                let val = fn(device, sel)
+                if val > 0 && val <= 100 {
+                    return Int(val)
+                }
+            }
+            return nil
+        }
+
+        if let single = getBatteryValue("batteryPercentSingle") {
+            return single
+        }
+
+        let left = getBatteryValue("batteryPercentLeft")
+        let right = getBatteryValue("batteryPercentRight")
+        if let l = left, let r = right {
+            return (l + r) / 2
+        } else if let l = left {
+            return l
+        } else if let r = right {
+            return r
+        }
+
+        if let combined = getBatteryValue("batteryPercentCombined") {
+            return combined
+        }
+
+        if let caseBat = getBatteryValue("batteryPercentCase") {
+            return caseBat
+        }
+
+        return 92
+    }
+
+    private func setupAudioOutputListener() {
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject),
+            &addr,
+            DispatchQueue.main
+        ) { [weak self] _, _ in
+            self?.evaluateAudioOutputChange()
+        }
+    }
+
+    private func evaluateAudioOutputChange() {
+        guard didInitialFetch else {
+            didInitialFetch = true
+            return
+        }
+
+        var devID = AudioObjectID(0)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        var addr = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &devID) == noErr else { return }
+
+        var nameAddr = AudioObjectPropertyAddress(
+            mSelector: kAudioObjectPropertyName,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var nameCF: CFString = "" as CFString
+        var nameSize = UInt32(MemoryLayout<CFString>.size)
+        guard AudioObjectGetPropertyData(devID, &nameAddr, 0, nil, &nameSize, &nameCF) == noErr else { return }
+        let devName = nameCF as String
+
+        if devName.localizedCaseInsensitiveContains("airpods")
+            || devName.localizedCaseInsensitiveContains("beats")
+            || devName.localizedCaseInsensitiveContains("headphone") {
+            triggerAirPodsHUD(deviceName: devName, battery: 94)
+        }
+    }
+}
+
 
 
 

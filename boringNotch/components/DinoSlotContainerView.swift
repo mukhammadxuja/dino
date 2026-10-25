@@ -203,6 +203,63 @@ public struct DinoSlotContainerView: View {
                     .foregroundColor(.white)
             }
             .padding(.horizontal, 10)
+        case .capsLock(let isOn):
+            HStack(spacing: 6) {
+                ZStack {
+                    if isOn {
+                        Capsule()
+                            .fill(Color.accentColor)
+                            .frame(width: 22, height: 15)
+                        Image(systemName: "capslock.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                    } else {
+                        Image(systemName: "capslock")
+                            .foregroundColor(.gray)
+                    }
+                }
+                Text(isOn ? "Caps On" : "Caps Off")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(isOn ? .white : .gray)
+            }
+            .padding(.horizontal, 10)
+        case .location(let isInUse):
+            HStack(spacing: 6) {
+                ZStack {
+                    if isInUse {
+                        Capsule()
+                            .fill(Color.blue)
+                            .frame(width: 22, height: 15)
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                    } else {
+                        Image(systemName: "location.slash.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+                Text(isInUse ? "Location In Use" : "Location Off")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(isInUse ? .blue : .gray)
+            }
+            .padding(.horizontal, 10)
+        case .airPods(let name, let battery):
+            HStack(spacing: 6) {
+                Image(systemName: "airpodspro")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white)
+                Text(name)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                if let b = battery {
+                    Spacer()
+                    Text("\(b)%")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundColor(.green)
+                }
+            }
+            .padding(.horizontal, 10)
         }
     }
 }

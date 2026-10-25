@@ -89,6 +89,40 @@ struct OpenNotchHUD: View {
                         }
                     }
                     .contentTransition(.interpolate)
+                case .capsLock:
+                    ZStack {
+                        if value > 0 {
+                            Capsule()
+                                .fill(Color.accentColor)
+                                .frame(width: 26, height: 18)
+                            Image(systemName: "capslock.fill")
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundColor(.white)
+                        } else {
+                            Image(systemName: "capslock")
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .contentTransition(.interpolate)
+                case .location:
+                    ZStack {
+                        if value > 0 {
+                            Capsule()
+                                .fill(Color.blue)
+                                .frame(width: 26, height: 18)
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundColor(.white)
+                        } else {
+                            Image(systemName: "location.slash.fill")
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .contentTransition(.interpolate)
+                case .airPods:
+                    Image(systemName: "airpodspro")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white)
                 default:
                     EmptyView()
                 }
@@ -118,6 +152,21 @@ struct OpenNotchHUD: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(value > 0 ? .red : .gray)
                     .fixedSize()
+            } else if type == .capsLock {
+                Text(value > 0 ? "Caps Lock On" : "Caps Lock Off")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(value > 0 ? .white : .gray)
+                    .fixedSize()
+            } else if type == .location {
+                Text(value > 0 ? "Location In Use" : "Location Off")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(value > 0 ? .blue : .gray)
+                    .fixedSize()
+            } else if type == .airPods {
+                Text("\(icon.isEmpty ? "AirPods Pro" : icon) Connected (\(Int(value))%)")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+                    .fixedSize()
             } else {
                 DraggableProgressBar(value: $value, onChange: { newVal in
                      updateSystemValue(newVal)
@@ -126,7 +175,7 @@ struct OpenNotchHUD: View {
             }
             
             // Percentage Text
-            if type != .mic && type != .micActivity && type != .camera && type != .screenRecord && showPercentage {
+            if type != .mic && type != .micActivity && type != .camera && type != .screenRecord && type != .capsLock && type != .location && type != .airPods && showPercentage {
                 Text("\(Int(value * 100))%")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.gray)

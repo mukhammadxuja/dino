@@ -13,6 +13,14 @@
 	<true/>
 	<key>SUFeedURL</key>
 	<string>https://TheBoredTeam.github.io/boring.notch/appcast.xml</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>boringNotch detects connected AirPods to display connection status and battery levels in the Notch.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>boringNotch detects connected AirPods to display connection status and battery levels in the Notch.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>boringNotch displays a privacy indicator when Location Services are active.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>boringNotch displays a privacy indicator when Location Services are active.</string>
 	<key>SUPublicEDKey</key>
 	<string>B1Y47t8C/v8ImurYA+9arEsuCrpxwJSviekiflMElbI=</string>
 	<key>UTImportedTypeDeclarations</key>

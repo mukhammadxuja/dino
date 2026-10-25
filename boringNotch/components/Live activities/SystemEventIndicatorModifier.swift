@@ -108,10 +108,47 @@ struct SystemEventIndicatorModifier: View {
                     }
                     .contentTransition(.interpolate)
                     .frame(width: 24, height: 16)
+                case .capsLock:
+                    ZStack {
+                        if value > 0 {
+                            Capsule()
+                                .fill(Color.accentColor)
+                                .frame(width: 24, height: 16)
+                            Image(systemName: "capslock.fill")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundStyle(Color.white)
+                        } else {
+                            Image(systemName: "capslock")
+                                .foregroundStyle(Color.gray)
+                        }
+                    }
+                    .contentTransition(.interpolate)
+                    .frame(width: 24, height: 16)
+                case .location:
+                    ZStack {
+                        if value > 0 {
+                            Capsule()
+                                .fill(Color.blue)
+                                .frame(width: 24, height: 16)
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundStyle(Color.white)
+                        } else {
+                            Image(systemName: "location.slash.fill")
+                                .foregroundStyle(Color.gray)
+                        }
+                    }
+                    .contentTransition(.interpolate)
+                    .frame(width: 24, height: 16)
+                case .airPods:
+                    Image(systemName: "airpodspro")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .frame(width: 24, height: 16)
                 default:
                     EmptyView()
             }
-            if (eventType != .mic && eventType != .micActivity && eventType != .camera && eventType != .screenRecord) {
+            if (eventType != .mic && eventType != .micActivity && eventType != .camera && eventType != .screenRecord && eventType != .capsLock && eventType != .location && eventType != .airPods) {
                 DraggableProgressBar(value: $value)
                 if Defaults[.showClosedNotchHUDPercentage] {
                     Text("\(Int(value * 100))%")
@@ -138,6 +175,21 @@ struct SystemEventIndicatorModifier: View {
             } else if eventType == .screenRecord {
                 Text(value > 0 ? "Recording" : "Stopped")
                     .foregroundStyle(value > 0 ? Color.red : Color.gray)
+                    .lineLimit(1)
+                    .allowsTightening(true)
+            } else if eventType == .capsLock {
+                Text(value > 0 ? "Caps On" : "Caps Off")
+                    .foregroundStyle(value > 0 ? Color.white : Color.gray)
+                    .lineLimit(1)
+                    .allowsTightening(true)
+            } else if eventType == .location {
+                Text(value > 0 ? "Location In Use" : "Location Off")
+                    .foregroundStyle(value > 0 ? Color.blue : Color.gray)
+                    .lineLimit(1)
+                    .allowsTightening(true)
+            } else if eventType == .airPods {
+                Text("\(icon.isEmpty ? "AirPods Pro" : icon) (\(Int(value))%)")
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                     .allowsTightening(true)
             }
