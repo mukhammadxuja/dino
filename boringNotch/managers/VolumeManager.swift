@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import AVFoundation
 import Combine
 import CoreAudio
 import CoreLocation
@@ -1190,9 +1191,11 @@ final class BluetoothHUDManager: NSObject {
     private var didInitialFetch = false
     private var isStarted = false
     private var lastConnectedDeviceAddress: String = ""
+    private var connectAudioPlayer: AVAudioPlayer?
 
     override init() {
         super.init()
+        prewarmConnectSound()
     }
 
     func start() {
@@ -1200,6 +1203,7 @@ final class BluetoothHUDManager: NSObject {
         guard !isStarted else { return }
         isStarted = true
 
+        prewarmConnectSound()
         setupBluetoothConnectListener()
         setupAudioOutputListener()
     }
@@ -1209,6 +1213,61 @@ final class BluetoothHUDManager: NSObject {
         isStarted = false
         connectNotification?.unregister()
         connectNotification = nil
+    }
+
+    func prewarmConnectSound() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self = self, self.connectAudioPlayer == nil else { return }
+            let player = self.createConnectAudioPlayer()
+            player?.prepareToPlay()
+            DispatchQueue.main.async {
+                self.connectAudioPlayer = player
+                print("🔊 [BluetoothHUDManager] Pre-warmed connect.wav audio player")
+            }
+        }
+    }
+
+    private func createConnectAudioPlayer() -> AVAudioPlayer? {
+        // 1. Try loading from compiled NSDataAsset in Assets.car
+        if let asset = NSDataAsset(name: "connect") {
+            if let player = try? AVAudioPlayer(data: asset.data) {
+                player.volume = 1.0
+                return player
+            }
+        }
+        // 2. Try loading from Bundle resource URL
+        if let url = Bundle.main.url(forResource: "connect", withExtension: "wav") {
+            if let player = try? AVAudioPlayer(contentsOf: url) {
+                player.volume = 1.0
+                return player
+            }
+        }
+        // 3. Fallback direct file path in Assets directory
+        let fallbackPath = "/Users/macbookair/Desktop/Projects/My Projects/Dino/boringNotch/Assets.xcassets/connect.wav"
+        if FileManager.default.fileExists(atPath: fallbackPath) {
+            if let player = try? AVAudioPlayer(contentsOf: URL(fileURLWithPath: fallbackPath)) {
+                player.volume = 1.0
+                return player
+            }
+        }
+        return nil
+    }
+
+    func playConnectSound() {
+        if let player = connectAudioPlayer {
+            if player.isPlaying {
+                player.stop()
+                player.currentTime = 0
+            }
+            player.play()
+            return
+        }
+
+        if let player = createConnectAudioPlayer() {
+            player.prepareToPlay()
+            player.play()
+            connectAudioPlayer = player
+        }
     }
 
     private func setupBluetoothConnectListener() {
