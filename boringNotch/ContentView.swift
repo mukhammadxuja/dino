@@ -62,6 +62,7 @@ struct ContentView: View {
     @State private var idleBounceWorkItem: DispatchWorkItem?
     @State private var isIslandClickedDown: Bool = false
     @State private var isSubtlePillHovered: Bool = false
+    @State private var islandRetractTask: Task<Void, Never>?
     
     // Displays & Island Mode
     @Default(.displaySelection) var displaySelection
@@ -534,7 +535,7 @@ struct ContentView: View {
                 Color.clear
                     .frame(
                         width: max(220, max(vm.closedNotchSize.width, computedChinWidth) + 40),
-                        height: dropDownOffset + vm.effectiveClosedNotchHeight + 10
+                        height: dropDownOffset + 8
                     )
                     .contentShape(Rectangle())
                     .onHover { hovering in
@@ -543,10 +544,15 @@ struct ContentView: View {
                     .onTapGesture {
                         handleTap()
                     }
-                    .zIndex(1)
+                    .zIndex(0)
             }
 
             VStack(spacing: 0) {
+                if isCurrentDisplayIsland {
+                    Spacer()
+                        .frame(height: max(0, islandYOffset))
+                }
+
                 islandContainerView
                     .frame(
                         width: vm.notchState == .open ? vm.notchSize.width : nil,
@@ -558,7 +564,7 @@ struct ContentView: View {
                         y: emptyClickBounce ? 0.94 : 1.0,
                         anchor: .top
                     )
-                    .offset(y: islandYOffset)
+                    .offset(y: min(0, islandYOffset))
                     .opacity(islandOpacity)
                     .allowsHitTesting(isIslandShowing || vm.notchState == .open || !isCurrentDisplayIsland)
                     .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: isScaleHovered)
@@ -878,6 +884,7 @@ struct ContentView: View {
         coverHoverDismissTask?.cancel()
 
         if hovering {
+            islandRetractTask?.cancel()
             scaleHoverTask?.cancel()
             withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.82)) {
                 isScaleHovered = true
@@ -1023,11 +1030,24 @@ struct ContentView: View {
     private func closeWithSpring() {
         let closeAnimation = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.74, blendDuration: 0)
         withAnimation(closeAnimation) {
-            isHovering = false
-            isIslandClickedDown = false
             showCoverHoverMusicDetails = false
             coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
             vm.close()
+        }
+
+        if isCurrentDisplayIsland && effectiveIslandVisibility != .alwaysVisible {
+            islandRetractTask?.cancel()
+            islandRetractTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(700))
+                guard !Task.isCancelled else { return }
+                if self.vm.notchState == .closed {
+                    withAnimation(self.animationSpring) {
+                        self.isHovering = false
+                        self.isIslandClickedDown = false
+                        self.showCoverHoverMusicDetails = false
+                    }
+                }
+            }
         }
     }
 
@@ -1088,6 +1108,7 @@ struct ContentView: View {
         hoverTask?.cancel()
         
         if hovering {
+            islandRetractTask?.cancel()
             scaleHoverTask?.cancel()
             withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.82)) {
                 isScaleHovered = true
@@ -1149,21 +1170,8 @@ struct ContentView: View {
                 
                 await MainActor.run {
                     if self.vm.notchState == .open && !self.vm.isBatteryPopoverActive && !SharingStateManager.shared.preventNotchClose {
-                        // 1. Morph open notch back to closed island pill with spring
+                        // 1. Morph open notch back to closed island pill with spring, then retract after delay
                         self.closeWithSpring()
-                        
-                        // 2. Allow collapse animation to complete and stay visible briefly, then retract up and disappear
-                        Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(750))
-                            guard !Task.isCancelled else { return }
-                            if self.vm.notchState == .closed {
-                                withAnimation(self.animationSpring) {
-                                    self.isHovering = false
-                                    self.isIslandClickedDown = false
-                                    self.showCoverHoverMusicDetails = false
-                                }
-                            }
-                        }
                     } else {
                         withAnimation(self.animationSpring) {
                             self.isHovering = false
