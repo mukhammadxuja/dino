@@ -178,7 +178,7 @@ struct IslandStyleCard: View {
     }
 }
 
-// MARK: - 4. Island Visibility Card (On Hover vs Always Visible)
+// MARK: - 4. Island Visibility Card (On Hover vs On Click vs Always Visible)
 struct IslandVisibilityCard: View {
     let visibility: IslandVisibility
     @Binding var selection: IslandVisibility
@@ -189,41 +189,57 @@ struct IslandVisibilityCard: View {
 
     var body: some View {
         DisplayCardPickerOption(value: visibility, selection: $selection) {
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
                 // Visual Mini Representation
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.primary.opacity(0.04))
-                        .frame(width: 64, height: 32)
+                        .frame(width: 48, height: 32)
 
-                    if visibility == .onHover {
+                    switch visibility {
+                    case .onHover:
                         VStack(spacing: 3) {
                             RoundedRectangle(cornerRadius: 2)
                                 .fill(Color.gray.opacity(0.5))
-                                .frame(width: 40, height: 5)
+                                .frame(width: 34, height: 4)
                             Capsule()
                                 .fill(Color.black)
-                                .frame(width: 32, height: 11)
+                                .frame(width: 26, height: 9)
                         }
-                    } else {
+                    case .onClick:
+                        VStack(spacing: 2) {
+                            HStack(spacing: 2) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Color.gray.opacity(0.5))
+                                    .frame(width: 22, height: 4)
+                                Image(systemName: "hand.tap.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(isSelected ? Color.effectiveAccent : .secondary)
+                            }
+                            Capsule()
+                                .fill(Color.black)
+                                .frame(width: 26, height: 9)
+                        }
+                    case .alwaysVisible:
                         VStack(spacing: 2) {
                             Capsule()
                                 .fill(Color.black)
-                                .frame(width: 44, height: 12)
+                                .frame(width: 34, height: 10)
                             RoundedRectangle(cornerRadius: 2)
                                 .fill(Color.gray.opacity(0.35))
-                                .frame(width: 48, height: 4)
+                                .frame(width: 38, height: 4)
                         }
                     }
                 }
 
                 Text(visibility.rawValue)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
                     .foregroundColor(isSelected ? .primary : .secondary)
+                    .lineLimit(1)
 
-                Spacer()
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 4)
         }
     }
 }

@@ -38,7 +38,12 @@ struct IslandContainerLayout<Content: View>: View {
     var body: some View {
         HStack(alignment: .top, spacing: (vm.notchState == .closed && isDualActivityActive) ? 8 : 0) {
             mainPill
-                .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+                .conditionalModifier(isCurrentDisplayIsland) { view in
+                    view.contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+                }
+                .conditionalModifier(!isCurrentDisplayIsland) { view in
+                    view.contentShape(Rectangle())
+                }
                 .onHover { hovering in
                     if isDualActivityActive && vm.notchState == .closed {
                         onMainPillHover(hovering)

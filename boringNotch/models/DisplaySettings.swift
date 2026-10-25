@@ -42,9 +42,10 @@ public enum IslandStyle: String, CaseIterable, Identifiable, Defaults.Serializab
     public var id: String { rawValue }
 }
 
-// MARK: - 4. Island Visibility (On Hover vs Always Visible)
+// MARK: - 4. Island Visibility (On Hover vs Always Visible vs On Click)
 public enum IslandVisibility: String, CaseIterable, Identifiable, Defaults.Serializable {
     case onHover = "On Hover"
+    case onClick = "On Click"
     case alwaysVisible = "Always Visible"
 
     public var id: String { rawValue }

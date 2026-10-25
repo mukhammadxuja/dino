@@ -59,6 +59,9 @@ struct ContentView: View {
     @State private var isScaleHovered: Bool = false
     @State private var scaleHoverTask: Task<Void, Never>?
     @State private var idleBounceTask: Task<Void, Never>?
+    @State private var idleBounceWorkItem: DispatchWorkItem?
+    @State private var isIslandClickedDown: Bool = false
+    @State private var isSubtlePillHovered: Bool = false
     
     // Displays & Island Mode
     @Default(.displaySelection) var displaySelection
@@ -116,44 +119,54 @@ struct ContentView: View {
 
     private var effectiveIslandVisibility: IslandVisibility {
         if isCurrentScreenBuiltin {
-            return .onHover
+            return islandVisibility == .alwaysVisible ? .onHover : islandVisibility
         } else {
             return islandVisibility
         }
     }
 
-    private var islandYOffset: CGFloat {
-        guard isCurrentDisplayIsland else { return 0 }
+    private var isIslandShowing: Bool {
+        if effectiveIslandVisibility == .alwaysVisible {
+            return true
+        }
+        if effectiveIslandVisibility == .onClick {
+            return isIslandClickedDown || isShowingMusicSneakPeek || isIslandTransientlyVisible
+        }
+        return isHovering || isShowingMusicSneakPeek || isIslandTransientlyVisible
+    }
+
+    private var centeredMenuBarOffset: CGFloat {
+        let currentScreen = currentTargetScreen
+        let menuBarHeight = max(24, (currentScreen?.frame.maxY ?? 0) - (currentScreen?.visibleFrame.maxY ?? 0))
+        return max(2, (menuBarHeight - (isCurrentScreenBuiltin ? 33 : 24)) / 2)
+    }
+
+    private var dropDownOffset: CGFloat {
         let currentScreen = currentTargetScreen
         let physicalHeight = max(32, currentScreen?.safeAreaInsets.top ?? 38)
         let menuBarHeight = max(24, (currentScreen?.frame.maxY ?? 0) - (currentScreen?.visibleFrame.maxY ?? 0))
-        let centeredMenuBarOffset = max(2, (menuBarHeight - (isCurrentScreenBuiltin ? 33 : 24)) / 2)
-        
-        // Exact drop down offset below camera / menu bar with clean breathing space (38pt + 8pt = 46pt)
-        let dropDownOffset = max(physicalHeight, menuBarHeight) + 8
+        return max(physicalHeight, menuBarHeight) + 8
+    }
+
+    private var islandYOffset: CGFloat {
+        guard isCurrentDisplayIsland else { return 0 }
 
         if vm.notchState == .open {
             return isCurrentScreenBuiltin ? dropDownOffset : 8
         }
 
-        if effectiveIslandVisibility == .onHover {
-            if isHovering || isShowingMusicSneakPeek || isIslandTransientlyVisible {
-                return dropDownOffset
-            } else {
-                return -40 // Retracted and hidden up top
-            }
-        } else {
+        if effectiveIslandVisibility == .alwaysVisible {
             return centeredMenuBarOffset
+        } else {
+            return isIslandShowing ? dropDownOffset : -40
         }
     }
 
     private var islandOpacity: Double {
         guard isCurrentDisplayIsland else { return 1.0 }
         if vm.notchState == .open { return 1.0 }
-        if effectiveIslandVisibility == .onHover {
-            return (isHovering || isShowingMusicSneakPeek || isIslandTransientlyVisible) ? 1.0 : 0.0
-        }
-        return 1.0
+        if effectiveIslandVisibility == .alwaysVisible { return 1.0 }
+        return isIslandShowing ? 1.0 : 0.0
     }
 
     private var topCornerRadius: CGFloat {
@@ -470,17 +483,64 @@ struct ContentView: View {
         }()
         
         ZStack(alignment: .top) {
-            if isCurrentDisplayIsland && effectiveIslandVisibility == .onHover {
-                // Continuous vertical hover bridge from menubar down to dropped island
+            if isCurrentDisplayIsland && vm.notchState == .closed && !isIslandShowing {
+                // Feedback placeholder for Island ("huddi island kabi sizega ega, shaffof, ortasida horizontal line")
+                ZStack {
+                    RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
+                        .fill(
+                            islandStyle == .glass
+                                ? Color.white.opacity(0.12)
+                                : Color.black.opacity(0.35)
+                        )
+                    RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
+                        .stroke(
+                            Color.white.opacity(0.16),
+                            lineWidth: 0.8
+                        )
+                    // Horizontal line in the middle
+                    Capsule()
+                        .fill(Color.white.opacity(0.40))
+                        .frame(width: 26, height: 3)
+                }
+                .frame(
+                    width: max(112, vm.closedNotchSize.width),
+                    height: max(24, vm.effectiveClosedNotchHeight)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
+                .offset(y: centeredMenuBarOffset)
+                .opacity(isSubtlePillHovered ? 1.0 : 0.001)
+                .animation(.easeInOut(duration: 0.22), value: isSubtlePillHovered)
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        isSubtlePillHovered = hovering
+                    }
+                    if effectiveIslandVisibility == .onHover {
+                        handleHover(hovering)
+                    }
+                }
+                .onTapGesture {
+                    withAnimation(animationSpring) {
+                        isIslandClickedDown = true
+                        isHovering = true
+                    }
+                }
+                .transition(.opacity)
+                .zIndex(10)
+                .allowsHitTesting(!isIslandShowing && vm.notchState == .closed)
+            }
+
+            if isCurrentDisplayIsland && isIslandShowing && vm.notchState == .closed {
+                // Continuous hover bridge while island is dropped down
                 Color.clear
-                    .frame(width: max(220, vm.closedNotchSize.width + 60), height: 110)
+                    .frame(
+                        width: max(120, vm.closedNotchSize.width),
+                        height: dropDownOffset + vm.effectiveClosedNotchHeight
+                    )
                     .contentShape(Rectangle())
                     .onHover { hovering in
                         handleHover(hovering)
                     }
-                    .onTapGesture {
-                        handleTap()
-                    }
+                    .zIndex(1)
             }
 
             VStack(spacing: 0) {
@@ -497,6 +557,7 @@ struct ContentView: View {
                     )
                     .offset(y: islandYOffset)
                     .opacity(islandOpacity)
+                    .allowsHitTesting(isIslandShowing || vm.notchState == .open || !isCurrentDisplayIsland)
                     .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: isScaleHovered)
                     .animation(.interactiveSpring(response: 0.42, dampingFraction: 0.80), value: isHovering)
                     .animation(.interactiveSpring(response: 0.44, dampingFraction: 0.82), value: islandYOffset)
@@ -835,6 +896,7 @@ struct ContentView: View {
             }
 
             guard vm.notchState == .closed,
+                  effectiveIslandVisibility != .onClick,
                   Defaults[.openNotchOnHover] else { return }
 
             hoverTask?.cancel()
@@ -859,6 +921,7 @@ struct ContentView: View {
             hoverTask?.cancel()
             withAnimation(animationSpring) {
                 isHovering = false
+                isIslandClickedDown = false
             }
 
             coverHoverDismissTask = Task { @MainActor in
@@ -873,17 +936,17 @@ struct ContentView: View {
 
     private func triggerIdleBounce() {
         idleBounceTask?.cancel()
-        NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .default)
-        withAnimation(.interactiveSpring(response: 0.16, dampingFraction: 0.45, blendDuration: 0)) {
+        idleBounceWorkItem?.cancel()
+        withAnimation(.interactiveSpring(response: 0.14, dampingFraction: 0.55, blendDuration: 0)) {
             emptyClickBounce = true
         }
-        idleBounceTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(120))
-            guard !Task.isCancelled else { return }
-            withAnimation(.interactiveSpring(response: 0.30, dampingFraction: 0.52, blendDuration: 0)) {
+        let workItem = DispatchWorkItem {
+            withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.50, blendDuration: 0)) {
                 self.emptyClickBounce = false
             }
         }
+        idleBounceWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: workItem)
     }
 
     private func handleTap() {
@@ -916,7 +979,8 @@ struct ContentView: View {
         } else {
             switch Defaults[.idleClickAction] {
             case .none:
-                triggerIdleBounce()
+                coordinator.currentView = .home
+                doOpen()
             case .music:
                 DinoCoordinator.shared.activateSlotDirectly(.music)
                 coordinator.currentView = .home
@@ -955,6 +1019,7 @@ struct ContentView: View {
         let closeAnimation = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.74, blendDuration: 0)
         withAnimation(closeAnimation) {
             isHovering = false
+            isIslandClickedDown = false
             showCoverHoverMusicDetails = false
             coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
             vm.close()
@@ -1037,6 +1102,7 @@ struct ContentView: View {
             }
             
             guard vm.notchState == .closed,
+                  effectiveIslandVisibility != .onClick,
                   !coordinator.sneakPeek.show,
                   hasActiveFeature,
                   Defaults[.openNotchOnHover] else { return }
@@ -1069,7 +1135,7 @@ struct ContentView: View {
             
             hoverTask = Task {
                 let timeSinceOpen = Date().timeIntervalSince(self.lastOpenedAt)
-                let graceRemaining = max(0, 0.7 - timeSinceOpen)
+                let graceRemaining = (self.vm.notchState == .open) ? max(0, 0.7 - timeSinceOpen) : 0
                 let collapseDelay = max(0.35, Defaults[.collapseDelay])
                 let totalDelay = graceRemaining + collapseDelay
 
@@ -1088,12 +1154,14 @@ struct ContentView: View {
                             if self.vm.notchState == .closed {
                                 withAnimation(self.animationSpring) {
                                     self.isHovering = false
+                                    self.isIslandClickedDown = false
                                 }
                             }
                         }
                     } else {
                         withAnimation(self.animationSpring) {
                             self.isHovering = false
+                            self.isIslandClickedDown = false
                         }
                     }
                     

@@ -7546,6 +7546,19 @@ struct Appearance: View {
                             }
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
+
+                        Text("Visibility")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondary)
+                            .padding(.top, 4)
+
+                        HStack(spacing: 8) {
+                            IslandVisibilityCard(visibility: .onHover, selection: $islandVisibility)
+                            IslandVisibilityCard(visibility: .onClick, selection: $islandVisibility)
+                            if builtinFormFactor == .island {
+                                IslandVisibilityCard(visibility: .alwaysVisible, selection: $islandVisibility)
+                            }
+                        }
                     }
                 } else if displaySelection == .external {
                     // EXTERNAL DISPLAY SETTINGS
@@ -7576,8 +7589,9 @@ struct Appearance: View {
                                         .foregroundColor(.secondary)
                                         .padding(.top, 4)
 
-                                    HStack(spacing: 12) {
+                                    HStack(spacing: 8) {
                                         IslandVisibilityCard(visibility: .onHover, selection: $islandVisibility)
+                                        IslandVisibilityCard(visibility: .onClick, selection: $islandVisibility)
                                         IslandVisibilityCard(visibility: .alwaysVisible, selection: $islandVisibility)
                                     }
                                 }
@@ -7662,8 +7676,9 @@ struct Appearance: View {
                                         .foregroundColor(.secondary)
                                         .padding(.top, 4)
 
-                                    HStack(spacing: 12) {
+                                    HStack(spacing: 8) {
                                         IslandVisibilityCard(visibility: .onHover, selection: $islandVisibility)
+                                        IslandVisibilityCard(visibility: .onClick, selection: $islandVisibility)
                                         IslandVisibilityCard(visibility: .alwaysVisible, selection: $islandVisibility)
                                     }
                                 }
