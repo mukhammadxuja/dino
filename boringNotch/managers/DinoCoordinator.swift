@@ -186,6 +186,21 @@ public final class DinoCoordinator: ObservableObject {
         toastDismissTask?.cancel()
         toastDismissTask = nil
         
+        // Guard: If the notch is currently OPEN (e.g. Mirror, Calendar, Shelf, Home),
+        // or user is actively interacting with an on-demand modal (e.g. .webcam Mirror),
+        // do NOT hijack activeSlot or disrupt open cards!
+        let appDelegate = NSApp.delegate as? AppDelegate
+        let allVMs: [BoringViewModel] = {
+            if let vms = appDelegate?.viewModels.values, !vms.isEmpty {
+                return Array(vms)
+            }
+            return [BoringViewModel.shared]
+        }()
+        let isNotchOpen = allVMs.contains { $0.notchState == .open }
+        if isNotchOpen || activeSlot == .webcam {
+            return
+        }
+
         // Push currently active slot to the interrupt stack if priority is lower than P1
         if currentPriority < .p1Toast {
             interruptStack.append(

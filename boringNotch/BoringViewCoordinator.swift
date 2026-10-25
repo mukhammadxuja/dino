@@ -311,7 +311,9 @@ class BoringViewCoordinator: ObservableObject {
         withAnimation(.smooth) {
             self.sneakPeek.show = false
         }
-        DinoCoordinator.shared.dismissToast()
+        if DinoCoordinator.shared.currentPriority == .p1Toast {
+            DinoCoordinator.shared.dismissToast()
+        }
     }
 
     private var sneakPeekDuration: TimeInterval = 1.5

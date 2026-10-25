@@ -718,6 +718,8 @@ final class PrivacyHUDManager: NSObject, ObservableObject {
         return devices
     }
 
+    private var isCameraUsedByMirror: Bool = false
+
     private func evaluateCameraState() {
         let deviceIDs = getAllVideoDeviceIDs()
         var runningSomewhere = false
@@ -751,13 +753,35 @@ final class PrivacyHUDManager: NSObject, ObservableObject {
             let stateChanged = (self.isCameraActive != runningSomewhere)
             self.isCameraActive = runningSomewhere
 
+            let isMirrorActive = (DinoCoordinator.shared.activeSlot == .webcam)
+            if runningSomewhere && isMirrorActive {
+                self.isCameraUsedByMirror = true
+            }
+
             if self.didInitialCameraFetch && stateChanged {
-                BoringViewCoordinator.shared.toggleSneakPeek(
-                    status: true,
-                    type: .camera,
-                    duration: runningSomewhere ? 2.5 : 1.8,
-                    value: runningSomewhere ? 1.0 : 0.0
-                )
+                if runningSomewhere {
+                    // Suppress camera HUD if boringNotch Mirror itself opened the camera
+                    if !self.isCameraUsedByMirror {
+                        BoringViewCoordinator.shared.toggleSneakPeek(
+                            status: true,
+                            type: .camera,
+                            duration: 2.5,
+                            value: 1.0
+                        )
+                    }
+                } else {
+                    // Camera turned off
+                    if self.isCameraUsedByMirror {
+                        self.isCameraUsedByMirror = false
+                    } else {
+                        BoringViewCoordinator.shared.toggleSneakPeek(
+                            status: true,
+                            type: .camera,
+                            duration: 1.8,
+                            value: 0.0
+                        )
+                    }
+                }
             }
             self.didInitialCameraFetch = true
         }
@@ -846,7 +870,7 @@ final class PrivacyHUDManager: NSObject, ObservableObject {
 
     // MARK: - Screen Recording Detection (Video Only)
     private func setupScreenRecordListener() {
-        screenRecordPollTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+        screenRecordPollTimer = Timer.scheduledTimer(withTimeInterval: 1.2, repeats: true) { [weak self] _ in
             self?.evaluateScreenRecordingState()
         }
         evaluateScreenRecordingState()
@@ -875,20 +899,38 @@ final class PrivacyHUDManager: NSObject, ObservableObject {
     }
 
     private func checkScreenCaptureProcess() -> Bool {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        // Filter specifically for video recording (-v or -V), ignoring standard screenshots (-i, -c, etc.)
-        task.arguments = ["-f", "screencapture.* -[vV]"]
+        // 1. Check if screencapture is actively writing to a video (.mov) file
+        let lsofTask = Process()
+        lsofTask.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        lsofTask.arguments = ["-c", "screencapture"]
         let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = FileHandle.nullDevice
+        lsofTask.standardOutput = pipe
+        lsofTask.standardError = FileHandle.nullDevice
         do {
-            try task.run()
-            task.waitUntilExit()
-            return task.terminationStatus == 0
-        } catch {
-            return false
-        }
+            try lsofTask.run()
+            lsofTask.waitUntilExit()
+            if lsofTask.terminationStatus == 0 {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                if let output = String(data: data, encoding: .utf8),
+                   output.localizedCaseInsensitiveContains(".mov") {
+                    return true
+                }
+            }
+        } catch {}
+
+        // 2. Check for active screencapture video process (CLI or Cmd+Shift+5 toolbar)
+        let pgrepTask = Process()
+        pgrepTask.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        pgrepTask.arguments = ["-f", "screencapture.*(-v|-V|-pdiU)"]
+        do {
+            try pgrepTask.run()
+            pgrepTask.waitUntilExit()
+            if pgrepTask.terminationStatus == 0 {
+                return true
+            }
+        } catch {}
+
+        return false
     }
 }
 
