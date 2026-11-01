@@ -69,6 +69,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var screenUnlockedObserver: Any?
     private var isScreenLocked: Bool = false
     private var windowScreenDidChangeObserver: Any?
+    private var windowScreenDidChangeObservers: [String: Any] = [:]
     private var dragDetectors: [String: DragDetector] = [:] // UUID -> DragDetector
     private var lockScreenPlayerWindows: [String: NSWindow] = [:] // UUID -> NSWindow
     private var strictModeWindows: [String: NSWindow] = [:] // UUID -> NSWindow
@@ -115,7 +116,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         pomodoroNotificationObservers.removeAll()
         cleanupStrictModeEscMonitors()
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [pomodoroAlmostTimeNotificationID])
-        cleanupWindows()
+        cleanupWindows(forceAll: true)
+        vm.destroy()
         ShelfPersistenceService.shared.flush()
         XPCHelperClient.shared.stopMonitoringAccessibilityAuthorization()
     }
@@ -496,17 +498,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     // MARK: - Window Management
 
-    private func cleanupWindows(shouldInvert: Bool = false) {
+    private func removeWindow(for uuid: String) {
+        if let observer = windowScreenDidChangeObservers.removeValue(forKey: uuid) {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let window = windows.removeValue(forKey: uuid) {
+            window.close()
+            NotchSpaceManager.shared.notchSpace.windows.remove(window)
+            window.contentView = nil
+        }
+        viewModels.removeValue(forKey: uuid)?.destroy()
+    }
+
+    private func cleanupWindows(shouldInvert: Bool = false, forceAll: Bool = false) {
         let shouldCleanupMulti = shouldInvert ? !Defaults[.showOnAllDisplays] : Defaults[.showOnAllDisplays]
 
-        if shouldCleanupMulti {
-            windows.values.forEach { window in
-                window.close()
-                NotchSpaceManager.shared.notchSpace.windows.remove(window)
-            }
-            windows.removeAll()
-            viewModels.removeAll()
-        } else if let window = window {
+        if forceAll || shouldCleanupMulti {
+            for uuid in Array(windows.keys) { removeWindow(for: uuid) }
+            for uuid in Array(viewModels.keys) { removeWindow(for: uuid) }
+        }
+        if (forceAll || !shouldCleanupMulti), let window = window {
             window.close()
             NotchSpaceManager.shared.notchSpace.windows.remove(window)
             if let obs = windowScreenDidChangeObserver {
@@ -822,13 +833,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         let targetUUIDs = Set(targetScreens.compactMap { $0.displayUUID })
 
         // Remove windows for screens that are no longer targeted
-        for uuid in windows.keys where !targetUUIDs.contains(uuid) {
-            if let window = windows[uuid] {
-                window.close()
-                NotchSpaceManager.shared.notchSpace.windows.remove(window)
-                windows.removeValue(forKey: uuid)
-                viewModels.removeValue(forKey: uuid)
-            }
+        for uuid in Array(windows.keys) where !targetUUIDs.contains(uuid) {
+            removeWindow(for: uuid)
         }
 
         // Create or update windows for targeted screens
@@ -847,7 +853,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                         }
                     }
                 )
-                self.windowScreenDidChangeObserver = res.observer
+                if let observer = res.observer {
+                    windowScreenDidChangeObservers[uuid] = observer
+                }
                 windows[uuid] = res.window
                 viewModels[uuid] = viewModel
             }

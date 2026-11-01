@@ -10,7 +10,8 @@ import Defaults
 import SwiftUI
 
 class BoringViewModel: NSObject, ObservableObject {
-    public static var activeInstance: BoringViewModel?
+    public static weak var activeInstance: BoringViewModel?
+    private static let fallbackInstance = BoringViewModel()
     public static var shared: BoringViewModel {
         if let appDelegate = NSApp.delegate as? AppDelegate {
             let mouseLocation = NSEvent.mouseLocation
@@ -28,11 +29,10 @@ class BoringViewModel: NSObject, ObservableObject {
             if let firstVM = appDelegate.viewModels.values.first {
                 return firstVM
             }
+            return appDelegate.vm
         }
         if let active = activeInstance { return active }
-        let fallback = BoringViewModel()
-        activeInstance = fallback
-        return fallback
+        return fallbackInstance
     }
 
     @ObservedObject var coordinator = BoringViewCoordinator.shared
@@ -80,6 +80,7 @@ class BoringViewModel: NSObject, ObservableObject {
         notchOpenDiagnosticsTask = nil
         cancellables.forEach { $0.cancel() }
         cancellables.removeAll()
+        if Self.activeInstance === self { Self.activeInstance = nil }
     }
 
     init(screenUUID: String? = nil) {
@@ -96,7 +97,9 @@ class BoringViewModel: NSObject, ObservableObject {
             .map { shelf, drag, general in
                 shelf || drag || general
             }
-            .assign(to: \.anyDropZoneTargeting, on: self)
+            .sink { [weak self] isTargeting in
+                self?.anyDropZoneTargeting = isTargeting
+            }
             .store(in: &cancellables)
         
         setupDetectorObserver()
