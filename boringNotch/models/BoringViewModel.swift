@@ -51,7 +51,7 @@ class BoringViewModel: NSObject, ObservableObject {
     @Published var anyDropZoneTargeting: Bool = false
     var cancellables: Set<AnyCancellable> = []
     
-    @Published var hideOnClosed: Bool = true
+    @Published var hideOnClosed: Bool = false
 
     @Published var edgeAutoOpenActive: Bool = false
     @Published var isHoveringCalendar: Bool = false
@@ -312,6 +312,9 @@ class BoringViewModel: NSObject, ObservableObject {
         if SharingStateManager.shared.preventNotchClose {
             return
         }
+        if notchState == .open {
+            coordinator.rememberExpandedSlot(DinoCoordinator.shared.activeSlot)
+        }
         self.notchSize = getClosedNotchSize(screenUUID: self.screenUUID)
         self.closedNotchSize = self.notchSize
         self.notchState = .closed
@@ -320,10 +323,14 @@ class BoringViewModel: NSObject, ObservableObject {
         self.coordinator.sneakPeek.show = false
         self.edgeAutoOpenActive = false
 
-        // Shortcut dismissal restores its own interrupted slot instead of applying this preference.
+        // Shortcut dismissal restores its own interrupted slot after close.
         guard resetSelection else { return }
-        if !ShelfStateViewModel.shared.isEmpty && Defaults[.openShelfByDefault] {
-            DinoCoordinator.shared.selectView(.shelf)
+        if !coordinator.openLastTabByDefault,
+           !ShelfStateViewModel.shared.isEmpty,
+           Defaults[.openShelfByDefault] {
+            DinoCoordinator.shared.activateSlotDirectly(.shelf)
+        } else if DinoCoordinator.shared.currentPriority == .p2OnDemand {
+            DinoCoordinator.shared.dismissOnDemand()
         } else if !coordinator.openLastTabByDefault {
             DinoCoordinator.shared.selectView(.home)
         }

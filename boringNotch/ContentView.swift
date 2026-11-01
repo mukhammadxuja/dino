@@ -14,6 +14,26 @@ import SwiftUI
 import SwiftUIIntrospect
 
 @MainActor
+private final class OpenFeatureStretchState: ObservableObject {
+    @Published var amount: CGFloat = .zero
+    @Published var closedScale: CGFloat = 1
+}
+
+private struct OpenFeatureStretchView<Content: View>: View {
+    @ObservedObject var stretch: OpenFeatureStretchState
+    let content: Content
+
+    var body: some View {
+        content
+            .scaleEffect(x: stretch.closedScale,
+                         y: stretch.closedScale * (1 + stretch.amount * 0.04),
+                         anchor: .top)
+            .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.78), value: stretch.amount)
+            .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.78), value: stretch.closedScale)
+    }
+}
+
+@MainActor
 struct ContentView: View {
     @EnvironmentObject var vm: BoringViewModel
     @ObservedObject var coordinator = BoringViewCoordinator.shared
@@ -27,7 +47,10 @@ struct ContentView: View {
     @State private var openNotchHoverWatchdogTask: Task<Void, Never>?
     @State private var lastOpenedAt: Date = .distantPast
 
-    @State private var gestureProgress: CGFloat = .zero
+    @State private var openFeatureStretch = OpenFeatureStretchState()
+    @State private var verticalGestureBeganClosed: Bool?
+    @State private var verticalGestureDirection: PanDirection?
+    @State private var verticalGestureReady = false
 
     @State private var haptics: Bool = false
 
@@ -35,7 +58,7 @@ struct ContentView: View {
     @State private var mediaGestureDirection: MediaGestureDirection = .none
     @State private var mediaGestureIconVisible: Bool = false
     @State private var mediaGestureTask: Task<Void, Never>?
-    @State private var hasTriggeredMediaGestureInCurrentSwipe: Bool = false
+    @State private var mediaGestureReady = false
     @State private var lastPreviousGestureAt: Date = .distantPast
     
     // Hover states for closed notch music areas
@@ -404,11 +427,14 @@ struct ContentView: View {
     }
 
     private var hasActiveFeature: Bool {
-        if coordinator.expandingView.show { return true }
-        if coordinator.sneakPeek.show { return true }
-        if isDualActivityActive || DinoCoordinator.shared.isDualActivityActive { return true }
-        if DinoCoordinator.shared.activeSlot != .idle { return true }
-        return false
+        switch DinoCoordinator.shared.backgroundSlot {
+        case .music, .pomodoro:
+            return true
+        default:
+            return DinoCoordinator.shared.activeSlot == .shelf
+                && Defaults[.openShelfByDefault]
+                && !ShelfStateViewModel.shared.isEmpty
+        }
     }
 
     private var isShowingInlineMusicPlaybackPeek: Bool {
@@ -457,15 +483,8 @@ struct ContentView: View {
     }
 
     var body: some View {
-        // Calculate scale based on gesture progress only
-        let gestureScale: CGFloat = {
-            guard gestureProgress != 0 else { return 1.0 }
-            let scaleFactor = 1.0 + gestureProgress * 0.01
-            return max(0.6, scaleFactor)
-        }()
-        
         ZStack(alignment: .top) {
-            if isCurrentDisplayIsland && vm.notchState == .closed && !isIslandShowing {
+            if isCurrentDisplayIsland && vm.notchState == .closed && !isIslandShowing && !vm.hideOnClosed {
                 // Feedback placeholder for Island ("huddi island kabi sizega ega, shaffof, ortasida horizontal line")
                 ZStack {
                     RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
@@ -511,7 +530,8 @@ struct ContentView: View {
                 .allowsHitTesting(!isIslandShowing && vm.notchState == .closed)
             }
 
-            if isCurrentDisplayIsland && isIslandShowing && vm.notchState == .closed && effectiveIslandVisibility != .alwaysVisible {
+            if isCurrentDisplayIsland && isIslandShowing && vm.notchState == .closed
+                && effectiveIslandVisibility != .alwaysVisible && !vm.hideOnClosed {
                 // Continuous vertical hover bridge from menubar down to dropped island
                 Color.clear
                     .frame(
@@ -534,20 +554,25 @@ struct ContentView: View {
                         .frame(height: max(0, islandYOffset))
                 }
 
-                islandContainerView
-                    .frame(
+                OpenFeatureStretchView(
+                    stretch: openFeatureStretch,
+                    content: islandContainerView.frame(
                         width: vm.notchState == .open ? vm.notchSize.width : nil,
                         height: vm.notchState == .open ? vm.notchSize.height : nil,
                         alignment: .top
                     )
+                )
                     .scaleEffect(
                         x: emptyClickBounce ? 0.94 : ((isScaleHovered && vm.notchState == .closed && !isShowingMusicSneakPeek) ? 1.02 : 1.0),
                         y: emptyClickBounce ? 0.94 : 1.0,
                         anchor: .top
                     )
                     .offset(y: min(0, islandYOffset))
-                    .opacity(islandOpacity)
-                    .allowsHitTesting(isIslandShowing || vm.notchState == .open || !isCurrentDisplayIsland)
+                    .opacity(vm.notchState == .closed && vm.hideOnClosed ? 0 : islandOpacity)
+                    .allowsHitTesting(
+                        (isIslandShowing || vm.notchState == .open || !isCurrentDisplayIsland)
+                        && (!vm.hideOnClosed || vm.notchState == .open)
+                    )
                     .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: isScaleHovered)
                     .animation(.interactiveSpring(response: 0.42, dampingFraction: 0.80), value: isHovering)
                     .animation(.interactiveSpring(response: 0.44, dampingFraction: 0.82), value: islandYOffset)
@@ -559,7 +584,6 @@ struct ContentView: View {
                         return view
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchSize)
-                            .animation(.smooth, value: gestureProgress)
                             .animation(animationSpring, value: computedChinWidth)
                     }
                     .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
@@ -568,14 +592,16 @@ struct ContentView: View {
                     }
                     .conditionalModifier(Defaults[.enableGestures]) { view in
                         view
-                            .panGesture(direction: .down) { translation, phase in
-                                handleDownGesture(translation: translation, phase: phase)
+                            .verticalSwipeGesture { translation, direction, phase, isPrecise in
+                                handleVerticalGesture(
+                                    translation: translation,
+                                    direction: direction,
+                                    phase: phase,
+                                    isPrecise: isPrecise
+                                )
                             }
-                            .panGesture(direction: .up) { translation, phase in
-                                handleUpGesture(translation: translation, phase: phase)
-                            }
-                            .horizontalSwipeGesture { translation, direction, phase in
-                                handleHorizontalGesture(translation: translation, phase: phase, direction: direction)
+                            .horizontalSwipeGesture { translation, direction, phase, isPrecise in
+                                handleHorizontalGesture(translation: translation, phase: phase, direction: direction, isPrecise: isPrecise)
                             }
                     }
                     .onReceive(NotificationCenter.default.publisher(for: .sharingDidFinish)) { _ in
@@ -599,8 +625,17 @@ struct ContentView: View {
                             lastOpenedAt = Date()
                             startOpenNotchWatchdog()
                         } else {
+                            openFeatureStretch.amount = .zero
+                            verticalGestureBeganClosed = nil
+                            verticalGestureDirection = nil
+                            verticalGestureReady = false
                             openNotchHoverWatchdogTask?.cancel()
                             openNotchHoverWatchdogTask = nil
+                        }
+                    }
+                    .onChange(of: vm.hideOnClosed) { _, shouldHide in
+                        if shouldHide && vm.notchState == .open {
+                            closeWithSpring()
                         }
                     }
                     .onChange(of: coordinator.currentView) { _, _ in
@@ -688,7 +723,7 @@ struct ContentView: View {
                         //                    }
                         //                    .keyboardShortcut("E", modifiers: .command)
                     }
-                if vm.chinHeight > 0 {
+                if vm.chinHeight > 0 && (!vm.hideOnClosed || vm.notchState == .open) {
                     Rectangle()
                         .fill(Color.black.opacity(0.01))
                         .frame(width: computedChinWidth, height: vm.chinHeight)
@@ -696,17 +731,13 @@ struct ContentView: View {
             }
             .zIndex(2)
 
-            CustomBatteryToastOverlay()
+            if !vm.hideOnClosed || vm.notchState == .open {
+                CustomBatteryToastOverlay()
+            }
         }
         .padding(.bottom, 8)
         .frame(maxWidth: windowSize.width, maxHeight: windowSize.height, alignment: .top)
         .compositingGroup()
-        .scaleEffect(
-            x: gestureScale,
-            y: gestureScale,
-            anchor: .top
-        )
-        .animation(.smooth, value: gestureProgress)
         .background(dragDetector)
         .preferredColorScheme(.dark)
         .environmentObject(vm)
@@ -754,7 +785,6 @@ struct ContentView: View {
             currentNotchShape: currentNotchShape,
             islandYOffset: islandYOffset,
             islandOpacity: islandOpacity,
-            gestureProgress: gestureProgress,
             pomodoroEnabled: pomodoroEnabled,
             pomodoroClosedNotchDisplayMode: pomodoroClosedNotchDisplayMode,
             shouldShowPomodoroInlineClosedVisual: shouldShowPomodoroInlineClosedVisual,
@@ -798,7 +828,6 @@ struct ContentView: View {
                 showNotHumanFace: showNotHumanFace,
                 showMirror: showMirror,
                 isHovering: $isHovering,
-                gestureProgress: $gestureProgress,
                 showCoverHoverMusicDetails: $showCoverHoverMusicDetails,
                 coverHoverDismissTask: $coverHoverDismissTask,
                 onOpenPomodoro: {
@@ -812,7 +841,7 @@ struct ContentView: View {
 
     @ViewBuilder
     var dragDetector: some View {
-        if Defaults[.boringShelf] && vm.notchState == .closed {
+        if Defaults[.boringShelf] && vm.notchState == .closed && !vm.hideOnClosed {
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
@@ -956,6 +985,10 @@ struct ContentView: View {
                 }
                 return
             } else {
+                if coordinator.openLastTabByDefault && coordinator.lastExpandedSlot != nil {
+                    doOpen(restoreLastFeature: true)
+                    return
+                }
                 switch DinoCoordinator.shared.activeSlot {
                 case .pomodoro:
                     openPomodoroWithSpring()
@@ -967,6 +1000,8 @@ struct ContentView: View {
                     DinoCoordinator.shared.activateSlotDirectly(.calendar)
                 case .weather:
                     DinoCoordinator.shared.activateSlotDirectly(.weather)
+                case .shelf:
+                    DinoCoordinator.shared.activateSlotDirectly(.shelf)
                 default:
                     DinoCoordinator.shared.selectView(.home)
                 }
@@ -975,8 +1010,7 @@ struct ContentView: View {
         } else {
             switch Defaults[.idleClickAction] {
             case .none:
-                DinoCoordinator.shared.selectView(.home)
-                doOpen()
+                triggerIdleBounce()
             case .music:
                 openMusicWithSpring()
             case .pomodoro:
@@ -994,7 +1028,12 @@ struct ContentView: View {
         }
     }
 
-    private func doOpen() {
+    private func doOpen(restoreLastFeature: Bool = false) {
+        if restoreLastFeature,
+           coordinator.openLastTabByDefault,
+           let slot = coordinator.lastExpandedSlot {
+            DinoCoordinator.shared.activateSlotDirectly(slot)
+        }
         islandRetractTask?.cancel()
         islandRetractTask = nil
         hoverTask?.cancel()
@@ -1125,7 +1164,7 @@ struct ContentView: View {
                           self.hasActiveFeature,
                           !self.coordinator.sneakPeek.show else { return }
                     
-                    self.doOpen()
+                    self.doOpen(restoreLastFeature: true)
                 }
             }
         } else {
@@ -1182,215 +1221,187 @@ struct ContentView: View {
 
     // MARK: - Gesture Handling
 
-    private func handleDownGesture(translation: CGFloat, phase: NSEvent.Phase) {
-        guard vm.notchState == .closed else { return }
+    private func handleVerticalGesture(
+        translation: CGFloat,
+        direction: PanDirection,
+        phase: NSEvent.Phase,
+        isPrecise: Bool
+    ) {
+        if phase == .began {
+            verticalGestureBeganClosed = vm.notchState == .closed
+            verticalGestureDirection = direction
+            verticalGestureReady = false
+        }
 
-        if phase == .ended {
-            withAnimation(animationSpring) { gestureProgress = .zero }
+        guard isPrecise, let beganClosed = verticalGestureBeganClosed else { return }
+        let eligible: Bool
+        if direction == .down {
+            eligible = beganClosed
+                ? vm.notchState == .closed
+                : (vm.notchState == .open && canCycleOpenSlot)
+        } else {
+            eligible = !beganClosed && vm.notchState == .open
+                && !vm.isHoveringCalendar
+                && !SharingStateManager.shared.preventNotchClose
+        }
+
+        if phase == .ended || phase == .cancelled {
+            let shouldCommit = phase == .ended && eligible && verticalGestureReady
+                && verticalGestureDirection == direction
+                && translation >= NotchGestureActivation.distance
+            verticalGestureBeganClosed = nil
+            verticalGestureDirection = nil
+            verticalGestureReady = false
+            withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.68)) {
+                if openFeatureStretch.amount != .zero { openFeatureStretch.amount = .zero }
+                if openFeatureStretch.closedScale != 1 { openFeatureStretch.closedScale = 1 }
+            }
+            if shouldCommit {
+                if direction == .down {
+                    if beganClosed {
+                        doOpen(restoreLastFeature: true)
+                    } else {
+                        advanceOpenFeature()
+                    }
+                } else {
+                    closeWithSpring()
+                }
+            }
             return
         }
 
-        withAnimation(animationSpring) {
-            gestureProgress = (translation / effectiveGestureThreshold) * 20
+        if verticalGestureDirection != direction {
+            verticalGestureDirection = direction
+            verticalGestureReady = false
+            if openFeatureStretch.amount != .zero { openFeatureStretch.amount = .zero }
+            if openFeatureStretch.closedScale != 1 { openFeatureStretch.closedScale = 1 }
         }
+        guard eligible else { return }
+        let ready = translation >= NotchGestureActivation.distance
+        if ready && !verticalGestureReady {
+            performGestureHaptic()
+        }
+        if verticalGestureReady != ready { verticalGestureReady = ready }
 
-        if translation > effectiveGestureThreshold {
-            if Defaults[.enableHaptics] {
-                haptics.toggle()
+        if direction == .down {
+            if beganClosed {
+                let scale = 1 + min(1, translation / NotchGestureActivation.distance) * 0.04
+                if openFeatureStretch.closedScale != scale { openFeatureStretch.closedScale = scale }
+            } else {
+                let amount = min(1, translation / 50)
+                if openFeatureStretch.amount != amount { openFeatureStretch.amount = amount }
             }
-            withAnimation(animationSpring) {
-                gestureProgress = .zero
-            }
-            doOpen()
+        } else {
+            let scale = 1 - min(1, translation / NotchGestureActivation.distance) * 0.04
+            if openFeatureStretch.closedScale != scale { openFeatureStretch.closedScale = scale }
         }
     }
 
-    private func handleUpGesture(translation: CGFloat, phase: NSEvent.Phase) {
-        guard vm.notchState == .open && !vm.isHoveringCalendar else { return }
-
-        withAnimation(animationSpring) {
-            gestureProgress = (translation / effectiveGestureThreshold) * -20
+    private var canCycleOpenSlot: Bool {
+        switch DinoCoordinator.shared.activeSlot {
+        case .idle, .music, .pomodoro, .shelf: return true
+        default: return false
         }
+    }
 
-        if phase == .ended {
-            withAnimation(animationSpring) {
-                gestureProgress = .zero
-            }
+    private func advanceOpenFeature() {
+        let nextSlot: DinoSlot
+        switch DinoCoordinator.shared.activeSlot {
+        case .music: nextSlot = .pomodoro
+        case .pomodoro: nextSlot = .shelf
+        case .shelf: nextSlot = .music
+        default: nextSlot = .music
         }
+        DinoCoordinator.shared.activateSlotDirectly(nextSlot)
+    }
 
-        if translation > effectiveGestureThreshold {
-            if !SharingStateManager.shared.preventNotchClose { 
-                gestureProgress = .zero
-                closeWithSpring()
-            }
-
-            if Defaults[.enableHaptics] {
-                haptics.toggle()
-            }
+    private func performGestureHaptic() {
+        if Defaults[.enableHaptics] {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
         }
     }
 
     // MARK: - Horizontal Gesture Dispatcher
 
-    private func handleHorizontalGesture(translation: CGFloat, phase: NSEvent.Phase, direction: PanDirection) {
-        if vm.notchState == .open {
-            handleOpenNotchTabSwipe(translation: translation, phase: phase, direction: direction)
-        } else {
-            handleHorizontalMediaGesture(translation: translation, phase: phase, direction: direction)
-        }
-    }
-
-    private func handleOpenNotchTabSwipe(translation: CGFloat, phase: NSEvent.Phase, direction: PanDirection) {
-        if phase == .began {
-            hasTriggeredMediaGestureInCurrentSwipe = false
-        }
-
-        let threshold = effectiveGestureThreshold * 0.7
-        guard !hasTriggeredMediaGestureInCurrentSwipe && translation >= threshold else { return }
-
-        hasTriggeredMediaGestureInCurrentSwipe = true
-        withAnimation(.smooth) {
-            let isShelf = (coordinator.currentView == .shelf || DinoCoordinator.shared.activeSlot == .shelf)
-            let isPomodoro = (!isShelf && DinoCoordinator.shared.activeSlot == .pomodoro)
-
-            if direction == .left {
-                // Swipe Left (forward): Music -> Pomodoro -> Shelf -> Music
-                if isPomodoro {
-                    DinoCoordinator.shared.activateSlotDirectly(.shelf)
-                } else if isShelf {
-                    DinoCoordinator.shared.activateSlotDirectly(.music)
-                } else {
-                    DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
-                }
-            } else if direction == .right {
-                // Swipe Right (backward): Music -> Shelf -> Pomodoro -> Music
-                if isShelf {
-                    DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
-                } else if isPomodoro {
-                    DinoCoordinator.shared.activateSlotDirectly(.music)
-                } else {
-                    DinoCoordinator.shared.activateSlotDirectly(.shelf)
-                }
-            }
-        }
-
-        if Defaults[.enableHaptics] {
-            haptics.toggle()
-        }
+    private func handleHorizontalGesture(translation: CGFloat, phase: NSEvent.Phase, direction: PanDirection, isPrecise: Bool) {
+        handleHorizontalMediaGesture(translation: translation, phase: phase, direction: direction, isPrecise: isPrecise)
     }
 
     // MARK: - Horizontal Media Gesture
 
     @State private var lastMediaSwipeTriggeredAt: Date = .distantPast
 
-    private var effectiveGestureThreshold: CGFloat {
-        Defaults[.gestureSensitivityMode].threshold
-    }
-
-    private func handleHorizontalMediaGesture(translation: CGFloat, phase: NSEvent.Phase, direction: PanDirection) {
-        // Only works when music is playing and notch is closed
-        guard vm.notchState == .closed,
-              musicManager.isPlaying,
-              !musicManager.isPlayerIdle else { return }
-
+    private func handleHorizontalMediaGesture(translation: CGFloat, phase: NSEvent.Phase, direction: PanDirection, isPrecise: Bool) {
         let gestureDirection: MediaGestureDirection = direction == .right ? .right : .left
-
         if phase == .began {
-            hasTriggeredMediaGestureInCurrentSwipe = false
-        }
-
-        let now = Date()
-        let timeSinceLastTrigger = now.timeIntervalSince(lastMediaSwipeTriggeredAt)
-
-        // Strict single-action lock per swipe + 0.45s cooldown to prevent multiple skips on hard swipes
-        if !hasTriggeredMediaGestureInCurrentSwipe && timeSinceLastTrigger > 0.45 && translation >= effectiveGestureThreshold * 0.75 {
-            hasTriggeredMediaGestureInCurrentSwipe = true
-            lastMediaSwipeTriggeredAt = now
-
-            if gestureDirection == .left {
-                // Swipe left = Next track (matches next icon on the right)
-                MusicManager.shared.nextTrack()
-            } else {
-                // Swipe right = Apple-style Previous / Restart (matches prev icon on the left/cover)
-                let wasRecentlyTriggered = now.timeIntervalSince(lastPreviousGestureAt) < 2.0
-                lastPreviousGestureAt = now
-
-                // Calculate real playback position (elapsedTime + real time since last update)
-                let actualElapsed = musicManager.elapsedTime + (musicManager.isPlaying ? max(0, now.timeIntervalSince(musicManager.timestampDate)) : 0)
-
-                if actualElapsed > 3.0 && !wasRecentlyTriggered {
-                    // Song played > 3 seconds: restart current song
-                    MusicManager.shared.seek(to: 0)
-                } else {
-                    // Song just started or double-swiped within 2 seconds: previous track
-                    MusicManager.shared.previousTrack()
-                }
-            }
-
-            // Flash confirmation animation: force icon to be visible for at least 0.45s upon action
-            mediaGestureDirection = gestureDirection
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.65)) {
-                mediaGestureIconVisible = true
-            }
-
+            mediaGestureReady = false
             mediaGestureTask?.cancel()
-            mediaGestureTask = Task {
-                try? await Task.sleep(for: .milliseconds(450))
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        mediaGestureIconVisible = false
-                    }
-                }
-                try? await Task.sleep(for: .milliseconds(250))
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    mediaGestureDirection = .none
-                }
-            }
-
-            if Defaults[.enableHaptics] {
-                haptics.toggle()
-            }
+        }
+        let isMusicFeature = vm.notchState == .closed || DinoCoordinator.shared.activeSlot == .music
+        guard isPrecise, isMusicFeature, musicManager.isPlaying, !musicManager.isPlayerIdle else {
+            if phase == .ended || phase == .cancelled { clearMediaGesturePreview() }
+            return
         }
 
         if phase == .ended || phase == .cancelled {
-            hasTriggeredMediaGestureInCurrentSwipe = false
-
-            // If action wasn't triggered (partial swipe), dismiss immediately
-            if !hasTriggeredMediaGestureInCurrentSwipe && translation < effectiveGestureThreshold * 0.5 {
+            let shouldCommit = phase == .ended && mediaGestureReady
+                && translation >= NotchGestureActivation.distance
+                && Date().timeIntervalSince(lastMediaSwipeTriggeredAt) > 0.45
+            mediaGestureReady = false
+            if shouldCommit {
+                lastMediaSwipeTriggeredAt = Date()
+                performMediaSwipe(gestureDirection)
                 mediaGestureTask?.cancel()
-                withAnimation(.easeOut(duration: 0.2)) {
-                    mediaGestureIconVisible = false
-                }
-                mediaGestureTask = Task {
-                    try? await Task.sleep(for: .milliseconds(200))
+                mediaGestureTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(450))
                     guard !Task.isCancelled else { return }
-                    await MainActor.run {
-                        mediaGestureDirection = .none
-                    }
+                    clearMediaGesturePreview()
                 }
+            } else {
+                clearMediaGesturePreview()
             }
             return
         }
 
-        // Show the direction icon smoothly while dragging (preview hint)
-        if mediaGestureDirection != gestureDirection && !hasTriggeredMediaGestureInCurrentSwipe {
+        if mediaGestureDirection != gestureDirection {
+            mediaGestureReady = false
+        }
+        let ready = translation >= NotchGestureActivation.distance
+        if ready && !mediaGestureReady { performGestureHaptic() }
+        if mediaGestureReady != ready { mediaGestureReady = ready }
+        if mediaGestureDirection != gestureDirection || mediaGestureIconVisible != (translation > 8) {
             mediaGestureDirection = gestureDirection
-            mediaGestureTask?.cancel()
-            withAnimation(.easeOut(duration: 0.12)) {
-                mediaGestureIconVisible = false
-            }
-            mediaGestureTask = Task {
-                try? await Task.sleep(for: .milliseconds(80))
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
-                        mediaGestureIconVisible = true
-                    }
-                }
+            withAnimation(.easeOut(duration: 0.16)) {
+                mediaGestureIconVisible = translation > 8
             }
         }
+    }
+
+    private func performMediaSwipe(_ direction: MediaGestureDirection) {
+        if direction == .left {
+            musicManager.nextTrack()
+        } else {
+            // Match the closed notch: a recent song restarts, a second swipe goes back.
+            let now = Date()
+            let wasRecentlyTriggered = now.timeIntervalSince(lastPreviousGestureAt) < 2.0
+            lastPreviousGestureAt = now
+            let actualElapsed = musicManager.elapsedTime
+                + (musicManager.isPlaying ? max(0, now.timeIntervalSince(musicManager.timestampDate)) : 0)
+            if actualElapsed > 3.0 && !wasRecentlyTriggered {
+                musicManager.seek(to: 0)
+            } else {
+                musicManager.previousTrack()
+            }
+        }
+    }
+
+    private func clearMediaGesturePreview() {
+        mediaGestureTask?.cancel()
+        mediaGestureTask = nil
+        withAnimation(.easeOut(duration: 0.2)) {
+            mediaGestureIconVisible = false
+        }
+        mediaGestureDirection = .none
     }
 }
 

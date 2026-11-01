@@ -22,7 +22,6 @@ struct IslandContainerLayout<Content: View>: View {
     let currentNotchShape: NotchShape
     let islandYOffset: CGFloat
     let islandOpacity: Double
-    let gestureProgress: CGFloat
     let pomodoroEnabled: Bool
     let pomodoroClosedNotchDisplayMode: PomodoroClosedNotchDisplayMode
     let shouldShowPomodoroInlineClosedVisual: Bool

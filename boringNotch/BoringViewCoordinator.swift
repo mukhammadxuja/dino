@@ -71,7 +71,6 @@ class BoringViewCoordinator: ObservableObject {
     @AppStorage("alwaysShowTabs") var alwaysShowTabs: Bool = true {
         didSet {
             if !alwaysShowTabs {
-                openLastTabByDefault = false
                 if ShelfStateViewModel.shared.isEmpty || !Defaults[.openShelfByDefault] {
                     DinoCoordinator.shared.selectView(.home)
                 }
@@ -79,11 +78,33 @@ class BoringViewCoordinator: ObservableObject {
         }
     }
 
-    @AppStorage("openLastTabByDefault") var openLastTabByDefault: Bool = false {
-        didSet {
-            if openLastTabByDefault {
-                alwaysShowTabs = true
-            }
+    @AppStorage("openLastTabByDefault") var openLastTabByDefault: Bool = false
+
+    @AppStorage("lastExpandedFeature") private var lastExpandedFeature = ""
+
+    var lastExpandedSlot: DinoSlot? {
+        switch lastExpandedFeature {
+        case "music": return .music
+        case "pomodoro": return .pomodoro
+        case "shelf": return .shelf
+        case "weather": return .weather
+        case "calendar": return .calendar
+        default: return nil
+        }
+    }
+
+    func rememberExpandedSlot(_ slot: DinoSlot) {
+        let value: String
+        switch slot {
+        case .music: value = "music"
+        case .pomodoro: value = "pomodoro"
+        case .shelf: value = "shelf"
+        case .weather: value = "weather"
+        case .calendar: value = "calendar"
+        default: return
+        }
+        if lastExpandedFeature != value {
+            lastExpandedFeature = value
         }
     }
     
@@ -284,6 +305,13 @@ class BoringViewCoordinator: ObservableObject {
             let isCurrentlyShowing = self.sneakPeek.show
             let isDifferentType = (self.activeSneakPeekType != nil && self.activeSneakPeekType != type)
             let elapsedSinceStart = Date().timeIntervalSince(self.activeSneakPeekStartTime)
+
+            if type == .music && isCurrentlyShowing && self.activeSneakPeekType == .music {
+                self.activeSneakPeekStartTime = Date()
+                self.sneakPeekDuration = duration
+                self.scheduleSneakPeekHide(after: duration)
+                return
+            }
 
             if isCurrentlyShowing && isDifferentType && elapsedSinceStart < 1.2 {
                 // Queue the incoming HUD item sequentially so both get full visibility

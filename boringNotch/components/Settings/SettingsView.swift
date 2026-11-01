@@ -275,7 +275,6 @@ struct GeneralSettings: View {
     @Default(.menubarIcon) var menubarIcon
     @Default(.hideNotchOption) var hideNotchOption
     @Default(.hideFromScreenRecording) var hideFromScreenRecording
-    @Default(.gestureSensitivityMode) var gestureSensitivityMode
     @Default(.enableGestures) var enableGestures
     @Default(.openNotchOnHover) var openNotchOnHover
     @Default(.idleClickAction) var idleClickAction
@@ -295,11 +294,11 @@ struct GeneralSettings: View {
                         .foregroundColor(.secondary)
 
                     VStack(spacing: 0) {
-                        // Row 1: Launch at startup
+                        // Row 1: Launch at login
                         settingRow(
                             icon: "power.circle.fill",
                             iconColor: Color.blue,
-                            title: "Launch at startup",
+                            title: "Launch at login",
                             subtitle: "Open BoringNotch automatically when you log in to your Mac",
                             isOn: Binding(
                                 get: { LaunchAtLogin.isEnabled },
@@ -328,7 +327,7 @@ struct GeneralSettings: View {
                             subtitle: "Keep the notch and island visible over full screen applications",
                             isOn: Binding(
                                 get: { hideNotchOption == .never },
-                                set: { hideNotchOption = $0 ? .never : .nowPlayingOnly }
+                                set: { hideNotchOption = $0 ? .never : .always }
                             )
                         )
 
@@ -338,18 +337,18 @@ struct GeneralSettings: View {
                         settingRow(
                             icon: "clock.arrow.circlepath",
                             iconColor: Color.orange,
-                            title: "Remember last active tab",
-                            subtitle: "Reopen the notch to your last used tab (Home, Shelf, or Calendar) instead of resetting to Home",
+                            title: "Remember last active feature",
+                            subtitle: "Reopen Music, Timer, Shelf, Weather, or Calendar where you left off",
                             isOn: $coordinator.openLastTabByDefault
                         )
 
                         cardDivider
 
-                        // Row 5: Display in screenshot
+                        // Row 5: Display in screen capture
                         settingRow(
                             icon: "camera.viewfinder",
                             iconColor: Color.green,
-                            title: "Display in screenshots",
+                            title: "Display in screen capture",
                             subtitle: "Include BoringNotch in screen recordings and screenshots",
                             isOn: Binding(
                                 get: { !hideFromScreenRecording },
@@ -357,39 +356,6 @@ struct GeneralSettings: View {
                             )
                         )
 
-                        cardDivider
-
-                        // Row 6: Click when idle
-                        HStack(spacing: 12) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(Color.blue.opacity(0.12))
-                                    .frame(width: 28, height: 28)
-                                Image(systemName: "cursorarrow.click.2")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(Color.blue)
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Click when idle")
-                                    .font(.system(size: 13.5, weight: .medium))
-                                    .foregroundColor(.primary)
-                                Text("Action to perform when clicking an idle notch or Dynamic Island")
-                                    .font(.system(size: 11.5))
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            Picker("", selection: $idleClickAction) {
-                                ForEach(IdleClickAction.allCases) { action in
-                                    Text(action.title).tag(action)
-                                }
-                            }
-                            .frame(width: 175)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
                     }
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -399,7 +365,24 @@ struct GeneralSettings: View {
                     )
                 }
 
-                // MARK: - 2. Clipboard History Card
+                // MARK: - 2. Idle Activity
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Idle activity")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.secondary)
+
+                    Text("Choose what opens when you click an idle notch or Dynamic Island")
+                        .font(.system(size: 11.5))
+                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 8) {
+                        ForEach([IdleClickAction.none, .music, .pomodoro, .weather, .calendar]) { action in
+                            IdleActivityCard(action: action, selection: $idleClickAction)
+                        }
+                    }
+                }
+
+                // MARK: - 3. Clipboard History Card
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Clipboard history")
@@ -502,7 +485,7 @@ struct GeneralSettings: View {
                     )
                 }
 
-                // MARK: - 3. Mirror HUD Card
+                // MARK: - 4. Mirror HUD Card
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Mirror (HUD)")
@@ -571,14 +554,11 @@ struct GeneralSettings: View {
                     )
                 }
 
-                // MARK: - 3. Gesture Control Card
+                // MARK: - 5. Gestures
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Trackpad gestures")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.secondary)
-                        customBadge(text: "Smart")
-                    }
+                    Text("Gestures")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.secondary)
 
                     VStack(spacing: 0) {
                         settingRow(
@@ -592,41 +572,6 @@ struct GeneralSettings: View {
                         if enableGestures {
                             cardDivider
 
-                            // Sensitivity Segmented Picker
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                        .fill(Color.orange.opacity(0.12))
-                                        .frame(width: 28, height: 28)
-                                    Image(systemName: "gauge.with.needle.fill")
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(Color.orange)
-                                }
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Gesture sensitivity")
-                                        .font(.system(size: 13.5, weight: .medium))
-                                        .foregroundColor(.primary)
-                                    Text("Controls how much swipe movement is needed to trigger actions")
-                                        .font(.system(size: 11.5))
-                                        .foregroundColor(.secondary)
-                                }
-
-                                Spacer()
-
-                                Picker("", selection: $gestureSensitivityMode) {
-                                    ForEach(GestureSensitivityEnum.allCases) { mode in
-                                        Text(mode.title).tag(mode)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-                                .frame(width: 200)
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-
-                            cardDivider
-
                             // Gestures Cheatsheet / Guide
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("HOW TO USE GESTURES")
@@ -637,19 +582,19 @@ struct GeneralSettings: View {
                                 gestureGuideRow(
                                     icon: "arrow.up.and.down",
                                     action: "Swipe Down / Up",
-                                    description: "Open notch when closed, or close notch when expanded"
+                                    description: "Swipe down to open, or up to close; release your fingers to confirm"
                                 )
 
                                 gestureGuideRow(
                                     icon: "arrow.left.and.right",
                                     action: "Swipe Left / Right",
-                                    description: "Next track (left) or restart / previous track (right)"
+                                    description: "With music playing: next track (left) or restart / previous (right)"
                                 )
 
                                 gestureGuideRow(
-                                    icon: "rectangle.split.3x1.fill",
-                                    action: "Swipe while Open",
-                                    description: "Carousel loop between Music, Pomodoro, and Shelf (Drop zone)"
+                                    icon: "arrow.down",
+                                    action: "Swipe Down while Open",
+                                    description: "Release to advance Music → Timer → Shelf → Music"
                                 )
                             }
                             .padding(.horizontal, 16)
@@ -665,7 +610,22 @@ struct GeneralSettings: View {
                     )
                 }
 
-                // MARK: - 3. App Quit Section
+                // MARK: - 6. Tunning
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Tunning")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.secondary)
+                    Text("More controls coming later")
+                        .font(.system(size: 11.5))
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                        .background(Color.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1))
+                }
+
+                // MARK: - 7. App Quit Section
                 HStack {
                     Spacer()
                     Button(role: .destructive) {
@@ -688,6 +648,11 @@ struct GeneralSettings: View {
             .padding(20)
         }
         .navigationTitle("General")
+        .onAppear {
+            if idleClickAction == .shelf {
+                idleClickAction = .none
+            }
+        }
     }
 
     private var cardDivider: some View {
@@ -6093,6 +6058,72 @@ struct HUD: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 28)
+    }
+}
+
+// MARK: - Idle Activity Radio Selection Card
+private struct IdleActivityCard: View {
+    let action: IdleClickAction
+    @Binding var selection: IdleClickAction
+    @State private var isHovered = false
+
+    private var label: String {
+        switch action {
+        case .none: return "None"
+        case .music: return "Playing"
+        case .pomodoro: return "Timer"
+        case .weather: return "Weather"
+        case .calendar: return "Calendar"
+        case .shelf: return "Shelf"
+        }
+    }
+
+    private var icon: String {
+        switch action {
+        case .none: return "circle.slash"
+        case .music: return "waveform"
+        case .pomodoro: return "timer"
+        case .weather: return "cloud.sun.fill"
+        case .calendar: return "calendar"
+        case .shelf: return "tray.full.fill"
+        }
+    }
+
+    var body: some View {
+        let isSelected = selection == action
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                selection = action
+            }
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(isSelected ? .effectiveAccent : (isHovered ? .primary : .secondary))
+                Text(label)
+                    .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                    .foregroundColor(isSelected ? .primary : .secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? Color.effectiveAccent.opacity(0.12) :
+                          (isHovered ? Color.primary.opacity(0.06) : Color.primary.opacity(0.03)))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(isSelected ? Color.effectiveAccent : Color.primary.opacity(0.08),
+                            lineWidth: isSelected ? 1.5 : 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .onHover { isHovered = $0 }
     }
 }
 

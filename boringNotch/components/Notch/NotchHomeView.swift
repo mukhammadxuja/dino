@@ -14,9 +14,15 @@ import SwiftUI
 
 struct MusicPlayerView: View {
     let albumArtNamespace: Namespace.ID
+    let mediaGestureDirection: MediaGestureDirection
+    let mediaGestureIconVisible: Bool
 
     var body: some View {
-        MusicControlsView(albumArtNamespace: albumArtNamespace)
+        MusicControlsView(
+            albumArtNamespace: albumArtNamespace,
+            mediaGestureDirection: mediaGestureDirection,
+            mediaGestureIconVisible: mediaGestureIconVisible
+        )
     }
 }
 
@@ -71,6 +77,8 @@ struct MusicControlsView: View {
     @EnvironmentObject var vm: BoringViewModel
     @State private var cameraAvailable = WebcamManager.shared.cameraAvailable
     let albumArtNamespace: Namespace.ID
+    let mediaGestureDirection: MediaGestureDirection
+    let mediaGestureIconVisible: Bool
     @State private var sliderValue: Double = 0
     @State private var dragging: Bool = false
     @State private var lastDragged: Date = .distantPast
@@ -268,10 +276,22 @@ struct MusicControlsView: View {
             ForEach(Array(slots.enumerated()), id: \.offset) { index, slot in
                 slotView(for: slot)
                     .frame(alignment: .center)
+                    .opacity(gestureOpacity(for: slot))
             }
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.top, 2)
+        .animation(.easeInOut(duration: 0.18), value: mediaGestureDirection)
+        .animation(.easeInOut(duration: 0.18), value: mediaGestureIconVisible)
+    }
+
+    private func gestureOpacity(for slot: MusicControlButton) -> Double {
+        guard mediaGestureIconVisible else { return 1 }
+        switch mediaGestureDirection {
+        case .left: return slot == .next ? 1 : 0.32
+        case .right: return slot == .previous ? 1 : 0.32
+        case .none: return 1
+        }
     }
 
     private func timeString(from seconds: Double) -> String {
@@ -545,6 +565,8 @@ struct NotchHomeView: View {
     @State private var hasPomodoro = PomodoroManager.shared.hasActiveSession
     @Default(.activeModule) private var activeModule
     let albumArtNamespace: Namespace.ID
+    let mediaGestureDirection: MediaGestureDirection
+    let mediaGestureIconVisible: Bool
     @State private var isPomodoroMirrorEnabled = false
 
     var body: some View {
@@ -611,7 +633,7 @@ struct NotchHomeView: View {
         if hasPomodoro {
             return .pomodoro
         }
-        return .music
+        return .none
     }
 
     private let otherPagesTopPadding: CGFloat = 16
@@ -622,8 +644,14 @@ struct NotchHomeView: View {
                 WeatherExpandedCardView()
             } else {
                 switch effectiveActiveModule {
-                case .none, .music, .coding:
-                    MusicHomePage(albumArtNamespace: albumArtNamespace)
+                case .none:
+                    IdleHomePage()
+                case .music, .coding:
+                    MusicHomePage(
+                        albumArtNamespace: albumArtNamespace,
+                        mediaGestureDirection: mediaGestureDirection,
+                        mediaGestureIconVisible: mediaGestureIconVisible
+                    )
                 case .pomodoro:
                     PomodoroHomePage(isPomodoroMirrorEnabled: $isPomodoroMirrorEnabled)
                 case .calendar:
@@ -636,7 +664,14 @@ struct NotchHomeView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .transition(.opacity)
+        .id(activeSlot)
+        .transition(.asymmetric(
+            insertion: .modifier(
+                active: FeatureChangeEffect(opacity: 0, blurRadius: 2, offsetY: 10),
+                identity: FeatureChangeEffect(opacity: 1, blurRadius: 0, offsetY: 0)
+            ),
+            removal: .opacity
+        ))
     }
 
     private var calendarPage: some View {
@@ -662,10 +697,21 @@ struct NotchHomeView: View {
     }
 }
 
+private struct IdleHomePage: View {
+    var body: some View {
+        Text("No active activity")
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(.white.opacity(0.65))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
 private struct MusicHomePage: View {
     @EnvironmentObject private var vm: BoringViewModel
     @State private var cameraAvailable = WebcamManager.shared.cameraAvailable
     let albumArtNamespace: Namespace.ID
+    let mediaGestureDirection: MediaGestureDirection
+    let mediaGestureIconVisible: Bool
 
     private var shouldShowCamera: Bool {
         Defaults[.showMirror] && cameraAvailable && vm.isCameraExpanded
@@ -679,7 +725,11 @@ private struct MusicHomePage: View {
             let musicWidth = max(0, pageGeo.size.width - sidePanelWidth - spacing)
 
             HStack(alignment: .top, spacing: 0) {
-                MusicPlayerView(albumArtNamespace: albumArtNamespace)
+                MusicPlayerView(
+                    albumArtNamespace: albumArtNamespace,
+                    mediaGestureDirection: mediaGestureDirection,
+                    mediaGestureIconVisible: mediaGestureIconVisible
+                )
                     .frame(width: musicWidth, alignment: .leading)
 
                 if hasSecondaryPanel {

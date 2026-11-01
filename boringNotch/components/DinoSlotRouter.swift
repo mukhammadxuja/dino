@@ -6,6 +6,19 @@
 import SwiftUI
 import Defaults
 
+struct FeatureChangeEffect: ViewModifier {
+    let opacity: Double
+    let blurRadius: CGFloat
+    let offsetY: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(opacity)
+            .blur(radius: blurRadius)
+            .offset(y: offsetY)
+    }
+}
+
 struct DinoSlotRouter: View {
     @EnvironmentObject var vm: BoringViewModel
     @ObservedObject var coordinator = BoringViewCoordinator.shared
@@ -33,7 +46,6 @@ struct DinoSlotRouter: View {
     let showMirror: Bool
 
     @Binding var isHovering: Bool
-    @Binding var gestureProgress: CGFloat
     @Binding var showCoverHoverMusicDetails: Bool
     @Binding var coverHoverDismissTask: Task<Void, Never>?
 
@@ -93,7 +105,7 @@ struct DinoSlotRouter: View {
                 value: $coordinator.sneakPeek.value,
                 icon: $coordinator.sneakPeek.icon,
                 hoverAnimation: $isHovering,
-                gestureProgress: $gestureProgress
+                gestureProgress: .constant(0)
             )
             .transition(.opacity)
         } else if isDualActivityActive || dinoCoordinator.isDualActivityActive {
@@ -219,23 +231,42 @@ struct DinoSlotRouter: View {
 
     @ViewBuilder
     private var openNotchContent: some View {
-        VStack {
-            if dinoCoordinator.activeSlot == .webcam {
-                mirrorView
-            } else {
-                switch coordinator.currentView {
-                case .home, .calendar:
-                    NotchHomeView(albumArtNamespace: albumArtNamespace)
-                case .shelf:
-                    shelfView
+        ZStack(alignment: .top) {
+            VStack {
+                if dinoCoordinator.activeSlot == .webcam {
+                    mirrorView
+                } else {
+                    switch coordinator.currentView {
+                    case .home, .calendar:
+                        NotchHomeView(
+                            albumArtNamespace: albumArtNamespace,
+                            mediaGestureDirection: mediaGestureDirection,
+                            mediaGestureIconVisible: mediaGestureIconVisible
+                        )
+                    case .shelf:
+                        shelfView
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // Keep the home container (and its subscriptions/state) alive while
+            // cycling between music, timer, calendar and weather pages.
+            .id(dinoCoordinator.activeSlot == .shelf ? "shelf" :
+                dinoCoordinator.activeSlot == .webcam ? "webcam" : "home")
+            .transition(.asymmetric(
+                insertion: .modifier(
+                    active: FeatureChangeEffect(opacity: 0, blurRadius: 2, offsetY: 10),
+                    identity: FeatureChangeEffect(opacity: 1, blurRadius: 0, offsetY: 0)
+                ),
+                removal: .modifier(
+                    active: FeatureChangeEffect(opacity: 0, blurRadius: 0, offsetY: -5),
+                    identity: FeatureChangeEffect(opacity: 1, blurRadius: 0, offsetY: 0)
+                )
+            ))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .transition(.opacity)
         .zIndex(1)
         .allowsHitTesting(vm.notchState == .open)
-        .opacity(gestureProgress != 0 ? 1.0 - min(abs(gestureProgress) * 0.1, 0.3) : 1.0)
     }
 
     private var mirrorView: some View {
