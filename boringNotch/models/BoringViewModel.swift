@@ -71,9 +71,11 @@ class BoringViewModel: NSObject, ObservableObject {
     }
 
     private var openNotchTask: Task<Void, Never>?
+    private var openRequestID: UUID?
     private var notchOpenDiagnosticsTask: Task<Void, Never>?
 
     func destroy() {
+        openRequestID = nil
         openNotchTask?.cancel()
         openNotchTask = nil
         notchOpenDiagnosticsTask?.cancel()
@@ -298,11 +300,21 @@ class BoringViewModel: NSObject, ObservableObject {
         // Defer music information update until after the spring animation settles
         // so background queries and @Published property updates do not cause frame drops during expansion
         openNotchTask?.cancel()
-        openNotchTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(380))
-            guard self?.notchState == .open else { return }
+        let requestID = UUID()
+        openRequestID = requestID
+        openNotchTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(380))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled,
+                  let self,
+                  self.openRequestID == requestID,
+                  self.notchState == .open else { return }
+            self.openNotchTask = nil
             NSLog("[DINO-PERF] NOTCH_OPEN_SETTLED_DELAY elapsedMs=380; requesting music refresh")
-            MusicManager.shared.forceUpdate()
+            MusicManager.shared.forceUpdate(needsLatestResult: false)
         }
     }
 
@@ -333,6 +345,7 @@ class BoringViewModel: NSObject, ObservableObject {
     }
 
     func close(resetSelection: Bool = true) {
+        openRequestID = nil
         openNotchTask?.cancel()
         openNotchTask = nil
         notchOpenDiagnosticsTask?.cancel()

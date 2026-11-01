@@ -22,6 +22,11 @@ class MusicManager: ObservableObject {
     private var debounceIdleTask: Task<Void, Never>?
     private var lyricsFetchTask: Task<Void, Never>?
     private var seekTask: Task<Void, Never>?
+    private var refreshTask: Task<Void, Never>?
+    private var refreshController: (any MediaControllerProtocol)?
+    private var refreshRequestID: UUID?
+    private var refreshAfterCurrent = false
+    private var isDestroyed = false
 
     // Helper to check if macOS has removed support for NowPlayingController
     public private(set) var isNowPlayingDeprecated: Bool = false
@@ -99,6 +104,12 @@ class MusicManager: ObservableObject {
     }
     
     public func destroy() {
+        isDestroyed = true
+        refreshTask?.cancel()
+        refreshTask = nil
+        refreshController = nil
+        refreshRequestID = nil
+        refreshAfterCurrent = false
         debounceIdleTask?.cancel()
         lyricsFetchTask?.cancel()
         lyricsFetchTask = nil
@@ -702,19 +713,45 @@ class MusicManager: ObservableObject {
         }
     }
 
-    func forceUpdate() {
-        // Request immediate update from the active controller
-        Task { [weak self] in
-            guard let self, let controller = self.activeController else {
-                NSLog("[DINO-PERF] MUSIC_REFRESH_SKIPPED reason=no_active_controller")
-                return
-            }
+    func forceUpdate(needsLatestResult: Bool = true) {
+        Task { @MainActor [weak self] in
+            self?.startRefreshIfNeeded(needsLatestResult: needsLatestResult)
+        }
+    }
 
-            guard controller.isActive() else {
-                NSLog("[DINO-PERF] MUSIC_REFRESH_SKIPPED reason=controller_inactive")
-                return
-            }
+    @MainActor
+    private func startRefreshIfNeeded(needsLatestResult: Bool) {
+        guard !isDestroyed, let controller = activeController else {
+            NSLog("[DINO-PERF] MUSIC_REFRESH_SKIPPED reason=no_active_controller")
+            return
+        }
+        if let refreshController, refreshTask != nil, refreshController === controller {
+            if needsLatestResult { refreshAfterCurrent = true }
+            NSLog("[DINO-PERF] MUSIC_REFRESH_COALESCED")
+            return
+        }
+        guard controller.isActive() else {
+            NSLog("[DINO-PERF] MUSIC_REFRESH_SKIPPED reason=controller_inactive")
+            return
+        }
 
+        refreshTask?.cancel()
+        let requestID = UUID()
+        refreshRequestID = requestID
+        refreshController = controller
+        refreshAfterCurrent = false
+        refreshTask = Task { @MainActor [weak self] in
+            defer {
+                if let self, self.refreshRequestID == requestID {
+                    let shouldRefreshAgain = self.refreshAfterCurrent
+                    self.refreshTask = nil
+                    self.refreshController = nil
+                    self.refreshRequestID = nil
+                    self.refreshAfterCurrent = false
+                    if shouldRefreshAgain { self.forceUpdate() }
+                }
+            }
+            guard !Task.isCancelled else { return }
             let startedAt = ProcessInfo.processInfo.systemUptime
             let controllerName = String(describing: type(of: controller))
             NSLog("[DINO-PERF] MUSIC_REFRESH_BEGIN controller=%@", controllerName)

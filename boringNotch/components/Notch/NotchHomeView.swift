@@ -13,7 +13,6 @@ import SwiftUI
 // MARK: - Music Player Components
 
 struct MusicPlayerView: View {
-    @EnvironmentObject var vm: BoringViewModel
     let albumArtNamespace: Namespace.ID
 
     var body: some View {
@@ -23,7 +22,6 @@ struct MusicPlayerView: View {
 
 struct AlbumArtView: View {
     @ObservedObject var musicManager = MusicManager.shared
-    @ObservedObject var vm: BoringViewModel
     let albumArtNamespace: Namespace.ID
 
     var body: some View {
@@ -71,7 +69,7 @@ struct AlbumArtView: View {
 struct MusicControlsView: View {
     @ObservedObject var musicManager = MusicManager.shared
     @EnvironmentObject var vm: BoringViewModel
-    @ObservedObject var webcamManager = WebcamManager.shared
+    @State private var cameraAvailable = WebcamManager.shared.cameraAvailable
     let albumArtNamespace: Namespace.ID
     @State private var sliderValue: Double = 0
     @State private var dragging: Bool = false
@@ -87,11 +85,12 @@ struct MusicControlsView: View {
         }
         .frame(maxWidth: .infinity)
         .buttonStyle(PlainButtonStyle())
+        .onReceive(WebcamManager.shared.$cameraAvailable.removeDuplicates()) { cameraAvailable = $0 }
     }
 
     private var topInfoRow: some View {
         HStack(alignment: .bottom, spacing: 14) {
-            AlbumArtView(vm: vm, albumArtNamespace: albumArtNamespace)
+            AlbumArtView(albumArtNamespace: albumArtNamespace)
                 .frame(width: 66, height: 66)
                 .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
 
@@ -296,7 +295,7 @@ struct MusicControlsView: View {
         let padded = slotConfig.padded(to: sanitizedLimit, filler: .none)
         let result = Array(padded.prefix(sanitizedLimit))
         // If calendar and camera are both visible alongside music, hide the edge slots
-        let shouldHideEdges = Defaults[.showCalendar] && Defaults[.showMirror] && webcamManager.cameraAvailable && vm.isCameraExpanded
+        let shouldHideEdges = Defaults[.showCalendar] && Defaults[.showMirror] && cameraAvailable && vm.isCameraExpanded
         if shouldHideEdges && result.count >= 5 {
             return Array(result.dropFirst().dropLast())
         }
@@ -540,29 +539,38 @@ struct VolumeControlView: View {
 // MARK: - Main View
 
 struct NotchHomeView: View {
-    @EnvironmentObject var vm: BoringViewModel
-    @ObservedObject var webcamManager = WebcamManager.shared
-    @ObservedObject var batteryModel = BatteryStatusViewModel.shared
-    @ObservedObject var coordinator = BoringViewCoordinator.shared
-    @ObservedObject var pomodoroManager = PomodoroManager.shared
-    @ObservedObject var musicManager = MusicManager.shared
-    @ObservedObject var dinoCoordinator = DinoCoordinator.shared
+    @AppStorage("firstLaunch") private var firstLaunch = true
+    @State private var activeSlot = DinoCoordinator.shared.activeSlot
+    @State private var hasMusic = MusicManager.shared.isPlaying || !MusicManager.shared.isPlayerIdle
+    @State private var hasPomodoro = PomodoroManager.shared.hasActiveSession
     @Default(.activeModule) private var activeModule
     let albumArtNamespace: Namespace.ID
-
-    @State private var isPomodoroMirrorEnabled: Bool = false
+    @State private var isPomodoroMirrorEnabled = false
 
     var body: some View {
         Group {
-            if !coordinator.firstLaunch {
+            if !firstLaunch {
                 mainContent
             }
         }
         .transition(.opacity)
+        .onReceive(DinoCoordinator.shared.$activeSlot.removeDuplicates()) { slot in
+            activeSlot = slot
+        }
+        .onReceive(
+            Publishers.CombineLatest(MusicManager.shared.$isPlaying, MusicManager.shared.$isPlayerIdle)
+                .map { isPlaying, isIdle in isPlaying || !isIdle }
+                .removeDuplicates()
+        ) { isActive in
+            hasMusic = isActive
+        }
+        .onReceive(PomodoroManager.shared.$state.map { $0 != .idle }.removeDuplicates()) { isActive in
+            hasPomodoro = isActive
+        }
     }
 
     private var effectiveActiveModule: ActiveNotchModule {
-        switch dinoCoordinator.activeSlot {
+        switch activeSlot {
         case .pomodoro:
             return .pomodoro
         case .calendar:
@@ -597,36 +605,31 @@ struct NotchHomeView: View {
         if activeModule == .music {
             return .music
         }
-        if musicManager.isPlaying || !musicManager.isPlayerIdle {
+        if hasMusic {
             return .music
         }
-        if pomodoroManager.hasActiveSession {
+        if hasPomodoro {
             return .pomodoro
         }
         return .music
     }
 
-    private var shouldShowCamera: Bool {
-        Defaults[.showMirror] && webcamManager.cameraAvailable && vm.isCameraExpanded
-    }
-
     private let otherPagesTopPadding: CGFloat = 16
-    private let playerTopPadding: CGFloat = 8
 
     private var mainContent: some View {
         Group {
-            if dinoCoordinator.activeSlot == .weather {
+            if activeSlot == .weather {
                 WeatherExpandedCardView()
             } else {
                 switch effectiveActiveModule {
                 case .none, .music, .coding:
-                    playerPage
+                    MusicHomePage(albumArtNamespace: albumArtNamespace)
                 case .pomodoro:
-                    pomodoroPage
+                    PomodoroHomePage(isPomodoroMirrorEnabled: $isPomodoroMirrorEnabled)
                 case .calendar:
                     calendarPage
                 case .battery:
-                    batteryPage
+                    BatteryHomePage()
                 case .shelf:
                     shelfPage
                 }
@@ -636,7 +639,39 @@ struct NotchHomeView: View {
         .transition(.opacity)
     }
 
-    private var playerPage: some View {
+    private var calendarPage: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            CalendarView()
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, otherPagesTopPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var codingPage: some View {
+        VStack(spacing: 8) {
+            AntigravityLiveActivity()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, 8)
+    }
+
+    private var shelfPage: some View {
+        ShelfView()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+}
+
+private struct MusicHomePage: View {
+    @EnvironmentObject private var vm: BoringViewModel
+    @State private var cameraAvailable = WebcamManager.shared.cameraAvailable
+    let albumArtNamespace: Namespace.ID
+
+    private var shouldShowCamera: Bool {
+        Defaults[.showMirror] && cameraAvailable && vm.isCameraExpanded
+    }
+
+    var body: some View {
         GeometryReader { pageGeo in
             let hasSecondaryPanel = shouldShowCamera
             let spacing: CGFloat = hasSecondaryPanel ? 12 : 0
@@ -652,7 +687,7 @@ struct NotchHomeView: View {
                 }
 
                 if shouldShowCamera {
-                    CameraPreviewView(webcamManager: webcamManager)
+                    CameraPreviewView(webcamManager: WebcamManager.shared)
                         .scaledToFit()
                         .frame(width: sidePanelWidth, alignment: .trailing)
                         .opacity(vm.notchState == .closed ? 0 : 1)
@@ -663,13 +698,19 @@ struct NotchHomeView: View {
         }
         .padding(.horizontal, 2)
         .padding(.top, 0)
+        .onReceive(WebcamManager.shared.$cameraAvailable.removeDuplicates()) { cameraAvailable = $0 }
     }
+}
 
-    private var pomodoroPage: some View {
+private struct PomodoroHomePage: View {
+    @State private var cameraAvailable = WebcamManager.shared.cameraAvailable
+    @Binding var isPomodoroMirrorEnabled: Bool
+
+    var body: some View {
         ZStack(alignment: .topTrailing) {
             PomodoroOpenNotchView()
 
-            if Defaults[.showMirror] && webcamManager.cameraAvailable {
+            if Defaults[.showMirror] && cameraAvailable {
                 Button {
                     withAnimation(.easeInOut(duration: 0.18)) {
                         isPomodoroMirrorEnabled.toggle()
@@ -688,18 +729,14 @@ struct NotchHomeView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onReceive(WebcamManager.shared.$cameraAvailable.removeDuplicates()) { cameraAvailable = $0 }
     }
+}
 
-    private var calendarPage: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            CalendarView()
-        }
-        .padding(.horizontal, 8)
-        .padding(.top, otherPagesTopPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
+private struct BatteryHomePage: View {
+    @ObservedObject private var batteryModel = BatteryStatusViewModel.shared
 
-    private var batteryPage: some View {
+    var body: some View {
         VStack(spacing: 12) {
             HStack(alignment: .center) {
                 Text("Battery")
@@ -737,29 +774,6 @@ struct NotchHomeView: View {
             .padding(.horizontal, 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-
-    private var codingPage: some View {
-        VStack(spacing: 8) {
-            AntigravityLiveActivity()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .padding(.top, 8)
-    }
-
-    private var shelfPage: some View {
-        ShelfView()
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-}
-
-private struct PomodoroHomeSection: View {
-    @ObservedObject var pomodoroManager: PomodoroManager
-    @ObservedObject var webcamManager: WebcamManager
-    let showMirror: Bool
-
-    var body: some View {
-        PomodoroOpenNotchView()
     }
 }
 
