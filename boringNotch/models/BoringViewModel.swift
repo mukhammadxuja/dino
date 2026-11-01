@@ -72,14 +72,11 @@ class BoringViewModel: NSObject, ObservableObject {
 
     private var openNotchTask: Task<Void, Never>?
     private var openRequestID: UUID?
-    private var notchOpenDiagnosticsTask: Task<Void, Never>?
 
     func destroy() {
         openRequestID = nil
         openNotchTask?.cancel()
         openNotchTask = nil
-        notchOpenDiagnosticsTask?.cancel()
-        notchOpenDiagnosticsTask = nil
         cancellables.forEach { $0.cancel() }
         cancellables.removeAll()
         if Self.activeInstance === self { Self.activeInstance = nil }
@@ -267,8 +264,6 @@ class BoringViewModel: NSObject, ObservableObject {
     }
 
     func open(targetSize: CGSize? = nil) {
-        let openRequestStartedAt = ProcessInfo.processInfo.systemUptime
-        let wasAlreadyOpen = notchState == .open
         let isIsland: Bool = {
             let screen = screenUUID.flatMap { NSScreen.screen(withUUID: $0) } ?? NSScreen.main
             let isBuiltin = screen?.isBuiltin ?? true
@@ -283,19 +278,9 @@ class BoringViewModel: NSObject, ObservableObject {
         }()
         let openSize = targetSize ?? expandedNotchSize(for: DinoCoordinator.shared.activeSlot, isIsland: isIsland)
 
-        NSLog(
-            "%@",
-            "[DINO-PERF] NOTCH_OPEN_BEGIN alreadyOpen=\(wasAlreadyOpen) formFactor=\(isIsland ? "island" : "notch") size=\(Int(openSize.width))x\(Int(openSize.height)) slot=\(DinoCoordinator.shared.activeSlot) view=\(coordinator.currentView) prepMs=\(Int((ProcessInfo.processInfo.systemUptime - openRequestStartedAt) * 1_000))"
-        )
-        startNotchOpenDiagnostics()
-        
         self.notchSize = openSize
         self.notchState = .open
         DinoCoordinator.shared.isExpanded = true
-        NSLog(
-            "%@",
-            "[DINO-PERF] NOTCH_OPEN_STATE_SET elapsedMs=\(Int((ProcessInfo.processInfo.systemUptime - openRequestStartedAt) * 1_000))"
-        )
         
         // Defer music information update until after the spring animation settles
         // so background queries and @Published property updates do not cause frame drops during expansion
@@ -313,34 +298,7 @@ class BoringViewModel: NSObject, ObservableObject {
                   self.openRequestID == requestID,
                   self.notchState == .open else { return }
             self.openNotchTask = nil
-            NSLog("[DINO-PERF] NOTCH_OPEN_SETTLED_DELAY elapsedMs=380; requesting music refresh")
             MusicManager.shared.forceUpdate(needsLatestResult: false)
-        }
-    }
-
-    private func startNotchOpenDiagnostics() {
-        notchOpenDiagnosticsTask?.cancel()
-        notchOpenDiagnosticsTask = Task { @MainActor [weak self] in
-            var previousTick = ProcessInfo.processInfo.systemUptime
-
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(100))
-                guard !Task.isCancelled, let self, self.notchState == .open else { break }
-
-                let now = ProcessInfo.processInfo.systemUptime
-                let gapMs = (now - previousTick) * 1_000
-                if gapMs >= 250 {
-                    NSLog(
-                        "[DINO-PERF] NOTCH_OPEN_MAIN_THREAD_DELAY gapMs=%.0f slot=%@ view=%@",
-                        gapMs,
-                        String(describing: DinoCoordinator.shared.activeSlot),
-                        String(describing: self.coordinator.currentView)
-                    )
-                }
-                previousTick = now
-            }
-
-            self?.notchOpenDiagnosticsTask = nil
         }
     }
 
@@ -348,8 +306,6 @@ class BoringViewModel: NSObject, ObservableObject {
         openRequestID = nil
         openNotchTask?.cancel()
         openNotchTask = nil
-        notchOpenDiagnosticsTask?.cancel()
-        notchOpenDiagnosticsTask = nil
         coordinator.cancelAllTasks()
 
         // Do not close while a share picker or sharing service is active

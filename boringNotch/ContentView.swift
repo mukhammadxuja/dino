@@ -593,7 +593,6 @@ struct ContentView: View {
                         }
                     }
                     .onChange(of: vm.notchState) { _, newState in
-                        NSLog("[DINO-PERF] NOTCH_OPEN_VIEW_STATE state=%@", String(describing: newState))
                         showCoverHoverMusicDetails = false
                         coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
                         if newState == .open {

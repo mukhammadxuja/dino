@@ -721,19 +721,12 @@ class MusicManager: ObservableObject {
 
     @MainActor
     private func startRefreshIfNeeded(needsLatestResult: Bool) {
-        guard !isDestroyed, let controller = activeController else {
-            NSLog("[DINO-PERF] MUSIC_REFRESH_SKIPPED reason=no_active_controller")
-            return
-        }
+        guard !isDestroyed, let controller = activeController else { return }
         if let refreshController, refreshTask != nil, refreshController === controller {
             if needsLatestResult { refreshAfterCurrent = true }
-            NSLog("[DINO-PERF] MUSIC_REFRESH_COALESCED")
             return
         }
-        guard controller.isActive() else {
-            NSLog("[DINO-PERF] MUSIC_REFRESH_SKIPPED reason=controller_inactive")
-            return
-        }
+        guard controller.isActive() else { return }
 
         refreshTask?.cancel()
         let requestID = UUID()
@@ -752,18 +745,11 @@ class MusicManager: ObservableObject {
                 }
             }
             guard !Task.isCancelled else { return }
-            let startedAt = ProcessInfo.processInfo.systemUptime
-            let controllerName = String(describing: type(of: controller))
-            NSLog("[DINO-PERF] MUSIC_REFRESH_BEGIN controller=%@", controllerName)
-
             if let youtubeController = controller as? YouTubeMusicController {
                 await youtubeController.pollPlaybackState()
             } else {
                 await controller.updatePlaybackInfo()
             }
-
-            let elapsedMs = (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000
-            NSLog("[DINO-PERF] MUSIC_REFRESH_END controller=%@ elapsedMs=%.0f", controllerName, elapsedMs)
         }
     }
     

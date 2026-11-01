@@ -35,6 +35,9 @@ struct MarqueeText: View {
     
     @State private var animate: Bool = false
     @State private var textWidth: CGFloat = 0
+    @State private var measuredText: String?
+    @State private var measuredStyle: NSFont.TextStyle?
+    @State private var measuredFont: Font?
     @State private var restartTask: Task<Void, Never>?
     
     init(
@@ -58,8 +61,6 @@ struct MarqueeText: View {
         self.alignment = alignment
         self.fadeMaskWhenScrolling = fadeMaskWhenScrolling
         
-        let initialWidth = Self.measureWidth(text.wrappedValue, nsFont: nsFont)
-        _textWidth = State(initialValue: initialWidth)
     }
     
     static func measureWidth(_ str: String, nsFont: NSFont.TextStyle) -> CGFloat {
@@ -121,20 +122,34 @@ struct MarqueeText: View {
                 )
             )
         }
-        .onChange(of: text) { _, newText in
-            self.textWidth = Self.measureWidth(newText, nsFont: nsFont)
+        .onChange(of: text) { _, _ in
+            updateMeasuredWidth()
+            triggerAnimation()
+        }
+        .onChange(of: nsFont) { _, _ in
+            updateMeasuredWidth()
+            triggerAnimation()
+        }
+        .onChange(of: font) { _, _ in
+            updateMeasuredWidth()
             triggerAnimation()
         }
         .onAppear {
-            if textWidth == 0 {
-                textWidth = Self.measureWidth(text, nsFont: nsFont)
-            }
+            updateMeasuredWidth()
             triggerAnimation()
         }
         .onDisappear {
             restartTask?.cancel()
             animate = false
         }
+    }
+
+    private func updateMeasuredWidth() {
+        guard measuredText != text || measuredStyle != nsFont || measuredFont != font else { return }
+        measuredText = text
+        measuredStyle = nsFont
+        measuredFont = font
+        textWidth = Self.measureWidth(text, nsFont: nsFont)
     }
     
     private func triggerAnimation() {

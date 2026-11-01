@@ -7,14 +7,20 @@
 
 import SwiftUI
 import Lottie
-import ObjectiveC
 
 struct LottieView: NSViewRepresentable {
     let url: URL
     let speed: Double
     let loopMode: LottieLoopMode
 
-    private static var associatedURLKey: UInt8 = 0
+    final class Coordinator {
+        var requestedURL: URL?
+        var requestID = UUID()
+        var lastFailedURL: URL?
+        var lastFailureAt: Date?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> NSView {
         let animationView = LottieAnimationView()
@@ -32,21 +38,43 @@ struct LottieView: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {
         guard let animationView = nsView.subviews.first as? LottieAnimationView else { return }
-        let lastURL = objc_getAssociatedObject(animationView, &Self.associatedURLKey) as? URL
-        if lastURL != url {
-            LottieAnimation.loadedFrom(url: url) { animation in
-                animationView.animation = animation
-                animationView.loopMode = loopMode
-                animationView.animationSpeed = CGFloat(speed)
-                animationView.play()
-                objc_setAssociatedObject(animationView, &Self.associatedURLKey, url, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        animationView.loopMode = loopMode
+        animationView.animationSpeed = CGFloat(speed)
+
+        if context.coordinator.requestedURL != url {
+            if context.coordinator.lastFailedURL == url,
+               let failedAt = context.coordinator.lastFailureAt,
+               Date().timeIntervalSince(failedAt) < 10 { return }
+            context.coordinator.requestedURL = url
+            let requestID = UUID()
+            context.coordinator.requestID = requestID
+            let coordinator = context.coordinator
+            LottieAnimation.loadedFrom(url: url) { [weak animationView, weak coordinator] animation in
+                DispatchQueue.main.async {
+                    guard let animationView, let coordinator,
+                          coordinator.requestID == requestID,
+                          coordinator.requestedURL == url else { return }
+                    if let animation {
+                        coordinator.lastFailedURL = nil
+                        coordinator.lastFailureAt = nil
+                        animationView.animation = animation
+                        animationView.play()
+                    } else {
+                        animationView.animation = nil
+                        coordinator.requestedURL = nil
+                        coordinator.lastFailedURL = url
+                        coordinator.lastFailureAt = Date()
+                    }
+                }
             }
-        } else {
-            animationView.loopMode = loopMode
-            animationView.animationSpeed = CGFloat(speed)
-            if !animationView.isAnimationPlaying {
-                animationView.play()
-            }
+        } else if animationView.animation != nil && !animationView.isAnimationPlaying {
+            animationView.play()
         }
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.requestID = UUID()
+        coordinator.requestedURL = nil
+        (nsView.subviews.first as? LottieAnimationView)?.stop()
     }
 }
