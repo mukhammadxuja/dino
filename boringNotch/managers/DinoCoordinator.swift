@@ -124,14 +124,10 @@ public final class DinoCoordinator: ObservableObject {
     // Underlying background slot when no higher priority feat is active
     public private(set) var backgroundSlot: DinoSlot = .idle
     
-    // Loop-prevention guard during SSOT synchronization
-    private var isSyncing: Bool = false
-    
     private var cancellables = Set<AnyCancellable>()
     
     private init() {
         setupBackgroundObservers()
-        setupLegacyStateSync()
     }
     
     // MARK: - Public State Query
@@ -150,7 +146,7 @@ public final class DinoCoordinator: ObservableObject {
             let prevActive = self.activeSlot
             self.activeSlot = sec
             self.secondarySlot = prevActive
-            self.syncLegacyState(for: self.activeSlot)
+            self.syncPresentation(for: self.activeSlot)
         }
     }
     
@@ -169,6 +165,27 @@ public final class DinoCoordinator: ObservableObject {
     }
     
     // MARK: - Direct & On-Demand Slot Activation (SSOT)
+
+    /// Handles an explicit tab selection. Published presentation changes are output only;
+    /// they must never be interpreted as another slot-selection command.
+    public func selectView(_ view: NotchViews) {
+        let slot: DinoSlot
+        switch view {
+        case .shelf:
+            slot = .shelf
+        case .calendar:
+            slot = .calendar
+        case .home:
+            // Home preserves its selected module unless leaving Shelf or Calendar.
+            slot = (activeSlot == .shelf || activeSlot == .calendar) ? backgroundSlot : activeSlot
+        }
+
+        guard activeSlot != slot else {
+            syncPresentation(for: slot)
+            return
+        }
+        activateSlotDirectly(slot)
+    }
     
     /// Directly sets the active slot and synchronizes legacy state
     public func activateSlotDirectly(_ slot: DinoSlot) {
@@ -177,9 +194,14 @@ public final class DinoCoordinator: ObservableObject {
         interruptStack.removeAll()
         
         withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
-            self.activeSlot = slot
-            self.currentPriority = (slot == .idle) ? .p4Idle : .p2OnDemand
-            self.syncLegacyState(for: slot)
+            if self.activeSlot != slot {
+                self.activeSlot = slot
+            }
+            let priority: SlotPriority = (slot == .idle) ? .p4Idle : .p2OnDemand
+            if self.currentPriority != priority {
+                self.currentPriority = priority
+            }
+            self.syncPresentation(for: slot)
         }
     }
     
@@ -258,7 +280,7 @@ public final class DinoCoordinator: ObservableObject {
         withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
             self.activeSlot = slot
             self.currentPriority = .p2OnDemand
-            self.syncLegacyState(for: slot)
+            self.syncPresentation(for: slot)
         }
         
         if let timeout = timeout, timeout > 0 {
@@ -304,12 +326,12 @@ public final class DinoCoordinator: ObservableObject {
                 self.secondarySlot = previous.secondarySlot
                 self.currentPriority = previous.priority
                 self.isExpanded = false
-                self.syncLegacyState(for: previous.slot)
+                self.syncPresentation(for: previous.slot)
             } else {
                 self.activeSlot = self.backgroundSlot
                 self.currentPriority = (self.backgroundSlot == .idle) ? .p4Idle : .p3Background
                 self.isExpanded = false
-                self.syncLegacyState(for: self.backgroundSlot)
+                self.syncPresentation(for: self.backgroundSlot)
             }
         }
     }
@@ -329,7 +351,7 @@ public final class DinoCoordinator: ObservableObject {
                 self.activeSlot = (self.backgroundSlot == slot) ? .idle : self.backgroundSlot
                 self.currentPriority = (self.activeSlot == .idle) ? .p4Idle : .p3Background
                 self.isExpanded = false
-                self.syncLegacyState(for: self.activeSlot)
+                self.syncPresentation(for: self.activeSlot)
             }
         }
     }
@@ -346,11 +368,11 @@ public final class DinoCoordinator: ObservableObject {
                 self.activeSlot = previous.slot
                 self.secondarySlot = previous.secondarySlot
                 self.currentPriority = previous.priority
-                self.syncLegacyState(for: previous.slot)
+                self.syncPresentation(for: previous.slot)
             } else {
                 self.activeSlot = self.backgroundSlot
                 self.currentPriority = (self.backgroundSlot == .idle) ? .p4Idle : .p3Background
-                self.syncLegacyState(for: self.backgroundSlot)
+                self.syncPresentation(for: self.backgroundSlot)
             }
         }
         
@@ -408,7 +430,8 @@ public final class DinoCoordinator: ObservableObject {
             // Case 2: 2nd press on same slot -> Close card and return to underlying P3 background
             withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
                 for vm in allVMs {
-                    vm.close()
+                    // Restore the interrupted slot below before applying any other selection.
+                    vm.close(resetSelection: false)
                 }
                 self.dismissOnDemand()
             }
@@ -445,45 +468,15 @@ public final class DinoCoordinator: ObservableObject {
         }
     }
     
-    // MARK: - Legacy Synchronization (SSOT)
-    
-    private func syncLegacyState(for slot: DinoSlot) {
-        guard !isSyncing else { return }
-        isSyncing = true
-        defer { isSyncing = false }
-        
-        // Sync tab view for expanded state
-        switch slot {
-        case .shelf:
-            BoringViewCoordinator.shared.currentView = .shelf
-        case .music, .pomodoro, .calendar, .battery, .coding, .weather, .idle:
-            BoringViewCoordinator.shared.currentView = .home
-        case .download, .webcam, .hud:
-            break
+    // MARK: - Presentation Projection
+
+    private func syncPresentation(for slot: DinoSlot) {
+        BoringViewCoordinator.shared.syncCurrentView(for: slot)
+
+        // Keep legacy settings consumers in sync without writing an unchanged value.
+        if Defaults[.activeModule] != slot.asActiveModule {
+            Defaults[.activeModule] = slot.asActiveModule
         }
-        
-        // Update legacy Defaults[.activeModule] passively so Settings stay in sync
-        Defaults[.activeModule] = slot.asActiveModule
-    }
-    
-    private func setupLegacyStateSync() {
-        // Observe BoringViewCoordinator tab switches
-        BoringViewCoordinator.shared.$currentView
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] view in
-                guard let self = self, !self.isSyncing else { return }
-                switch view {
-                case .shelf:
-                    if self.activeSlot != .shelf { self.activateSlotDirectly(.shelf) }
-                case .calendar:
-                    if self.activeSlot != .calendar { self.activateSlotDirectly(.calendar) }
-                case .home:
-                    if self.activeSlot == .shelf || self.activeSlot == .calendar {
-                        self.activateSlotDirectly(self.backgroundSlot)
-                    }
-                }
-            }
-            .store(in: &cancellables)
     }
     
     // MARK: - Background State Calculation
@@ -516,7 +509,7 @@ public final class DinoCoordinator: ObservableObject {
             withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78)) {
                 self.activeSlot = newBackground
                 self.currentPriority = (newBackground == .idle) ? .p4Idle : .p3Background
-                self.syncLegacyState(for: newBackground)
+                self.syncPresentation(for: newBackground)
             }
         }
     }

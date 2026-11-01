@@ -574,11 +574,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         guard let uuid = screen.displayUUID else { return }
 
         if Defaults[.showOnAllDisplays], let viewModel = viewModels[uuid] {
+            DinoCoordinator.shared.selectView(.shelf)
             viewModel.open()
-            coordinator.currentView = .shelf
         } else if !Defaults[.showOnAllDisplays], let windowScreen = window?.screen, screen == windowScreen {
+            DinoCoordinator.shared.selectView(.shelf)
             vm.open()
-            coordinator.currentView = .shelf
         }
     }
 

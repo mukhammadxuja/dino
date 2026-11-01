@@ -57,7 +57,7 @@ struct ExpandedItem {
 class BoringViewCoordinator: ObservableObject {
     static let shared = BoringViewCoordinator()
 
-    @Published var currentView: NotchViews = .home
+    @Published private(set) var currentView: NotchViews = .home
     @Published var helloAnimationRunning: Bool = false
     private var sneakPeekDispatch: DispatchWorkItem?
     private var expandingViewDispatch: DispatchWorkItem?
@@ -73,7 +73,7 @@ class BoringViewCoordinator: ObservableObject {
             if !alwaysShowTabs {
                 openLastTabByDefault = false
                 if ShelfStateViewModel.shared.isEmpty || !Defaults[.openShelfByDefault] {
-                    currentView = .home
+                    DinoCoordinator.shared.selectView(.home)
                 }
             }
         }
@@ -420,8 +420,15 @@ class BoringViewCoordinator: ObservableObject {
         }
     }
     
+    /// Projection of the selected slot; callers select through DinoCoordinator.
+    func syncCurrentView(for slot: DinoSlot) {
+        let view = slot.asNotchView
+        guard currentView != view else { return }
+        currentView = view
+    }
+
     func showEmpty() {
-        currentView = .home
+        DinoCoordinator.shared.selectView(.home)
     }
 
     func cancelAllTasks() {

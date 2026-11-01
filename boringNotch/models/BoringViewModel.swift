@@ -71,10 +71,13 @@ class BoringViewModel: NSObject, ObservableObject {
     }
 
     private var openNotchTask: Task<Void, Never>?
+    private var notchOpenDiagnosticsTask: Task<Void, Never>?
 
     func destroy() {
         openNotchTask?.cancel()
         openNotchTask = nil
+        notchOpenDiagnosticsTask?.cancel()
+        notchOpenDiagnosticsTask = nil
         cancellables.forEach { $0.cancel() }
         cancellables.removeAll()
     }
@@ -246,7 +249,21 @@ class BoringViewModel: NSObject, ObservableObject {
         return CGSize(width: width, height: height)
     }
 
+    func expandedNotchSize(for slot: DinoSlot, isIsland: Bool) -> CGSize {
+        if slot == .webcam {
+            return mirrorSlotCardSize(isIsland: isIsland)
+        }
+        switch slot.asNotchView {
+        case .calendar:
+            return CGSize(width: 560, height: 190)
+        case .home, .shelf:
+            return CGSize(width: isIsland ? 385 : 435, height: 188)
+        }
+    }
+
     func open(targetSize: CGSize? = nil) {
+        let openRequestStartedAt = ProcessInfo.processInfo.systemUptime
+        let wasAlreadyOpen = notchState == .open
         let isIsland: Bool = {
             let screen = screenUUID.flatMap { NSScreen.screen(withUUID: $0) } ?? NSScreen.main
             let isBuiltin = screen?.isBuiltin ?? true
@@ -259,23 +276,21 @@ class BoringViewModel: NSObject, ObservableObject {
                 return isBuiltin ? (Defaults[.builtinFormFactor] == .island) : (Defaults[.externalFormFactor] == .island)
             }
         }()
-        let homeWidth: CGFloat = isIsland ? 385 : 435
-        let isUnifiedCard = (coordinator.currentView == .home || coordinator.currentView == .shelf || DinoCoordinator.shared.activeSlot == .webcam)
-        
-        let openSize: CGSize
-        if let targetSize = targetSize {
-            openSize = targetSize
-        } else if DinoCoordinator.shared.activeSlot == .webcam {
-            openSize = mirrorSlotCardSize(isIsland: isIsland)
-        } else if isUnifiedCard {
-            openSize = CGSize(width: homeWidth, height: 188)
-        } else {
-            openSize = openNotchSize
-        }
+        let openSize = targetSize ?? expandedNotchSize(for: DinoCoordinator.shared.activeSlot, isIsland: isIsland)
+
+        NSLog(
+            "%@",
+            "[DINO-PERF] NOTCH_OPEN_BEGIN alreadyOpen=\(wasAlreadyOpen) formFactor=\(isIsland ? "island" : "notch") size=\(Int(openSize.width))x\(Int(openSize.height)) slot=\(DinoCoordinator.shared.activeSlot) view=\(coordinator.currentView) prepMs=\(Int((ProcessInfo.processInfo.systemUptime - openRequestStartedAt) * 1_000))"
+        )
+        startNotchOpenDiagnostics()
         
         self.notchSize = openSize
         self.notchState = .open
         DinoCoordinator.shared.isExpanded = true
+        NSLog(
+            "%@",
+            "[DINO-PERF] NOTCH_OPEN_STATE_SET elapsedMs=\(Int((ProcessInfo.processInfo.systemUptime - openRequestStartedAt) * 1_000))"
+        )
         
         // Defer music information update until after the spring animation settles
         // so background queries and @Published property updates do not cause frame drops during expansion
@@ -283,13 +298,42 @@ class BoringViewModel: NSObject, ObservableObject {
         openNotchTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(380))
             guard self?.notchState == .open else { return }
+            NSLog("[DINO-PERF] NOTCH_OPEN_SETTLED_DELAY elapsedMs=380; requesting music refresh")
             MusicManager.shared.forceUpdate()
         }
     }
 
-    func close() {
+    private func startNotchOpenDiagnostics() {
+        notchOpenDiagnosticsTask?.cancel()
+        notchOpenDiagnosticsTask = Task { @MainActor [weak self] in
+            var previousTick = ProcessInfo.processInfo.systemUptime
+
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled, let self, self.notchState == .open else { break }
+
+                let now = ProcessInfo.processInfo.systemUptime
+                let gapMs = (now - previousTick) * 1_000
+                if gapMs >= 250 {
+                    NSLog(
+                        "[DINO-PERF] NOTCH_OPEN_MAIN_THREAD_DELAY gapMs=%.0f slot=%@ view=%@",
+                        gapMs,
+                        String(describing: DinoCoordinator.shared.activeSlot),
+                        String(describing: self.coordinator.currentView)
+                    )
+                }
+                previousTick = now
+            }
+
+            self?.notchOpenDiagnosticsTask = nil
+        }
+    }
+
+    func close(resetSelection: Bool = true) {
         openNotchTask?.cancel()
         openNotchTask = nil
+        notchOpenDiagnosticsTask?.cancel()
+        notchOpenDiagnosticsTask = nil
         coordinator.cancelAllTasks()
 
         // Do not close while a share picker or sharing service is active
@@ -304,12 +348,12 @@ class BoringViewModel: NSObject, ObservableObject {
         self.coordinator.sneakPeek.show = false
         self.edgeAutoOpenActive = false
 
-        // Set the current view to shelf if it contains files and the user enables openShelfByDefault
-        // Otherwise, if the user has not enabled openLastShelfByDefault, set the view to home
-    if !ShelfStateViewModel.shared.isEmpty && Defaults[.openShelfByDefault] {
-            coordinator.currentView = .shelf
+        // Shortcut dismissal restores its own interrupted slot instead of applying this preference.
+        guard resetSelection else { return }
+        if !ShelfStateViewModel.shared.isEmpty && Defaults[.openShelfByDefault] {
+            DinoCoordinator.shared.selectView(.shelf)
         } else if !coordinator.openLastTabByDefault {
-            coordinator.currentView = .home
+            DinoCoordinator.shared.selectView(.home)
         }
     }
 

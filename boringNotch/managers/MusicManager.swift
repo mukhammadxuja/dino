@@ -705,13 +705,28 @@ class MusicManager: ObservableObject {
     func forceUpdate() {
         // Request immediate update from the active controller
         Task { [weak self] in
-            if self?.activeController?.isActive() == true {
-                if let youtubeController = self?.activeController as? YouTubeMusicController {
-                    await youtubeController.pollPlaybackState()
-                } else {
-                    await self?.activeController?.updatePlaybackInfo()
-                }
+            guard let self, let controller = self.activeController else {
+                NSLog("[DINO-PERF] MUSIC_REFRESH_SKIPPED reason=no_active_controller")
+                return
             }
+
+            guard controller.isActive() else {
+                NSLog("[DINO-PERF] MUSIC_REFRESH_SKIPPED reason=controller_inactive")
+                return
+            }
+
+            let startedAt = ProcessInfo.processInfo.systemUptime
+            let controllerName = String(describing: type(of: controller))
+            NSLog("[DINO-PERF] MUSIC_REFRESH_BEGIN controller=%@", controllerName)
+
+            if let youtubeController = controller as? YouTubeMusicController {
+                await youtubeController.pollPlaybackState()
+            } else {
+                await controller.updatePlaybackInfo()
+            }
+
+            let elapsedMs = (ProcessInfo.processInfo.systemUptime - startedAt) * 1_000
+            NSLog("[DINO-PERF] MUSIC_REFRESH_END controller=%@ elapsedMs=%.0f", controllerName, elapsedMs)
         }
     }
     

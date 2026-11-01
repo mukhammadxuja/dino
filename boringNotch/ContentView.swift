@@ -356,32 +356,12 @@ struct ContentView: View {
             && vm.notchState == .closed
     }
 
-    private var mirrorCardSize: CGSize {
-        vm.mirrorSlotCardSize(isIsland: isCurrentDisplayIsland)
-    }
-
     private var desiredOpenNotchWidth: CGFloat {
-        if DinoCoordinator.shared.activeSlot == .webcam {
-            return mirrorCardSize.width
-        }
-        switch coordinator.currentView {
-        case .home, .shelf:
-            return isCurrentDisplayIsland ? 385 : 435
-        case .calendar:
-            return 560
-        }
+        vm.expandedNotchSize(for: DinoCoordinator.shared.activeSlot, isIsland: isCurrentDisplayIsland).width
     }
 
     private var desiredOpenNotchHeight: CGFloat {
-        if DinoCoordinator.shared.activeSlot == .webcam {
-            return mirrorCardSize.height
-        }
-        switch coordinator.currentView {
-        case .home, .shelf:
-            return 188
-        case .calendar:
-            return 190
-        }
+        vm.expandedNotchSize(for: DinoCoordinator.shared.activeSlot, isIsland: isCurrentDisplayIsland).height
     }
 
     private var calendarTabContentWidth: CGFloat {
@@ -445,10 +425,11 @@ struct ContentView: View {
         return true
     }
 
-    private func updateOpenNotchWidth(animated: Bool = true) {
+    private func updateOpenNotchWidth(for slot: DinoSlot? = nil, animated: Bool = true) {
         guard vm.notchState == .open else { return }
-        let targetWidth = desiredOpenNotchWidth
-        let targetHeight = desiredOpenNotchHeight
+        let targetSize = vm.expandedNotchSize(for: slot ?? DinoCoordinator.shared.activeSlot, isIsland: isCurrentDisplayIsland)
+        let targetWidth = targetSize.width
+        let targetHeight = targetSize.height
         guard abs(vm.notchSize.width - targetWidth) > 0.5 || abs(vm.notchSize.height - targetHeight) > 0.5 else { return }
 
         let applyChange = {
@@ -612,6 +593,7 @@ struct ContentView: View {
                         }
                     }
                     .onChange(of: vm.notchState) { _, newState in
+                        NSLog("[DINO-PERF] NOTCH_OPEN_VIEW_STATE state=%@", String(describing: newState))
                         showCoverHoverMusicDetails = false
                         coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
                         if newState == .open {
@@ -634,8 +616,9 @@ struct ContentView: View {
                     .onChange(of: vm.isCameraExpanded) { _, _ in
                         updateOpenNotchWidth()
                     }
-                    .onReceive(DinoCoordinator.shared.$activeSlot) { _ in
-                        updateOpenNotchWidth()
+                    .onReceive(DinoCoordinator.shared.$activeSlot) { slot in
+                        // @Published emits before activeSlot's stored value changes.
+                        updateOpenNotchWidth(for: slot)
                     }
                     .onChange(of: builtinFormFactor) { _, _ in
                         handleFormFactorAnimation()
@@ -733,7 +716,7 @@ struct ContentView: View {
 
             if isTargeted {
                 if vm.notchState == .closed {
-                    coordinator.currentView = .shelf
+                    DinoCoordinator.shared.selectView(.shelf)
                     doOpen()
                 }
                 return
@@ -857,10 +840,9 @@ struct ContentView: View {
         lastOpenedAt = Date()
         showCoverHoverMusicDetails = false
         coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
-        let targetSize = CGSize(width: desiredOpenNotchWidth, height: desiredOpenNotchHeight)
         withAnimation(animationSpring) {
             DinoCoordinator.shared.activateSlotDirectly(.music)
-            coordinator.currentView = .home
+            let targetSize = CGSize(width: desiredOpenNotchWidth, height: desiredOpenNotchHeight)
             vm.open(targetSize: targetSize)
         }
     }
@@ -878,11 +860,10 @@ struct ContentView: View {
         lastOpenedAt = Date()
         showCoverHoverMusicDetails = false
         coordinator.toggleSneakPeek(status: false, type: .music, duration: 0)
-        let targetSize = CGSize(width: desiredOpenNotchWidth, height: desiredOpenNotchHeight)
         withAnimation(animationSpring) {
             DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
             Defaults[.pomodoroEnabled] = true
-            coordinator.currentView = .home
+            let targetSize = CGSize(width: desiredOpenNotchWidth, height: desiredOpenNotchHeight)
             vm.open(targetSize: targetSize)
         }
     }
@@ -985,19 +966,17 @@ struct ContentView: View {
                     return
                 case .calendar:
                     DinoCoordinator.shared.activateSlotDirectly(.calendar)
-                    coordinator.currentView = .calendar
                 case .weather:
                     DinoCoordinator.shared.activateSlotDirectly(.weather)
-                    coordinator.currentView = .home
                 default:
-                    coordinator.currentView = .home
+                    DinoCoordinator.shared.selectView(.home)
                 }
             }
             doOpen()
         } else {
             switch Defaults[.idleClickAction] {
             case .none:
-                coordinator.currentView = .home
+                DinoCoordinator.shared.selectView(.home)
                 doOpen()
             case .music:
                 openMusicWithSpring()
@@ -1005,15 +984,12 @@ struct ContentView: View {
                 openPomodoroWithSpring()
             case .shelf:
                 DinoCoordinator.shared.activateSlotDirectly(.shelf)
-                coordinator.currentView = .shelf
                 doOpen()
             case .weather:
                 DinoCoordinator.shared.activateSlotDirectly(.weather)
-                coordinator.currentView = .home
                 doOpen()
             case .calendar:
                 DinoCoordinator.shared.activateSlotDirectly(.calendar)
-                coordinator.currentView = .home
                 doOpen()
             }
         }
@@ -1281,25 +1257,19 @@ struct ContentView: View {
             if direction == .left {
                 // Swipe Left (forward): Music -> Pomodoro -> Shelf -> Music
                 if isPomodoro {
-                    coordinator.currentView = .shelf
                     DinoCoordinator.shared.activateSlotDirectly(.shelf)
                 } else if isShelf {
-                    coordinator.currentView = .home
                     DinoCoordinator.shared.activateSlotDirectly(.music)
                 } else {
-                    coordinator.currentView = .home
                     DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
                 }
             } else if direction == .right {
                 // Swipe Right (backward): Music -> Shelf -> Pomodoro -> Music
                 if isShelf {
-                    coordinator.currentView = .home
                     DinoCoordinator.shared.activateSlotDirectly(.pomodoro)
                 } else if isPomodoro {
-                    coordinator.currentView = .home
                     DinoCoordinator.shared.activateSlotDirectly(.music)
                 } else {
-                    coordinator.currentView = .shelf
                     DinoCoordinator.shared.activateSlotDirectly(.shelf)
                 }
             }
