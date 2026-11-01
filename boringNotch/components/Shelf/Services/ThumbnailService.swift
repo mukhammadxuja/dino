@@ -19,8 +19,8 @@ actor ThumbnailService {
 
     private init() {}
     
-    func thumbnail(for url: URL, size: CGSize) async -> NSImage? {
-        let cacheKey = "\(url.path)_\(size.width)x\(size.height)"
+    func thumbnail(for url: URL, size: CGSize, revision: String = "") async -> NSImage? {
+        let cacheKey = "\(url.path)_\(size.width)x\(size.height)_\(revision)"
         
         if let cached = cache[cacheKey] {
             return cached
@@ -33,6 +33,8 @@ actor ThumbnailService {
         let task = Task<NSImage?, Never> {
             let thumbnail = await generateQuickLookThumbnail(for: url, size: size)
             if let thumbnail = thumbnail {
+                // Bound retained images, including old revisions of changed files.
+                if cache.count >= 256, let key = cache.keys.first { cache[key] = nil }
                 cache[cacheKey] = thumbnail
             }
             pendingRequests[cacheKey] = nil

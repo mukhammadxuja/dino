@@ -1,81 +1,81 @@
-//
-//  ShelfPersistenceService.swift
-//  boringNotch
-//
-//  Created by Alexander on 2025-09-24.
-//
-
 import Foundation
 
-// Access model types
-@_exported import struct Foundation.URL
+// Keeps the on-disk schema independent of MainActor-isolated UI models.
+struct ShelfItemRecord: Codable, Equatable, Sendable {
+    let id: UUID
+    let kind: ShelfItemKind
+    let isTemporary: Bool
 
+    @MainActor init(_ item: ShelfItem) {
+        id = item.id
+        kind = item.kind
+        isTemporary = item.isTemporary
+    }
 
-final class ShelfPersistenceService {
+    @MainActor func makeItem() -> ShelfItem {
+        ShelfItem(id: id, kind: kind, isTemporary: isTemporary)
+    }
+}
+
+// The serial queue owns all file access and lastSavedRecords.
+final class ShelfPersistenceService: @unchecked Sendable {
     static let shared = ShelfPersistenceService()
-
     private let fileURL: URL
-    private let encoder = JSONEncoder()
-    private let decoder = JSONDecoder()
+    private let queue = DispatchQueue(label: "com.mukhammadxuja.dino.shelf.persistence", qos: .utility)
+    private var lastSavedRecords: [ShelfItemRecord]?
 
-    private init() {
-        let fm = FileManager.default
-        let support = try? fm.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        let dir = (support ?? fm.temporaryDirectory).appendingPathComponent("boringNotch", isDirectory: true).appendingPathComponent("Shelf", isDirectory: true)
-        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        fileURL = dir.appendingPathComponent("items.json")
-        encoder.outputFormatting = [.prettyPrinted]
-        decoder.dateDecodingStrategy = .iso8601
-        encoder.dateEncodingStrategy = .iso8601
+    init(fileURL: URL? = nil) {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        self.fileURL = fileURL ?? support.appendingPathComponent("boringNotch/Shelf/items.json")
     }
 
-    func load() -> [ShelfItem] {
+    @MainActor func load() async -> [ShelfItem] {
+        let records: [ShelfItemRecord] = await withCheckedContinuation { continuation in
+            queue.async {
+                let records = self.loadRecords()
+                self.lastSavedRecords = records
+                continuation.resume(returning: records)
+            }
+        }
+        return records.map { $0.makeItem() }
+    }
+
+    @MainActor func save(_ items: [ShelfItem]) {
+        let records = items.map(ShelfItemRecord.init)
+        // Enqueue synchronously so successive main-actor mutations keep their order.
+        queue.async {
+            guard records != self.lastSavedRecords else { return }
+            do {
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted]
+                let data = try encoder.encode(records)
+                try FileManager.default.createDirectory(at: self.fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try data.write(to: self.fileURL, options: .atomic)
+                self.lastSavedRecords = records
+            } catch {
+                NSLog("Failed to save shelf items: %@", error.localizedDescription)
+            }
+        }
+    }
+
+    /// Only used during app termination, after UI work has stopped.
+    func flush() {
+        queue.sync {}
+    }
+
+    private func loadRecords() -> [ShelfItemRecord] {
         guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        
-        // Try to decode as array first (normal case)
-        if let items = try? decoder.decode([ShelfItem].self, from: data) {
-            return items
+        let decoder = JSONDecoder()
+        if let records = try? decoder.decode([ShelfItemRecord].self, from: data) {
+            return records
         }
-        
-        // If array decoding fails, try to decode individual items
-        do {
-            // Parse as JSON array to get individual item data
-            guard let jsonArray = try JSONSerialization.jsonObject(with: data) as? [Any] else {
-                print("⚠️ Shelf persistence file is not a valid JSON array")
-                return []
-            }
-            
-            var validItems: [ShelfItem] = []
-            var failedCount = 0
-            
-            for (index, jsonItem) in jsonArray.enumerated() {
-                do {
-                    let itemData = try JSONSerialization.data(withJSONObject: jsonItem)
-                    let item = try decoder.decode(ShelfItem.self, from: itemData)
-                    validItems.append(item)
-                } catch {
-                    failedCount += 1
-                    print("⚠️ Failed to decode shelf item at index \(index): \(error.localizedDescription)")
-                }
-            }
-            
-            if failedCount > 0 {
-                print("📦 Successfully loaded \(validItems.count) shelf items, discarded \(failedCount) corrupted items")
-            }
-            
-            return validItems
-        } catch {
-            print("❌ Failed to parse shelf persistence file: \(error.localizedDescription)")
-            return []
-        }
-    }
-
-    func save(_ items: [ShelfItem]) {
-        do {
-            let data = try encoder.encode(items)
-            try data.write(to: fileURL, options: Data.WritingOptions.atomic)
-        } catch {
-            print("Failed to save shelf items: \(error.localizedDescription)")
+        // Preserve the existing recovery of valid entries in a partially damaged file.
+        guard let array = try? JSONSerialization.jsonObject(with: data) as? [Any] else { return [] }
+        return array.compactMap { value in
+            guard JSONSerialization.isValidJSONObject(value),
+                  let itemData = try? JSONSerialization.data(withJSONObject: value) else { return nil }
+            return try? decoder.decode(ShelfItemRecord.self, from: itemData)
         }
     }
 }

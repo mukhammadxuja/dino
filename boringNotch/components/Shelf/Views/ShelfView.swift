@@ -94,12 +94,13 @@ struct ShelfView: View {
                 }
             } else {
                 ScrollView(.horizontal) {
-                    HStack(spacing: spacing) {
+                    LazyHStack(spacing: spacing) {
                         ForEach(tvm.items) { item in
                             ShelfItemView(item: item)
                                 .environmentObject(quickLookService)
                         }
                     }
+                    .frame(height: 108)
                 }
                 .padding(-spacing)
                 .scrollIndicators(.never)
@@ -109,7 +110,10 @@ struct ShelfView: View {
             }
         }
         .onAppear {
-            ShelfStateViewModel.shared.cleanupInvalidItems()
+            tvm.cleanupInvalidItems()
+        }
+        .onChange(of: tvm.isLoading) { _, loading in
+            if !loading { tvm.cleanupInvalidItems() }
         }
     }
 }

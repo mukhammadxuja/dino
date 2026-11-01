@@ -116,6 +116,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         cleanupStrictModeEscMonitors()
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [pomodoroAlmostTimeNotificationID])
         cleanupWindows()
+        ShelfPersistenceService.shared.flush()
         XPCHelperClient.shared.stopMonitoringAccessibilityAuthorization()
     }
 

@@ -18,7 +18,6 @@ struct ShelfItemView: View {
     @StateObject private var viewModel: ShelfItemViewModel
     @EnvironmentObject private var quickLookService: QuickLookService
     @State private var showStack = false
-    @State private var cachedPreviewImage: NSImage?
     @State private var debouncedDropTarget = false
 
     private var isSelected: Bool { viewModel.isSelected }
@@ -47,9 +46,8 @@ struct ShelfItemView: View {
                 DraggableClickHandler(
                     item: item,
                     viewModel: viewModel,
-                    cachedPreviewImage: $cachedPreviewImage,
                     dragPreviewContent: {
-                        DragPreviewView(thumbnail: viewModel.thumbnail ?? item.icon, displayName: item.displayName)
+                        DragPreviewView(thumbnail: viewModel.thumbnail ?? viewModel.icon, displayName: viewModel.displayName)
                     },
                     onRightClick: viewModel.handleRightClick,
                     onClick: { event, nsview in
@@ -71,22 +69,12 @@ struct ShelfItemView: View {
                 debouncedDropTarget = targeted
             }
         }
+        .task(id: item) {
+            await viewModel.loadPresentation(for: item)
+        }
         .onAppear {
-            Task { 
-                await viewModel.loadThumbnail()
-                // Pre-render drag preview once on appear
-                if cachedPreviewImage == nil {
-                    cachedPreviewImage = await renderDragPreview()
-                }
-            }
             viewModel.onQuickLookRequest = { urls in
                 quickLookService.show(urls: urls, selectFirst: true)
-            }
-        }
-        .onChange(of: viewModel.thumbnail) { _, _ in
-            // Invalidate cached preview when thumbnail changes
-            Task {
-                cachedPreviewImage = await renderDragPreview()
             }
         }
         .quickLookPresenter(using: quickLookService)
@@ -95,7 +83,7 @@ struct ShelfItemView: View {
     // MARK: - View Components
 
     private var iconView: some View {
-        Image(nsImage: viewModel.thumbnail ?? item.icon)
+        Image(nsImage: viewModel.thumbnail ?? viewModel.icon)
             .resizable()
             .aspectRatio(contentMode: .fit)
             .frame(width: 56, height: 56)
@@ -104,7 +92,7 @@ struct ShelfItemView: View {
     }
 
     private var textView: some View {
-        Text(item.displayName)
+        Text(viewModel.displayName)
             .font(.system(size: 12, weight: .medium))
             .foregroundStyle(.primary)
             .lineLimit(2)
@@ -155,24 +143,12 @@ struct ShelfItemView: View {
         }
     }
     
-    // MARK: - Drag Preview Rendering
-    
-    @MainActor
-    private func renderDragPreview() async -> NSImage {
-        let content = DragPreviewView(thumbnail: viewModel.thumbnail ?? item.icon, displayName: item.displayName)
-        let renderer = ImageRenderer(content: content)
-        renderer.scale = NSScreen.main?.backingScaleFactor ?? 2.0
-        return renderer.nsImage ?? (viewModel.thumbnail ?? item.icon)
-    }
-
-    
 }
 
 // MARK: - Draggable Click Handler with NSDraggingSource
 private struct DraggableClickHandler<Content: View>: NSViewRepresentable {
     let item: ShelfItem
     let viewModel: ShelfItemViewModel
-    @Binding var cachedPreviewImage: NSImage?
     @ViewBuilder let dragPreviewContent: () -> Content
     let onRightClick: (NSEvent, NSView) -> Void
     let onClick: (NSEvent, NSView) -> Void
@@ -181,7 +157,7 @@ private struct DraggableClickHandler<Content: View>: NSViewRepresentable {
         let view = DraggableClickView()
         view.item = item
         view.viewModel = viewModel
-        view.dragPreviewImage = cachedPreviewImage ?? renderDragPreview()
+        view.makeDragPreview = { renderDragPreview() }
         view.onRightClick = onRightClick
         view.onClick = onClick
         return view
@@ -190,10 +166,7 @@ private struct DraggableClickHandler<Content: View>: NSViewRepresentable {
     func updateNSView(_ nsView: DraggableClickView, context: Context) {
         nsView.item = item
         nsView.viewModel = viewModel
-        // Only update preview if cached version is available
-        if let cached = cachedPreviewImage {
-            nsView.dragPreviewImage = cached
-        }
+        nsView.makeDragPreview = { renderDragPreview() }
         nsView.onRightClick = onRightClick
         nsView.onClick = onClick
     }
@@ -208,13 +181,13 @@ private struct DraggableClickHandler<Content: View>: NSViewRepresentable {
         }
         
         // Fallback to icon if rendering fails
-        return viewModel.thumbnail ?? item.icon
+        return viewModel.thumbnail ?? viewModel.icon
     }
     
     final class DraggableClickView: NSView, NSDraggingSource {
         var item: ShelfItem!
         weak var viewModel: ShelfItemViewModel?
-        var dragPreviewImage: NSImage?
+        var makeDragPreview: (() -> NSImage)?
         var onRightClick: ((NSEvent, NSView) -> Void)?
         var onClick: ((NSEvent, NSView) -> Void)?
 
@@ -267,13 +240,15 @@ private struct DraggableClickHandler<Content: View>: NSViewRepresentable {
 
             // Create dragging items for AppKit
             var draggingItems: [NSDraggingItem] = []
+            var previewImage: NSImage?
 
             for dragItem in itemsToDrag {
                 if let pasteboardItem = createPasteboardItem(for: dragItem) {
                     let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
 
                     // Use the drag preview image
-                    let image = dragPreviewImage ?? dragItem.icon
+                    if previewImage == nil { previewImage = makeDragPreview?() }
+                    let image = previewImage ?? dragItem.icon
                     let imageFrame = NSRect(
                         x: 0,
                         y: 0,

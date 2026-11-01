@@ -15,6 +15,8 @@ import ObjectiveC
 @MainActor
 final class ShelfItemViewModel: ObservableObject {
     @Published private(set) var item: ShelfItem
+    @Published private(set) var displayName: String
+    @Published private(set) var icon: NSImage
     @Published var thumbnail: NSImage?
     @Published var isDropTargeted: Bool = false
     @Published var isRenaming: Bool = false
@@ -28,17 +30,35 @@ final class ShelfItemViewModel: ObservableObject {
 
     init(item: ShelfItem) {
         self.item = item
+        self.displayName = item.displayName
+        self.icon = item.icon
         self.draftTitle = item.displayName
-        Task { await loadThumbnail() }
     }
 
     var isSelected: Bool { selection.isSelected(item.id) }
 
-    func loadThumbnail() async {
-        guard let url = item.fileURL else { return }
-        if let image = await ThumbnailService.shared.thumbnail(for: url, size: CGSize(width: 56, height: 56)) {
-            self.thumbnail = image
+    /// Owned by the row's task so disappearance or a changed bookmark cancels publication.
+    func loadPresentation(for requestedItem: ShelfItem) async {
+        if item != requestedItem {
+            item = requestedItem
+            thumbnail = nil
+            displayName = requestedItem.displayName
+            icon = requestedItem.icon
         }
+        let presentation = await ShelfPresentationService.shared.presentation(for: requestedItem)
+        guard !Task.isCancelled, item == requestedItem else { return }
+        if displayName != presentation.displayName { displayName = presentation.displayName }
+        if icon !== presentation.icon { icon = presentation.icon }
+        if !isRenaming { draftTitle = presentation.displayName }
+        if let bookmark = presentation.refreshedBookmark {
+            ShelfStateViewModel.shared.updateBookmark(for: requestedItem, bookmark: bookmark)
+        }
+        guard let url = presentation.fileURL else { return }
+        let image = await ThumbnailService.shared.thumbnail(
+            for: url, size: CGSize(width: 56, height: 56), revision: presentation.thumbnailRevision
+        )
+        guard !Task.isCancelled, item == requestedItem else { return }
+        if thumbnail !== image { thumbnail = image }
     }
 
     // MARK: - Drag & Drop helpers
