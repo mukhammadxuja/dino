@@ -34,6 +34,113 @@ private struct OpenFeatureStretchView<Content: View>: View {
 }
 
 @MainActor
+private struct ClosedIslandRevealView<Content: View>: View {
+    let isActive: Bool
+    let isVisible: Bool
+    let islandStyle: IslandStyle
+    let content: Content
+
+    @State private var dotScale: CGFloat = 0
+    @State private var expansion: CGFloat = 0
+    @State private var expansionTask: Task<Void, Never>?
+
+    var body: some View {
+        let contentOpacity = isActive ? Double(max(0, min(1, (expansion - 0.4) / 0.6))) : 1
+        let shellOpacity = Double(max(0, min(1, (1 - expansion) / 0.3)))
+
+        content
+            .opacity(contentOpacity)
+            .overlay {
+                if isActive {
+                    GeometryReader { geometry in
+                        let height = geometry.size.height
+                        let diameter = min(geometry.size.width, height)
+                        let width = diameter + (geometry.size.width - diameter) * expansion
+                        RoundedRectangle(cornerRadius: height / 2, style: .continuous)
+                            .fill(islandStyle == .glass ? Color.black.opacity(0.68) : .black)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: height / 2, style: .continuous)
+                                    .stroke(Color.white.opacity(islandStyle == .glass ? 0.16 : 0.18), lineWidth: 0.8)
+                            }
+                            .shadow(color: .black.opacity(0.28), radius: 5, y: 2)
+                            .frame(width: width, height: height)
+                            .scaleEffect(dotScale)
+                            .opacity(shellOpacity)
+                            .position(x: geometry.size.width / 2, y: height / 2)
+                    }
+                    .allowsHitTesting(false)
+                }
+            }
+            .onAppear {
+                if isActive && isVisible {
+                    reveal()
+                } else {
+                    dotScale = isActive ? 0 : 1
+                    expansion = isActive ? 0 : 1
+                }
+            }
+            .onChange(of: isVisible) { _, visible in
+                expansionTask?.cancel()
+                if isActive && visible {
+                    reveal()
+                } else if isActive {
+                    withAnimation(.easeIn(duration: 0.14)) {
+                        expansion = 0
+                        dotScale = 0
+                    }
+                } else {
+                    dotScale = 1
+                    expansion = 1
+                }
+            }
+            .onChange(of: isActive) { _, active in
+                expansionTask?.cancel()
+                if !active {
+                    dotScale = 1
+                    expansion = 1
+                } else if !isVisible {
+                    dotScale = 0
+                    expansion = 0
+                }
+            }
+            .onDisappear {
+                expansionTask?.cancel()
+            }
+    }
+
+    private func reveal() {
+        expansionTask?.cancel()
+        expansion = 0
+        dotScale = 0
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.82)) {
+            dotScale = 1
+        }
+        expansionTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                expansion = 1
+            }
+        }
+    }
+}
+
+@MainActor
+private struct NotchTuningUpdates: ViewModifier {
+    @Default(.notchWidthAdjustment) private var widthAdjustment
+    @Default(.notchHeightAdjustment) private var heightAdjustment
+    let onSizeChanged: () -> Void
+    let onPreviewChanged: (NotchTuningAxis?) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: widthAdjustment) { _, _ in onSizeChanged() }
+            .onChange(of: heightAdjustment) { _, _ in onSizeChanged() }
+            .onReceive(NotchTuningPreviewState.shared.$activeAxis, perform: onPreviewChanged)
+    }
+}
+
+@MainActor
 struct ContentView: View {
     @EnvironmentObject var vm: BoringViewModel
     @ObservedObject var coordinator = BoringViewCoordinator.shared
@@ -84,7 +191,6 @@ struct ContentView: View {
     @State private var idleBounceTask: Task<Void, Never>?
     @State private var idleBounceWorkItem: DispatchWorkItem?
     @State private var isIslandClickedDown: Bool = false
-    @State private var isSubtlePillHovered: Bool = false
     @State private var islandRetractTask: Task<Void, Never>?
     
     // Displays & Island Mode
@@ -182,7 +288,8 @@ struct ContentView: View {
         if effectiveIslandVisibility == .alwaysVisible {
             return centeredMenuBarOffset
         } else {
-            return isIslandShowing ? dropDownOffset : -40
+            // The closed island stays in place; its mask reveals a dot, then expands.
+            return dropDownOffset
         }
     }
 
@@ -482,39 +589,34 @@ struct ContentView: View {
         }
     }
 
+    private func refreshClosedNotchTuning() {
+        let size = getClosedNotchSize(screenUUID: vm.screenUUID)
+        guard vm.closedNotchSize != size else { return }
+        vm.closedNotchSize = size
+        if vm.notchState == .closed {
+            vm.notchSize = size
+        }
+    }
+
+    private func handleNotchTuningPreviewChange(_ axis: NotchTuningAxis?) {
+        if axis != nil && vm.notchState == .open && !isCurrentDisplayIsland {
+            closeWithSpring()
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             if isCurrentDisplayIsland && vm.notchState == .closed && !isIslandShowing && !vm.hideOnClosed {
-                // Feedback placeholder for Island ("huddi island kabi sizega ega, shaffof, ortasida horizontal line")
-                ZStack {
-                    RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
-                        .fill(
-                            islandStyle == .glass
-                                ? Color.white.opacity(0.12)
-                                : Color.black.opacity(0.35)
-                        )
-                    RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous)
-                        .stroke(
-                            Color.white.opacity(0.16),
-                            lineWidth: 0.8
-                        )
-                    // Horizontal line in the middle
-                    Capsule()
-                        .fill(Color.white.opacity(0.40))
-                        .frame(width: 26, height: 3)
-                }
+                // Keep the menu bar hover/click target without drawing a second
+                // pill above the island's fixed reveal position.
+                Color.black.opacity(0.001)
                 .frame(
                     width: max(112, vm.closedNotchSize.width),
                     height: max(24, vm.effectiveClosedNotchHeight)
                 )
                 .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
                 .offset(y: centeredMenuBarOffset)
-                .opacity(isSubtlePillHovered ? 1.0 : 0.001)
-                .animation(.easeInOut(duration: 0.22), value: isSubtlePillHovered)
                 .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.22)) {
-                        isSubtlePillHovered = hovering
-                    }
                     if effectiveIslandVisibility == .onHover {
                         handleHover(hovering)
                     }
@@ -525,7 +627,6 @@ struct ContentView: View {
                         isHovering = true
                     }
                 }
-                .transition(.opacity)
                 .zIndex(10)
                 .allowsHitTesting(!isIslandShowing && vm.notchState == .closed)
             }
@@ -554,12 +655,17 @@ struct ContentView: View {
                         .frame(height: max(0, islandYOffset))
                 }
 
-                OpenFeatureStretchView(
-                    stretch: openFeatureStretch,
-                    content: islandContainerView.frame(
-                        width: vm.notchState == .open ? vm.notchSize.width : nil,
-                        height: vm.notchState == .open ? vm.notchSize.height : nil,
-                        alignment: .top
+                ClosedIslandRevealView(
+                    isActive: isCurrentDisplayIsland && vm.notchState == .closed,
+                    isVisible: isIslandShowing,
+                    islandStyle: islandStyle,
+                    content: OpenFeatureStretchView(
+                        stretch: openFeatureStretch,
+                        content: islandContainerView.frame(
+                            width: vm.notchState == .open ? vm.notchSize.width : nil,
+                            height: vm.notchState == .open ? vm.notchSize.height : nil,
+                            alignment: .top
+                        )
                     )
                 )
                     .scaleEffect(
@@ -576,7 +682,7 @@ struct ContentView: View {
                     .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: isScaleHovered)
                     .animation(.interactiveSpring(response: 0.42, dampingFraction: 0.80), value: isHovering)
                     .animation(.interactiveSpring(response: 0.44, dampingFraction: 0.82), value: islandYOffset)
-                    .animation(.easeInOut(duration: 0.28), value: islandOpacity)
+                    .animation(.easeInOut(duration: 0.18), value: islandOpacity)
                     .conditionalModifier(true) { view in
                         let openAnimation = Animation.interactiveSpring(response: 0.36, dampingFraction: 0.68, blendDuration: 0)
                         let closeAnimation = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.74, blendDuration: 0)
@@ -660,6 +766,10 @@ struct ContentView: View {
                     .onChange(of: externalFormFactor) { _, _ in
                         handleFormFactorAnimation()
                     }
+                    .modifier(NotchTuningUpdates(
+                        onSizeChanged: refreshClosedNotchTuning,
+                        onPreviewChanged: handleNotchTuningPreviewChange
+                    ))
                     .onReceive(MusicManager.shared.$songTitle) { newTitle in
                         guard !newTitle.isEmpty,
                               musicManager.isPlaying,
@@ -1237,7 +1347,8 @@ struct ContentView: View {
         let eligible: Bool
         if direction == .down {
             eligible = beganClosed
-                ? vm.notchState == .closed
+                ? (vm.notchState == .closed
+                    && (hasActiveFeature || Defaults[.idleClickAction] != .none))
                 : (vm.notchState == .open && canCycleOpenSlot)
         } else {
             eligible = !beganClosed && vm.notchState == .open
@@ -1259,7 +1370,7 @@ struct ContentView: View {
             if shouldCommit {
                 if direction == .down {
                     if beganClosed {
-                        doOpen(restoreLastFeature: true)
+                        handleTap()
                     } else {
                         advanceOpenFeature()
                     }

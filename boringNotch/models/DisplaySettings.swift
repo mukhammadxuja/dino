@@ -34,6 +34,58 @@ public enum DisplayFormFactor: String, CaseIterable, Identifiable, Defaults.Seri
     public var id: String { rawValue }
 }
 
+enum NotchTuningAxis {
+    case width
+    case height
+}
+
+@MainActor
+final class NotchTuningPreviewState: ObservableObject {
+    static let shared = NotchTuningPreviewState()
+    static let rose = Color(red: 0.98, green: 0.24, blue: 0.40)
+
+    @Published private(set) var activeAxis: NotchTuningAxis?
+    @Published private(set) var draftValue = 0
+    private var commitTask: Task<Void, Never>?
+    private var pendingCommit: (@MainActor () -> Void)?
+    private var previewBeganAt: Date = .distantPast
+
+    func begin(_ axis: NotchTuningAxis, value: Int) {
+        commitPendingChange()
+        previewBeganAt = Date()
+        if draftValue != value { draftValue = value }
+        if activeAxis != axis { activeAxis = axis }
+    }
+
+    func update(_ value: Int) {
+        if draftValue != value { draftValue = value }
+    }
+
+    func end(commit: @escaping @MainActor () -> Void) {
+        commitTask?.cancel()
+        pendingCommit = commit
+        commitTask = Task { @MainActor in
+            let remaining = max(0, 0.22 - Date().timeIntervalSince(previewBeganAt))
+            if remaining > 0 {
+                try? await Task.sleep(for: .milliseconds(Int(remaining * 1000)))
+            }
+            guard !Task.isCancelled else { return }
+            activeAxis = nil
+            try? await Task.sleep(for: .milliseconds(340))
+            guard !Task.isCancelled else { return }
+            commitPendingChange()
+        }
+    }
+
+    private func commitPendingChange() {
+        commitTask?.cancel()
+        commitTask = nil
+        let commit = pendingCommit
+        pendingCommit = nil
+        commit?()
+    }
+}
+
 // MARK: - 3. Island Visual Style (Dark vs Glass)
 public enum IslandStyle: String, CaseIterable, Identifiable, Defaults.Serializable {
     case dark = "Dark"

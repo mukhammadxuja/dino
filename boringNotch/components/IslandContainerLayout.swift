@@ -8,6 +8,9 @@ import Defaults
 
 struct IslandContainerLayout<Content: View>: View {
     @EnvironmentObject var vm: BoringViewModel
+    @ObservedObject private var tuningPreview = NotchTuningPreviewState.shared
+    @Default(.notchWidthAdjustment) private var notchWidthAdjustment
+    @Default(.notchHeightAdjustment) private var notchHeightAdjustment
 
     let isCurrentDisplayIsland: Bool
     let isCurrentScreenBuiltin: Bool
@@ -34,9 +37,29 @@ struct IslandContainerLayout<Content: View>: View {
 
     @ViewBuilder let content: () -> Content
 
+    private var isTuningPreviewActive: Bool {
+        !isCurrentDisplayIsland && vm.notchState == .closed && tuningPreview.activeAxis != nil
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: (vm.notchState == .closed && isDualActivityActive) ? 8 : 0) {
             mainPill
+                .background {
+                    GeometryReader { geometry in
+                        if isTuningPreviewActive, let axis = tuningPreview.activeAxis {
+                            let supporterSize = tuningSupporterSize(for: axis, notchSize: geometry.size)
+                            tuningSupporter(for: axis, size: supporterSize, notchSize: geometry.size)
+                                .position(
+                                    x: geometry.size.width / 2,
+                                    y: supporterSize.height / 2
+                                )
+                                .transition(.scale(scale: 0.9, anchor: .top).combined(with: .opacity))
+                        }
+                    }
+                    .animation(.spring(response: 0.22, dampingFraction: 0.82), value: tuningPreview.activeAxis)
+                    .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.86), value: tuningPreview.draftValue)
+                    .allowsHitTesting(false)
+                }
                 .conditionalModifier(isCurrentDisplayIsland) { view in
                     view.contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
                 }
@@ -151,6 +174,68 @@ struct IslandContainerLayout<Content: View>: View {
         } else {
             Color.black
         }
+    }
+
+    private func tuningSupporterSize(for axis: NotchTuningAxis, notchSize: CGSize) -> CGSize {
+        switch axis {
+        case .width:
+            let committed = min(5, max(-3, notchWidthAdjustment))
+            let committedPoints = committed > 0 ? committed * 2 : committed
+            let draft = tuningPreview.draftValue
+            let draftPoints = draft > 0 ? draft * 2 : draft
+            return CGSize(
+                width: notchSize.width + CGFloat(draftPoints - committedPoints),
+                height: notchSize.height + 30
+            )
+        case .height:
+            let committed = min(3, max(-3, notchHeightAdjustment))
+            return CGSize(
+                width: notchSize.width + 112,
+                height: notchSize.height + CGFloat(tuningPreview.draftValue - committed)
+            )
+        }
+    }
+
+    private func tuningSupporter(for axis: NotchTuningAxis, size: CGSize, notchSize: CGSize) -> some View {
+        let value = tuningPreview.draftValue
+        let label = value == 0 ? "0" : (value > 0 ? "+\(value)" : "\(value)")
+
+        return currentNotchShape
+            .fill(NotchTuningPreviewState.rose)
+            .overlay(alignment: .bottom) {
+                if axis == .width {
+                    HStack(spacing: 10) {
+                        Image(systemName: "arrow.left")
+                            .font(.system(size: 12, weight: .semibold))
+                        Spacer(minLength: 4)
+                        Text(label)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                        Spacer(minLength: 4)
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.black)
+                    .padding(.horizontal, 22)
+                    .frame(height: size.height - notchSize.height)
+                } else {
+                    HStack(spacing: 10) {
+                        Image(systemName: "arrow.up.and.down")
+                            .font(.system(size: 12, weight: .semibold))
+                        Spacer(minLength: 4)
+                        Text(label)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                    .foregroundStyle(Color.black)
+                    .padding(.horizontal, 22)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .frame(
+                width: size.width,
+                height: size.height
+            )
     }
 
     @ViewBuilder

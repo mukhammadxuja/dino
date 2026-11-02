@@ -106,5 +106,12 @@ enum MusicPlayerImageSizes {
         }
     }
 
-    return .init(width: notchWidth, height: notchHeight)
+    // The measured cutout/menu-bar size is the zero point for notch-only tuning.
+    let widthAdjustment = min(5, max(-3, Defaults[.notchWidthAdjustment]))
+    let heightAdjustment = min(3, max(-3, Defaults[.notchHeightAdjustment]))
+    let widthPoints = widthAdjustment > 0 ? widthAdjustment * 2 : widthAdjustment
+    return .init(
+        width: max(100, notchWidth + CGFloat(widthPoints)),
+        height: max(12, notchHeight + CGFloat(heightAdjustment))
+    )
 }

@@ -14724,9 +14724,6 @@
         }
       }
     },
-    "More controls coming later" : {
-
-    },
     "Music Source" : {
       "localizations" : {
         "ar" : {
@@ -22729,7 +22726,7 @@
     "Top of Screen" : {
 
     },
-    "Tunning" : {
+    "Tuning" : {
 
     },
     "Two-finger swipe up on notch to close, two-finger swipe down on notch to open when **Open notch on hover** option is disabled" : {
