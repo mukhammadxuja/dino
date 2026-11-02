@@ -7,13 +7,25 @@
 import Foundation
 import AppKit
 import ApplicationServices
+import Combine
 import Defaults
 import AVFoundation
 
 private let kSystemDefinedEventType = CGEventType(rawValue: 14)!
 
-final class MediaKeyInterceptor {
+@MainActor
+final class MediaKeyInterceptor: ObservableObject {
     static let shared = MediaKeyInterceptor()
+
+    enum ActivationState: Equatable {
+        case disabled
+        case needsPermission
+        case starting
+        case active
+        case failed
+    }
+
+    @Published private(set) var activationState: ActivationState = .disabled
     
     private enum NXKeyType: Int {
         case soundUp = 0
@@ -27,6 +39,8 @@ final class MediaKeyInterceptor {
     
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var lifecycleGeneration = 0
+    private var isStarting = false
     private let step: Float = 1.0 / 16.0
     private var audioPlayer: AVAudioPlayer?
     private var isFeedbackSoundEnabled: Bool = false
@@ -36,86 +50,137 @@ final class MediaKeyInterceptor {
         prewarmAudio()
     }
     
-    // MARK: - Accessibility (via XPC)
-    
-    func requestAccessibilityAuthorization() {
-        XPCHelperClient.shared.requestAccessibilityAuthorization()
-    }
-    
-    func ensureAccessibilityAuthorization(promptIfNeeded: Bool = false) async -> Bool {
-        await XPCHelperClient.shared.ensureAccessibilityAuthorization(promptIfNeeded: promptIfNeeded)
-    }
-    
     // MARK: - Event Tap
     
-    func start(promptIfNeeded: Bool = false) async {
-        if audioPlayer == nil {
-            prewarmAudio()
-        }
-        guard eventTap == nil else { return }
-        
-        // Ensure HUD replacement is enabled
+    func start() async {
         guard Defaults[.hudReplacement] else {
             stop()
             return
         }
-        
-        // Check accessibility authorization
+
+        guard !isStarting else { return }
+        isStarting = true
+        let generation = lifecycleGeneration
+        defer {
+            if generation == lifecycleGeneration { isStarting = false }
+        }
+
         let authorized = await XPCHelperClient.shared.isAccessibilityAuthorized()
-        if !authorized {
-            if promptIfNeeded {
-                let granted = await ensureAccessibilityAuthorization(promptIfNeeded: true)
-                guard granted else { return }
-            } else {
+        guard !Task.isCancelled,
+              Defaults[.hudReplacement],
+              generation == lifecycleGeneration else { return }
+        guard authorized else {
+            stopForMissingPermission()
+            return
+        }
+
+        if let eventTap {
+            if CFMachPortIsValid(eventTap) && CGEvent.tapIsEnabled(tap: eventTap) {
+                activationState = .active
                 return
             }
+            stop()
         }
-        
+
+        activationState = .starting
         let mask = CGEventMask(1 << kSystemDefinedEventType.rawValue)
-        eventTap = CGEvent.tapCreate(
-            tap: .cghidEventTap,
+        // The HID entry point requires root; the session tap runs in the user's app.
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: mask,
             callback: { _, _, cgEvent, userInfo in
-                guard let userInfo else { return Unmanaged.passRetained(cgEvent) }
+                guard let userInfo else { return Unmanaged.passUnretained(cgEvent) }
                 let interceptor = Unmanaged<MediaKeyInterceptor>.fromOpaque(userInfo).takeUnretainedValue()
-                return interceptor.handleEvent(cgEvent)
+                return MainActor.assumeIsolated {
+                    interceptor.handleEvent(cgEvent)
+                }
             },
             userInfo: UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
-        )
-        
-        if let eventTap {
-            runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
-            if let runLoopSource {
-                CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
-            }
-            CGEvent.tapEnable(tap: eventTap, enable: true)
+        ) else {
+            activationState = .failed
+            NSLog("Dino HUD: unable to create session event tap (Accessibility authorized: \(AXIsProcessTrusted()))")
+            return
         }
+
+        guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0) else {
+            CFMachPortInvalidate(tap)
+            activationState = .failed
+            NSLog("Dino HUD: unable to create event tap run-loop source")
+            return
+        }
+
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        guard CGEvent.tapIsEnabled(tap: tap) else {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            CFMachPortInvalidate(tap)
+            activationState = .failed
+            NSLog("Dino HUD: event tap could not be enabled")
+            return
+        }
+
+        eventTap = tap
+        runLoopSource = source
+        activationState = .active
+        if audioPlayer == nil { prewarmAudio() }
     }
     
     func stop() {
-        if let eventTap {
+        lifecycleGeneration &+= 1
+        isStarting = false
+        if let eventTap, CFMachPortIsValid(eventTap) {
             CGEvent.tapEnable(tap: eventTap, enable: false)
         }
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
+        if let eventTap {
+            CFMachPortInvalidate(eventTap)
+        }
         runLoopSource = nil
         eventTap = nil
+        activationState = .disabled
+    }
+
+    func stopForMissingPermission() {
+        guard activationState != .needsPermission || eventTap != nil || isStarting else { return }
+        stop()
+        activationState = .needsPermission
     }
     
     // MARK: - Event Handling
     
     private func handleEvent(_ cgEvent: CGEvent) -> Unmanaged<CGEvent>? {
+        if cgEvent.type == .tapDisabledByTimeout || cgEvent.type == .tapDisabledByUserInput {
+            if AXIsProcessTrusted(), Defaults[.hudReplacement], let eventTap {
+                CGEvent.tapEnable(tap: eventTap, enable: true)
+                if CGEvent.tapIsEnabled(tap: eventTap) {
+                    activationState = .active
+                } else {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.stop()
+                        self?.activationState = .failed
+                        NSLog("Dino HUD: event tap was disabled and could not be restarted")
+                    }
+                }
+            } else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.stopForMissingPermission()
+                }
+            }
+            return Unmanaged.passUnretained(cgEvent)
+        }
+
         // Ensure the CGEvent has a valid type before converting to NSEvent
         guard cgEvent.type != .null else {
-            return Unmanaged.passRetained(cgEvent)
+            return Unmanaged.passUnretained(cgEvent)
         }
         guard let nsEvent = NSEvent(cgEvent: cgEvent),
               nsEvent.type == .systemDefined,
               nsEvent.subtype.rawValue == 8 else {
-            return Unmanaged.passRetained(cgEvent)
+            return Unmanaged.passUnretained(cgEvent)
         }
         
         let data1 = nsEvent.data1
@@ -125,7 +190,7 @@ final class MediaKeyInterceptor {
         // 0xA = key down, 0xB = key up. Only handle key down.
         guard stateByte == 0xA,
               let keyType = NXKeyType(rawValue: keyCode) else {
-            return Unmanaged.passRetained(cgEvent)
+            return Unmanaged.passUnretained(cgEvent)
         }
         
         let flags = nsEvent.modifierFlags

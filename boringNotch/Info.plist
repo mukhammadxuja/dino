@@ -14,9 +14,9 @@
 	<key>SUFeedURL</key>
 	<string>https://TheBoredTeam.github.io/boring.notch/appcast.xml</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>boringNotch detects connected AirPods to display connection status and battery levels in the Notch.</string>
+	<string>Dino uses Bluetooth to show AirPods and wireless headphone connection alerts.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>boringNotch detects connected AirPods to display connection status and battery levels in the Notch.</string>
+	<string>Dino uses Bluetooth to show AirPods and wireless headphone connection alerts.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>boringNotch displays a privacy indicator when Location Services are active.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

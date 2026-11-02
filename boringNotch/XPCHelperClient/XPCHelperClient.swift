@@ -72,8 +72,7 @@ final class XPCHelperClient: NSObject {
 
     // MARK: - Monitoring
     nonisolated func startMonitoringAccessibilityAuthorization(every interval: TimeInterval = 3.0) {
-        // Ensure only one monitor exists
-        stopMonitoringAccessibilityAuthorization()
+        guard monitoringTask == nil else { return }
         monitoringTask = Task.detached { [weak self] in
             guard let self = self else { return }
             while !Task.isCancelled {
@@ -99,84 +98,24 @@ final class XPCHelperClient: NSObject {
     // MARK: - Accessibility
     
     nonisolated func requestAccessibilityAuthorization() {
-        // Direct system prompt for host app (boringNotch)
+        // The event tap runs in the host app, so only the host needs access.
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
-
-        Task {
-            let service = await MainActor.run {
-                ensureRemoteService()
-            }
-            try? await service.withService { service in
-                service.requestAccessibilityAuthorization()
-            }
-        }
     }
     
     nonisolated func isAccessibilityAuthorized() async -> Bool {
-        if AXIsProcessTrusted() {
-            await MainActor.run {
-                notifyAuthorizationChange(true)
-            }
-            return true
+        let authorized = AXIsProcessTrusted()
+        await MainActor.run {
+            notifyAuthorizationChange(authorized)
         }
-
-        do {
-            let service = await MainActor.run {
-                ensureRemoteService()
-            }
-            let result: Bool = try await service.withContinuation { service, continuation in
-                service.isAccessibilityAuthorized { authorized in
-                    continuation.resume(returning: authorized)
-                }
-            }
-            let isTrusted = result || AXIsProcessTrusted()
-            await MainActor.run {
-                notifyAuthorizationChange(isTrusted)
-            }
-            return isTrusted
-        } catch {
-            let mainTrusted = AXIsProcessTrusted()
-            await MainActor.run {
-                notifyAuthorizationChange(mainTrusted)
-            }
-            return mainTrusted
-        }
+        return authorized
     }
     
     nonisolated func ensureAccessibilityAuthorization(promptIfNeeded: Bool) async -> Bool {
-        if AXIsProcessTrusted() {
-            await MainActor.run {
-                notifyAuthorizationChange(true)
-            }
-            return true
-        }
-
-        if promptIfNeeded {
+        if promptIfNeeded && !AXIsProcessTrusted() {
             requestAccessibilityAuthorization()
         }
-
-        do {
-            let service = await MainActor.run {
-                ensureRemoteService()
-            }
-            let result: Bool = try await service.withContinuation { service, continuation in
-                service.ensureAccessibilityAuthorization(promptIfNeeded) { authorized in
-                    continuation.resume(returning: authorized)
-                }
-            }
-            let isTrusted = result || AXIsProcessTrusted()
-            await MainActor.run {
-                notifyAuthorizationChange(isTrusted)
-            }
-            return isTrusted
-        } catch {
-            let mainTrusted = AXIsProcessTrusted()
-            await MainActor.run {
-                notifyAuthorizationChange(mainTrusted)
-            }
-            return mainTrusted
-        }
+        return await isAccessibilityAuthorized()
     }
     
     // MARK: - Keyboard Brightness

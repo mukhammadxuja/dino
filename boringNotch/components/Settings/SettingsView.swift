@@ -7,6 +7,7 @@
 
 import AVFoundation
 import AppKit
+import CoreBluetooth
 import Darwin
 import Defaults
 import EventKit
@@ -5706,6 +5707,8 @@ extension Color {
 
 struct HUD: View {
     @EnvironmentObject var vm: BoringViewModel
+    @ObservedObject private var bluetoothManager = BluetoothHUDManager.shared
+    @ObservedObject private var mediaKeyInterceptor = MediaKeyInterceptor.shared
     @Default(.hudReplacement) var hudReplacement
     @Default(.hudVolumeEnabled) var hudVolumeEnabled
     @Default(.hudBrightnessEnabled) var hudBrightnessEnabled
@@ -5719,6 +5722,9 @@ struct HUD: View {
 
     @State private var accessibilityAuthorized = false
     @State private var expandedHUDId: String? = nil
+    @State private var showingAccessibilityPermission = false
+    @State private var showingBluetoothPermission = false
+    @State private var showingHUDRetry = false
 
     var body: some View {
         ScrollView {
@@ -5752,6 +5758,49 @@ struct HUD: View {
 
                             Spacer(minLength: 20)
 
+                            if hudReplacement && !accessibilityAuthorized {
+                                permissionButton {
+                                    showingAccessibilityPermission = true
+                                }
+                                .popover(isPresented: $showingAccessibilityPermission, arrowEdge: .bottom) {
+                                    permissionPrompt(
+                                        title: "Dino needs permission to replace system HUDs.",
+                                        detail: "Allow device control in System Settings to show custom volume and brightness controls.",
+                                        buttonTitle: "Ask Permission..."
+                                    ) {
+                                        showingAccessibilityPermission = false
+                                        XPCHelperClient.shared.requestAccessibilityAuthorization()
+                                    }
+                                }
+                            }
+
+                            if hudReplacement && accessibilityAuthorized {
+                                switch mediaKeyInterceptor.activationState {
+                                case .active:
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                        .help("System HUD is active")
+                                case .failed:
+                                    permissionButton(icon: "exclamationmark.triangle.fill", help: "System HUD could not start") {
+                                        showingHUDRetry = true
+                                    }
+                                    .popover(isPresented: $showingHUDRetry, arrowEdge: .bottom) {
+                                        permissionPrompt(
+                                            title: "Dino could not start the system HUD.",
+                                            detail: "Try starting it again. If this continues, quit other copies of Dino and reopen the app.",
+                                            buttonTitle: "Try Again"
+                                        ) {
+                                            showingHUDRetry = false
+                                            Task { await mediaKeyInterceptor.start() }
+                                        }
+                                    }
+                                case .starting, .disabled, .needsPermission:
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .help("Starting system HUD")
+                                }
+                            }
+
                             Defaults.Toggle("", key: .hudReplacement)
                                 .labelsHidden()
                                 .toggleStyle(.switch)
@@ -5759,46 +5808,6 @@ struct HUD: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-
-                        if !accessibilityAuthorized {
-                            cardDivider
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundStyle(.orange)
-                                        .font(.system(size: 13))
-                                    Text("Accessibility access is required to replace the system HUD.")
-                                        .font(.system(size: 11.5, weight: .semibold))
-                                        .foregroundStyle(.primary)
-                                }
-
-                                Text("If Dino is already checked in macOS System Settings, click (−) to remove and (+) to re-add it to refresh the macOS security cache.")
-                                    .font(.system(size: 10.5))
-                                    .foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-
-                                HStack(spacing: 12) {
-                                    Button("Request Accessibility") {
-                                        XPCHelperClient.shared.requestAccessibilityAuthorization()
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .controlSize(.small)
-
-                                    Button("Open System Settings") {
-                                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                                            NSWorkspace.shared.open(url)
-                                        }
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .background(Color.orange.opacity(0.06))
-                        }
-
 
                     }
                     .background(Color.white)
@@ -5957,17 +5966,16 @@ struct HUD: View {
         .navigationTitle("HUDs")
         .task {
             accessibilityAuthorized = await XPCHelperClient.shared.isAccessibilityAuthorized()
-        }
-        .onAppear {
-            XPCHelperClient.shared.startMonitoringAccessibilityAuthorization()
-        }
-        .onDisappear {
-            XPCHelperClient.shared.stopMonitoringAccessibilityAuthorization()
+            bluetoothManager.refreshAuthorizationStatus()
         }
         .onReceive(NotificationCenter.default.publisher(for: .accessibilityAuthorizationChanged)) { notification in
             if let granted = notification.userInfo?["granted"] as? Bool {
                 accessibilityAuthorized = granted
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            bluetoothManager.refreshAuthorizationStatus()
+            Task { accessibilityAuthorized = await XPCHelperClient.shared.isAccessibilityAuthorized() }
         }
         .onChange(of: hudAirPodsEnabled) { _, isEnabled in
             if isEnabled {
@@ -5986,6 +5994,51 @@ struct HUD: View {
     private var cardDivider: some View {
         Divider()
             .padding(.horizontal, 16)
+    }
+
+    private func permissionButton(
+        icon: String = "lock.shield.fill",
+        help: String = "Permission needed",
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(.orange)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(help)
+    }
+
+    private func permissionPrompt(
+        title: String,
+        detail: String,
+        buttonTitle: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "lock.shield.fill")
+                .font(.system(size: 30))
+                .foregroundStyle(.orange)
+                .padding(.top, 4)
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .multilineTextAlignment(.center)
+            Text(detail)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(buttonTitle, action: action)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
+                .frame(maxWidth: .infinity)
+        }
+        .frame(width: 280)
+        .padding(18)
     }
 
     @ViewBuilder
@@ -6022,6 +6075,27 @@ struct HUD: View {
                 }
 
                 Spacer(minLength: 12)
+
+                if id == "airpods" && hudAirPodsEnabled && bluetoothManager.authorizationStatus != .allowedAlways {
+                    permissionButton {
+                        showingBluetoothPermission = true
+                    }
+                    .popover(isPresented: $showingBluetoothPermission, arrowEdge: .bottom) {
+                        permissionPrompt(
+                            title: "Dino needs Bluetooth access for AirPods alerts.",
+                            detail: "Allow Bluetooth to show when your headphones connect.",
+                            buttonTitle: bluetoothManager.authorizationStatus == .notDetermined
+                                ? "Ask Permission..." : "Open System Settings"
+                        ) {
+                            showingBluetoothPermission = false
+                            if bluetoothManager.authorizationStatus == .notDetermined {
+                                bluetoothManager.requestAuthorization()
+                            } else if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                    }
+                }
 
                 Toggle("", isOn: isOn)
                     .labelsHidden()

@@ -127,6 +127,7 @@ class BoringViewCoordinator: ObservableObject {
 
     @Published var optionKeyPressed: Bool = true
     private var accessibilityObserver: Any?
+    private var appDidBecomeActiveObserver: Any?
     private var hudReplacementCancellable: AnyCancellable?
 
     private init() {
@@ -155,11 +156,26 @@ class BoringViewCoordinator: ObservableObject {
             forName: Notification.Name.accessibilityAuthorizationChanged,
             object: nil,
             queue: .main
+        ) { notification in
+            guard let granted = notification.userInfo?["granted"] as? Bool else { return }
+            Task { @MainActor in
+                guard Defaults[.hudReplacement] else { return }
+                if granted {
+                    await MediaKeyInterceptor.shared.start()
+                } else {
+                    MediaKeyInterceptor.shared.stopForMissingPermission()
+                }
+            }
+        }
+
+        appDidBecomeActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
         ) { _ in
             Task { @MainActor in
-                if Defaults[.hudReplacement] {
-                    await MediaKeyInterceptor.shared.start(promptIfNeeded: false)
-                }
+                guard Defaults[.hudReplacement] else { return }
+                await MediaKeyInterceptor.shared.start()
             }
         }
 
@@ -173,15 +189,12 @@ class BoringViewCoordinator: ObservableObject {
                     self.hudEnableTask = nil
 
                     if change.newValue {
+                        XPCHelperClient.shared.startMonitoringAccessibilityAuthorization()
                         self.hudEnableTask = Task { @MainActor in
-                            let granted = await XPCHelperClient.shared.ensureAccessibilityAuthorization(promptIfNeeded: true)
-                            if Task.isCancelled { return }
-
-                            if granted {
-                                await MediaKeyInterceptor.shared.start()
-                            }
+                            await MediaKeyInterceptor.shared.start()
                         }
                     } else {
+                        XPCHelperClient.shared.stopMonitoringAccessibilityAuthorization()
                         MediaKeyInterceptor.shared.stop()
                     }
                 }
@@ -189,18 +202,9 @@ class BoringViewCoordinator: ObservableObject {
 
         Task { @MainActor in
             helloAnimationRunning = firstLaunch
-
             if Defaults[.hudReplacement] {
-                let authorized = await XPCHelperClient.shared.isAccessibilityAuthorized()
-                if authorized {
-                    await MediaKeyInterceptor.shared.start(promptIfNeeded: false)
-                } else {
-                    // Retry once after 700ms in case XPC helper was spinning up on app launch
-                    try? await Task.sleep(for: .milliseconds(700))
-                    if await XPCHelperClient.shared.isAccessibilityAuthorized() {
-                        await MediaKeyInterceptor.shared.start(promptIfNeeded: false)
-                    }
-                }
+                XPCHelperClient.shared.startMonitoringAccessibilityAuthorization()
+                await MediaKeyInterceptor.shared.start()
             }
         }
     }

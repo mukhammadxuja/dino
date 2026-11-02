@@ -9,6 +9,7 @@ import AppKit
 import AVFoundation
 import Combine
 import CoreAudio
+import CoreBluetooth
 import CoreLocation
 import CoreMediaIO
 import Defaults
@@ -1184,11 +1185,14 @@ final class CapsLockManager: NSObject {
 }
 
 // MARK: - Bluetooth & AirPods Connect HUD Manager
-final class BluetoothHUDManager: NSObject {
+final class BluetoothHUDManager: NSObject, ObservableObject, CBCentralManagerDelegate {
     static let shared = BluetoothHUDManager()
 
+    @Published private(set) var authorizationStatus = CBManager.authorization
     private var connectNotification: IOBluetoothUserNotification?
+    private var authorizationManager: CBCentralManager?
     private var didInitialFetch = false
+    private var didInstallAudioOutputListener = false
     private var isStarted = false
     private var lastConnectedDeviceAddress: String = ""
     private var connectAudioPlayer: AVAudioPlayer?
@@ -1200,6 +1204,8 @@ final class BluetoothHUDManager: NSObject {
 
     func start() {
         guard Defaults[.hudAirPodsEnabled] else { return }
+        authorizationStatus = CBManager.authorization
+        guard authorizationStatus == .allowedAlways else { return }
         guard !isStarted else { return }
         isStarted = true
 
@@ -1213,6 +1219,42 @@ final class BluetoothHUDManager: NSObject {
         isStarted = false
         connectNotification?.unregister()
         connectNotification = nil
+    }
+
+    func requestAuthorization() {
+        authorizationStatus = CBManager.authorization
+        switch authorizationStatus {
+        case .allowedAlways:
+            start()
+        case .notDetermined:
+            guard authorizationManager == nil else { return }
+            authorizationManager = CBCentralManager(
+                delegate: self,
+                queue: .main,
+                options: [CBCentralManagerOptionShowPowerAlertKey: false]
+            )
+        case .denied, .restricted:
+            break
+        @unknown default:
+            break
+        }
+    }
+
+    func refreshAuthorizationStatus() {
+        let current = CBManager.authorization
+        if authorizationStatus != current {
+            authorizationStatus = current
+        }
+        if current == .allowedAlways {
+            start()
+        }
+    }
+
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        refreshAuthorizationStatus()
+        if authorizationStatus != .notDetermined {
+            authorizationManager = nil
+        }
     }
 
     func prewarmConnectSound() {
@@ -1360,21 +1402,24 @@ final class BluetoothHUDManager: NSObject {
     }
 
     private func setupAudioOutputListener() {
+        guard !didInstallAudioOutputListener else { return }
         var addr = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
-        AudioObjectAddPropertyListenerBlock(
+        let status = AudioObjectAddPropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject),
             &addr,
             DispatchQueue.main
         ) { [weak self] _, _ in
             self?.evaluateAudioOutputChange()
         }
+        didInstallAudioOutputListener = status == noErr
     }
 
     private func evaluateAudioOutputChange() {
+        guard isStarted else { return }
         guard didInitialFetch else {
             didInitialFetch = true
             return
