@@ -32,7 +32,6 @@ public final class ShortcutRegistry: ObservableObject {
 
     public let allManagedShortcuts: [ManagedShortcut] = [
         .init(name: .clipboardHistoryPanel, title: "Clipboard History (HUD)", category: "Panels"),
-        .init(name: .mirrorHUDPanel, title: "Mirror (HUD)", category: "Panels"),
         .init(name: .toggleNotchOpen, title: "Toggle Notch Open", category: "Panels"),
         .init(name: .toggleSneakPeek, title: "Sneak Peek", category: "Media"),
         .init(name: .selectMusicModule, title: "Now Playing (Music)", category: "Modules"),
@@ -40,7 +39,6 @@ public final class ShortcutRegistry: ObservableObject {
         .init(name: .selectCalendarModule, title: "Calendar", category: "Modules"),
         .init(name: .selectWeatherModule, title: "Weather", category: "Modules"),
         .init(name: .selectBatteryModule, title: "Battery Status", category: "Modules"),
-        .init(name: .selectCodingModule, title: "Coding Activity", category: "Modules"),
         .init(name: .selectShelfModule, title: "Shelf (Upload)", category: "Modules"),
         .init(name: .pomodoroEmergencyExit, title: "Pomodoro Skip Break", category: "Pomodoro"),
         .init(name: .optionWeatherShortcut, title: "Quick Weather", category: "Quick Access"),

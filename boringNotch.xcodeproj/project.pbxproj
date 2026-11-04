@@ -62,6 +62,8 @@
 		11C5E3132DFE85970065821E /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11C5E3112DFE85970065821E /* SettingsWindowController.swift */; };
 		B19016282CC15B4D00E3F12E /* DisplaySettingsCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = B19016272CC15B4D00E3F12E /* DisplaySettingsCards.swift */; };
 		11C5E3162DFE88510065821E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11C5E3152DFE88510065821E /* SettingsView.swift */; };
+		C0DE00012F00000000000002 /* CodeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00012F00000000000001 /* CodeSettingsView.swift */; };
+		C0DE00012F00000000000004 /* MirrorSettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00012F00000000000003 /* MirrorSettingsCard.swift */; };
 		11CC44A22CEE614100C7244B /* BoringViewCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11CC44A12CEE614100C7244B /* BoringViewCoordinator.swift */; };
 		11CFC65B2E097E9D00748C80 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11CFC65A2E097E9D00748C80 /* WelcomeView.swift */; };
 		11CFC65F2E097F2F00748C80 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11CFC65E2E097F2100748C80 /* OnboardingView.swift */; };
@@ -262,6 +264,8 @@
 		11C5E3112DFE85970065821E /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		B19016272CC15B4D00E3F12E /* DisplaySettingsCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplaySettingsCards.swift; sourceTree = "<group>"; };
 		11C5E3152DFE88510065821E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C0DE00012F00000000000001 /* CodeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeSettingsView.swift; sourceTree = "<group>"; };
+		C0DE00012F00000000000003 /* MirrorSettingsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorSettingsCard.swift; sourceTree = "<group>"; };
 		11CC44A12CEE614100C7244B /* BoringViewCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoringViewCoordinator.swift; sourceTree = "<group>"; };
 		11CFC65A2E097E9D00748C80 /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		11CFC65E2E097F2100748C80 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -789,6 +793,8 @@
 			children = (
 				11F748832ECB27DC00F841DB /* MusicSlotConfigurationView.swift */,
 				11C5E3152DFE88510065821E /* SettingsView.swift */,
+				C0DE00012F00000000000001 /* CodeSettingsView.swift */,
+				C0DE00012F00000000000003 /* MirrorSettingsCard.swift */,
 				11C5E3112DFE85970065821E /* SettingsWindowController.swift */,
 				B19016272CC15B4D00E3F12E /* DisplaySettingsCards.swift */,
 				B1D6FD422C6603730015F173 /* SoftwareUpdater.swift */,
@@ -1079,6 +1085,8 @@
 				B10F84A32C6C9596009F3026 /* TestView.swift in Sources */,
 				1443E7F32C609DCE0027C1FC /* matters.swift in Sources */,
 				11C5E3162DFE88510065821E /* SettingsView.swift in Sources */,
+				C0DE00012F00000000000002 /* CodeSettingsView.swift in Sources */,
+				C0DE00012F00000000000004 /* MirrorSettingsCard.swift in Sources */,
 				1153BD932D986E4300979FB0 /* AppleMusicController.swift in Sources */,
 				11C5E3132DFE85970065821E /* SettingsWindowController.swift in Sources */,
 				B19016282CC15B4D00E3F12E /* DisplaySettingsCards.swift in Sources */,

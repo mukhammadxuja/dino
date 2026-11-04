@@ -62,7 +62,7 @@ class BoringViewModel: NSObject, ObservableObject {
     @Published var notchSize: CGSize = getClosedNotchSize()
     @Published var closedNotchSize: CGSize = getClosedNotchSize()
     
-    let webcamManager = WebcamManager.shared
+    private var webcamManager: WebcamManager { WebcamManager.shared }
     @Published var isCameraExpanded: Bool = false
     @Published var isRequestingAuthorization: Bool = false
     
@@ -164,6 +164,7 @@ class BoringViewModel: NSObject, ObservableObject {
     }
 
     func toggleCameraPreview() {
+        guard ReleaseFeatures.mirror else { return }
         if isRequestingAuthorization {
             return
         }

@@ -75,7 +75,7 @@ struct AlbumArtView: View {
 struct MusicControlsView: View {
     @ObservedObject var musicManager = MusicManager.shared
     @EnvironmentObject var vm: BoringViewModel
-    @State private var cameraAvailable = WebcamManager.shared.cameraAvailable
+    private let cameraAvailable = false
     let albumArtNamespace: Namespace.ID
     let mediaGestureDirection: MediaGestureDirection
     let mediaGestureIconVisible: Bool
@@ -93,7 +93,6 @@ struct MusicControlsView: View {
         }
         .frame(maxWidth: .infinity)
         .buttonStyle(PlainButtonStyle())
-        .onReceive(WebcamManager.shared.$cameraAvailable.removeDuplicates()) { cameraAvailable = $0 }
     }
 
     private var topInfoRow: some View {
@@ -618,7 +617,7 @@ struct NotchHomeView: View {
         if activeModule == .battery {
             return .battery
         }
-        if activeModule == .coding {
+        if ReleaseFeatures.code && activeModule == .coding {
             return .coding
         }
         if activeModule == .shelf {
@@ -708,7 +707,7 @@ private struct IdleHomePage: View {
 
 private struct MusicHomePage: View {
     @EnvironmentObject private var vm: BoringViewModel
-    @State private var cameraAvailable = WebcamManager.shared.cameraAvailable
+    private let cameraAvailable = false
     let albumArtNamespace: Namespace.ID
     let mediaGestureDirection: MediaGestureDirection
     let mediaGestureIconVisible: Bool
@@ -748,12 +747,11 @@ private struct MusicHomePage: View {
         }
         .padding(.horizontal, 2)
         .padding(.top, 0)
-        .onReceive(WebcamManager.shared.$cameraAvailable.removeDuplicates()) { cameraAvailable = $0 }
     }
 }
 
 private struct PomodoroHomePage: View {
-    @State private var cameraAvailable = WebcamManager.shared.cameraAvailable
+    private let cameraAvailable = false
     @Binding var isPomodoroMirrorEnabled: Bool
 
     var body: some View {
@@ -779,7 +777,6 @@ private struct PomodoroHomePage: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onReceive(WebcamManager.shared.$cameraAvailable.removeDuplicates()) { cameraAvailable = $0 }
     }
 }
 

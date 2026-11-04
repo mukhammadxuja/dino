@@ -177,9 +177,6 @@ struct SettingsView: View {
                     SettingsSidebarItemRow(title: "Pomodoro", icon: "timer", iconBg: Color(red: 0.95, green: 0.35, blue: 0.25), isSelected: selectedTab == "Pomodoro") {
                         selectedTab = "Pomodoro"
                     }
-                    SettingsSidebarItemRow(title: "Code", icon: "chevron.left.forwardslash.chevron.right", iconBg: Color(red: 0.20, green: 0.78, blue: 0.55), isSelected: selectedTab == "Code") {
-                        selectedTab = "Code"
-                    }
                     SettingsSidebarItemRow(title: "Shortcuts", icon: "command", iconBg: Color(red: 0.10, green: 0.65, blue: 0.95), isSelected: selectedTab == "Shortcuts") {
                         selectedTab = "Shortcuts"
                     }
@@ -223,8 +220,6 @@ struct SettingsView: View {
                     Shelf()
                 case "Pomodoro":
                     PomodoroSettings()
-                case "Code":
-                    CodeSettingsView()
                 case "Shortcuts":
                     Shortcuts()
                 case "Extensions":
@@ -420,8 +415,6 @@ struct GeneralSettings: View {
     @Default(.clipboardHistoryEnabled) var clipboardHistoryEnabled
     @Default(.clipboardHistoryAutoPaste) var clipboardHistoryAutoPaste
     @Default(.clipboardHistoryMaxItems) var clipboardHistoryMaxItems
-    @Default(.mirrorHUDEnabled) var mirrorHUDEnabled
-    @Default(.mirrorRingLight) var mirrorRingLight
     @Default(.notchWidthAdjustment) private var notchWidthAdjustment
     @Default(.notchHeightAdjustment) private var notchHeightAdjustment
 
@@ -627,72 +620,8 @@ struct GeneralSettings: View {
                 }
 
                 // MARK: - 4. Mirror HUD Card
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Mirror (HUD)")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.secondary)
-                        customBadge(text: "⌥M")
-                    }
-
-                    VStack(spacing: 0) {
-                        // Master Toggle: Enable Mirror HUD
-                        settingRow(
-                            icon: "video.fill",
-                            iconColor: Color.blue,
-                            title: "Enable mirror HUD",
-                            subtitle: "Quickly check your appearance from the notch with zero background battery usage",
-                            isOn: $mirrorHUDEnabled
-                        )
-
-                        if mirrorHUDEnabled {
-                            cardDivider
-
-                            // Shortcut recorder row
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                        .fill(Color.blue.opacity(0.12))
-                                        .frame(width: 28, height: 28)
-                                    Image(systemName: "keyboard.fill")
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(Color.blue)
-                                }
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Global shortcut")
-                                        .font(.system(size: 13.5, weight: .medium))
-                                        .foregroundColor(.primary)
-                                    Text("Press shortcut from anywhere to open mirror HUD")
-                                        .font(.system(size: 11.5))
-                                        .foregroundColor(.secondary)
-                                }
-
-                                Spacer()
-
-                                DinoShortcutRecorder(name: .mirrorHUDPanel)
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-
-                            cardDivider
-
-                            // Default Ring Light toggle
-                            settingRow(
-                                icon: "lightbulb.fill",
-                                iconColor: Color.yellow,
-                                title: "Soft Ring Light default",
-                                subtitle: "Automatically illuminate the viewport perimeter for low-light environments",
-                                isOn: $mirrorRingLight
-                            )
-                        }
-                    }
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
-                    )
+                if ReleaseFeatures.mirror {
+                    MirrorSettingsCard()
                 }
 
                 // MARK: - 5. Gestures
@@ -889,6 +818,25 @@ struct GeneralSettings: View {
 }
 
 // MARK: - Lock Screen Settings View
+private struct LockScreenBackgroundStyleCard: View {
+    let style: LockScreenPlayerBackgroundStyle
+    @Binding var selection: LockScreenPlayerBackgroundStyle
+
+    var body: some View {
+        CompactSelectionCard(value: style, selection: $selection) {
+            HStack(spacing: 8) {
+                Image(systemName: style == .glass ? "square.on.square" : "square.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(selection == style ? Color.effectiveAccent : .secondary)
+
+                Text(style.title)
+                    .font(.system(size: 12, weight: selection == style ? .semibold : .medium))
+                    .foregroundColor(selection == style ? .primary : .secondary)
+            }
+        }
+    }
+}
+
 struct LockScreenSettingsView: View {
     @Default(.showOnLockScreen) private var showOnLockScreen
     @Default(.lockScreenPlayerEnabled) private var lockScreenPlayerEnabled
@@ -942,34 +890,16 @@ struct LockScreenSettingsView: View {
                         if lockScreenPlayerEnabled {
                             cardDivider
 
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                        .fill(Color.purple.opacity(0.12))
-                                        .frame(width: 28, height: 28)
-                                    Image(systemName: "paintpalette.fill")
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(Color.purple)
-                                }
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Background style")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.secondary)
 
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Background style")
-                                        .font(.system(size: 13.5, weight: .medium))
-                                        .foregroundColor(.primary)
-                                    Text("Visual appearance of the lock screen player card")
-                                        .font(.system(size: 11.5))
-                                        .foregroundColor(.secondary)
-                                }
-
-                                Spacer()
-
-                                Picker("", selection: $lockScreenPlayerBackgroundStyle) {
+                                HStack(spacing: 8) {
                                     ForEach(LockScreenPlayerBackgroundStyle.allCases) { style in
-                                        Text(style.title).tag(style)
+                                        LockScreenBackgroundStyleCard(style: style, selection: $lockScreenPlayerBackgroundStyle)
                                     }
                                 }
-                                .pickerStyle(.menu)
-                                .frame(width: 140)
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
@@ -6445,7 +6375,6 @@ struct MediaSourceCard: View {
 struct SneakPeekStyleCard: View {
     let style: SneakPeekStyle
     @Binding var selection: SneakPeekStyle
-    @State private var isHovered = false
 
     var isSelected: Bool {
         selection == style
@@ -6470,49 +6399,18 @@ struct SneakPeekStyleCard: View {
     }
 
     var body: some View {
-        Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                selection = style
-            }
-        } label: {
+        CompactSelectionCard(value: style, selection: $selection) {
             HStack(spacing: 8) {
                 Image(systemName: iconName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(isSelected ? Color.effectiveAccent : (isHovered ? .primary : .secondary))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(isSelected ? Color.effectiveAccent : .secondary)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(style.rawValue)
-                        .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
-                        .foregroundColor(isSelected ? .primary : .secondary)
-                    Text(description)
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                }
+                Text(style.rawValue)
+                    .font(.system(size: 12, weight: isSelected ? .semibold : .medium))
+                    .foregroundColor(isSelected ? .primary : .secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(
-                        isSelected
-                            ? Color.effectiveAccent.opacity(0.12)
-                            : (isHovered ? Color.primary.opacity(0.06) : Color.primary.opacity(0.03))
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(
-                        isSelected ? Color.effectiveAccent : Color.primary.opacity(0.08),
-                        lineWidth: isSelected ? 1.5 : 1
-                    )
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .onHover { hov in
-            isHovered = hov
-        }
+        .help(description)
     }
 }
 
@@ -6664,6 +6562,10 @@ struct Media: View {
                                 SneakPeekStyleCard(style: style, selection: $sneakPeekStyles)
                             }
                         }
+
+                        Text(sneakPeekStyles == .standard ? "Rich card popup with album art." : "Compact inline banner in the notch.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
@@ -8300,69 +8202,6 @@ struct AccentCircleButton: View {
     }
 }
 
-struct CodeSettingsView: View {
-    @Default(.codeActivityEnabled) private var codeActivityEnabled
-    @Default(.codeSoundNotifications) private var codeSoundNotifications
-    @Default(.codeShowInClosedNotch) private var codeShowInClosedNotch
-    @ObservedObject private var antigravityManager = AntigravityManager.shared
-
-    var body: some View {
-        Form {
-            Section {
-                Defaults.Toggle(key: .codeActivityEnabled) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "curlybraces")
-                            .foregroundStyle(Color(red: 0.20, green: 0.78, blue: 0.55))
-                        Text("Enable Code Activity in Notch")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                }
-                .onChange(of: codeActivityEnabled) { _, isEnabled in
-                    if !isEnabled {
-                        antigravityManager.setPhase(.idle)
-                    }
-                }
-            } header: {
-                Text("Code & AI Assistant")
-            } footer: {
-                Text("Displays real-time Antigravity AI Agent activity (Analyzing, Thinking, Reading, Editing files, Running commands) in the notch and Dynamic Island.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if codeActivityEnabled {
-                Section {
-                    Defaults.Toggle(key: .codeShowInClosedNotch) {
-                        Text("Show in closed notch / island")
-                    }
-                    Defaults.Toggle(key: .codeSoundNotifications) {
-                        Text("Sound notifications on completion & permissions")
-                    }
-                } header: {
-                    Text("Behavior")
-                } footer: {
-                    Text("When closed notch is enabled, the notch smoothly expands to show live coding phases and status indicators.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section {
-                    AntigravityDemoView()
-                        .padding(.vertical, 4)
-                } header: {
-                    Text("Interactive Preview & Testing")
-                } footer: {
-                    Text("Click any state to preview how the notch reacts in real time.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .accentColor(.effectiveAccent)
-        .navigationTitle("Code")
-    }
-}
-
 struct Shortcuts: View {
     var body: some View {
         Form {
@@ -8383,7 +8222,6 @@ struct Shortcuts: View {
                 DinoShortcutRow("Pomodoro Timer:", name: .selectPomodoroModule)
                 DinoShortcutRow("Calendar:", name: .selectCalendarModule)
                 DinoShortcutRow("Battery Status:", name: .selectBatteryModule)
-                DinoShortcutRow("Coding Activity:", name: .selectCodingModule)
                 DinoShortcutRow("Shelf (Upload):", name: .selectShelfModule)
             } header: {
                 Text("Switch Active Module")
@@ -8396,7 +8234,6 @@ struct Shortcuts: View {
 
             Section {
                 DinoShortcutRow("Clipboard History (HUD):", name: .clipboardHistoryPanel)
-                DinoShortcutRow("Mirror (HUD):", name: .mirrorHUDPanel)
                 DinoShortcutRow("Toggle Notch Open:", name: .toggleNotchOpen)
             } header: {
                 Text("Floating HUDs & Overlays")

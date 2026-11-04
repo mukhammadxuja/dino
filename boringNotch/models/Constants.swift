@@ -9,6 +9,13 @@ import SwiftUI
 import Defaults
 import AppKit
 
+// Initial-release switches. Feature implementations stay intact for later releases.
+enum ReleaseFeatures {
+    static let code = false
+    static let mirror = false
+    static let downloads = false
+}
+
 private let availableDirectories = FileManager
     .default
     .urls(for: .documentDirectory, in: .userDomainMask)

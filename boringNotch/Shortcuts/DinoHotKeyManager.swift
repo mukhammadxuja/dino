@@ -76,14 +76,6 @@ public final class DinoHotKeyManager {
             }
         }
 
-        // Mirror Notch Card (`Option + M`)
-        KeyboardShortcuts.onKeyDown(for: .mirrorHUDPanel) {
-            Task { @MainActor in
-                guard Defaults[.mirrorHUDEnabled] else { return }
-                DinoCoordinator.shared.toggleOrMorphSlot(.webcam)
-            }
-        }
-        
         // Emergency Exit / Escape: Close open card and restore P3 background immediately
         KeyboardShortcuts.onKeyDown(for: .pomodoroEmergencyExit) {
             Task { @MainActor in

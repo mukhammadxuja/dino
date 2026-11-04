@@ -29,6 +29,15 @@ public enum DinoSlot: Equatable, Hashable, Sendable {
     case download
     case webcam
     case hud(HUDType)
+
+    var isAvailableInRelease: Bool {
+        switch self {
+        case .coding: return ReleaseFeatures.code
+        case .webcam: return ReleaseFeatures.mirror
+        case .download: return ReleaseFeatures.downloads
+        default: return true
+        }
+    }
     
     public enum HUDType: Equatable, Hashable, Sendable {
         case volume(value: Double)
@@ -189,6 +198,7 @@ public final class DinoCoordinator: ObservableObject {
     
     /// Directly sets the active slot and synchronizes legacy state
     public func activateSlotDirectly(_ slot: DinoSlot) {
+        guard slot.isAvailableInRelease else { return }
         onDemandDismissTask?.cancel()
         onDemandDismissTask = nil
         interruptStack.removeAll()
@@ -208,6 +218,7 @@ public final class DinoCoordinator: ObservableObject {
     /// Trigger a P1 Toast (e.g., Volume HUD, Brightness, Charger)
     /// Automatically interrupts the current view and restores it after `duration`.
     public func triggerToast(_ slot: DinoSlot, duration: TimeInterval = 1.5, animated: Bool = true) {
+        guard slot.isAvailableInRelease else { return }
         toastDismissTask?.cancel()
         toastDismissTask = nil
         
@@ -261,6 +272,7 @@ public final class DinoCoordinator: ObservableObject {
     /// Activate a P2 On-Demand feat via Shortcut or Menu (e.g., Weather, Pomodoro, Calendar)
     /// If `timeout` is provided (and not 0), auto-dismisses back to backgroundSlot after timeout.
     public func activateOnDemand(_ slot: DinoSlot, timeout: TimeInterval? = 5.0) {
+        guard slot.isAvailableInRelease else { return }
         onDemandDismissTask?.cancel()
         onDemandDismissTask = nil
         
@@ -415,6 +427,7 @@ public final class DinoCoordinator: ObservableObject {
     /// - 2nd press (same slot open): closes card and returns to previous P3 background
     /// - Cross-shortcut press (different slot open): smoothly morphs content and size in-place without closing
     public func toggleOrMorphSlot(_ slot: DinoSlot) {
+        guard slot.isAvailableInRelease else { return }
         let appDelegate = NSApp.delegate as? AppDelegate
         let allVMs: [BoringViewModel] = {
             if let vms = appDelegate?.viewModels.values, !vms.isEmpty {
@@ -497,7 +510,7 @@ public final class DinoCoordinator: ObservableObject {
             newBackground = .music
         } else if isPomodoroRunning {
             newBackground = .pomodoro
-        } else if isDownloading {
+        } else if isDownloading && ReleaseFeatures.downloads {
             newBackground = .download
         }
         

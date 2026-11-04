@@ -147,7 +147,6 @@ struct ContentView: View {
 
     private var musicManager: MusicManager { MusicManager.shared }
     private var pomodoroManager: PomodoroManager { PomodoroManager.shared }
-    private var antigravityManager: AntigravityManager { AntigravityManager.shared }
     @State private var hoverTask: Task<Void, Never>?
     @State private var isHovering: Bool = false
     @State private var anyDropDebounceTask: Task<Void, Never>?
@@ -479,10 +478,11 @@ struct ContentView: View {
     }
 
     private var isAntigravityActive: Bool {
-        Defaults[.codeActivityEnabled]
+        ReleaseFeatures.code
+            && Defaults[.codeActivityEnabled]
             && Defaults[.codeShowInClosedNotch]
-            && ((coordinator.expandingView.type == .antigravity && coordinator.expandingView.show) || antigravityManager.isVisible)
-            && antigravityManager.currentPhase != .idle
+            && ((coordinator.expandingView.type == .antigravity && coordinator.expandingView.show) || AntigravityManager.shared.isVisible)
+            && AntigravityManager.shared.currentPhase != .idle
             && vm.notchState == .closed
     }
 
@@ -530,7 +530,7 @@ struct ContentView: View {
             && vm.notchState == .closed
             && !vm.hideOnClosed
             && (!musicManager.isPlaying && musicManager.isPlayerIdle)
-            && (showCalendar || showNotHumanFace || showMirror)
+            && (showCalendar || showNotHumanFace || (ReleaseFeatures.mirror && showMirror))
     }
 
     private var hasActiveFeature: Bool {
@@ -785,8 +785,6 @@ struct ContentView: View {
                     .onReceive(MusicManager.shared.$isPlaying) { _ in }
                     .onReceive(MusicManager.shared.$isPlayerIdle) { _ in }
                     .onReceive(PomodoroManager.shared.$state) { _ in }
-                    .onReceive(AntigravityManager.shared.$isVisible) { _ in }
-                    .onReceive(AntigravityManager.shared.$currentPhase) { _ in }
                     .onChange(of: coordinator.sneakPeek.show) { _, isShowing in
                         if isShowing && coordinator.sneakPeek.type == .music && vm.notchState == .closed {
                             transientVisibilityTask?.cancel()
@@ -936,7 +934,7 @@ struct ContentView: View {
                 islandStyle: islandStyle,
                 showCalendar: showCalendar,
                 showNotHumanFace: showNotHumanFace,
-                showMirror: showMirror,
+                showMirror: ReleaseFeatures.mirror && showMirror,
                 isHovering: $isHovering,
                 showCoverHoverMusicDetails: $showCoverHoverMusicDetails,
                 coverHoverDismissTask: $coverHoverDismissTask,
