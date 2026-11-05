@@ -122,6 +122,18 @@ private struct GeneralSystemSettingsCard: View {
 private struct GeneralIdleActivitySection: View {
     @Binding var idleClickAction: IdleClickAction
 
+    private var availableSelection: Binding<IdleClickAction> {
+        Binding(
+            get: {
+                if idleClickAction == .weather || (!ReleaseFeatures.calendar && idleClickAction == .calendar) {
+                    return .none
+                }
+                return idleClickAction
+            },
+            set: { idleClickAction = $0 }
+        )
+    }
+
     var body: some View {
                 // MARK: - 2. Idle Activity
                 VStack(alignment: .leading, spacing: 8) {
@@ -134,8 +146,8 @@ private struct GeneralIdleActivitySection: View {
                         .foregroundColor(.secondary)
 
                     HStack(spacing: 8) {
-                        ForEach([IdleClickAction.none, .music, .pomodoro, .weather] + (ReleaseFeatures.calendar ? [.calendar] : [])) { action in
-                            IdleActivityCard(action: action, selection: $idleClickAction)
+                        ForEach([IdleClickAction.none, .music, .pomodoro] + (ReleaseFeatures.calendar ? [.calendar] : [])) { action in
+                            IdleActivityCard(action: action, selection: availableSelection)
                         }
                     }
                 }
@@ -146,6 +158,7 @@ private struct GeneralClipboardSettingsCard: View {
     @Default(.clipboardHistoryEnabled) private var clipboardHistoryEnabled
     @Default(.clipboardHistoryAutoPaste) private var clipboardHistoryAutoPaste
     @Default(.clipboardHistoryMaxItems) private var clipboardHistoryMaxItems
+    @Default(.clipboardHistoryPersist) private var clipboardHistoryPersist
 
     var body: some View {
                 // MARK: - 3. Clipboard History Card
@@ -206,6 +219,16 @@ private struct GeneralClipboardSettingsCard: View {
                                 title: "Auto-paste on selection",
                                 subtitle: "Instantly paste the selected item into the previous active application",
                                 isOn: $clipboardHistoryAutoPaste
+                            )
+
+                            cardDivider
+
+                            settingRow(
+                                icon: "internaldrive",
+                                iconColor: Color.green,
+                                title: "Keep history after quitting",
+                                subtitle: "Save history locally; turning this off deletes the saved copy",
+                                isOn: $clipboardHistoryPersist
                             )
 
                             cardDivider

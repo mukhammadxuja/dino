@@ -23,6 +23,16 @@ public final class ClipboardManager: ObservableObject {
     private var lastChangeCount: Int = NSPasteboard.general.changeCount
     private var pollTimer: Timer?
     private var previousApp: NSRunningApplication?
+    private var settingsObservers = Set<AnyCancellable>()
+    private let storageQueue = DispatchQueue(label: "app.dino.clipboard.history", qos: .utility)
+    private var isLoadingHistory = false
+    private var historyGeneration = 0
+
+    private static var historyURL: URL {
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return directory.appendingPathComponent(Bundle.main.bundleIdentifier ?? "Dino", isDirectory: true)
+            .appendingPathComponent("clipboard-history.plist")
+    }
 
     // Concealed types used by password managers (1Password, Bitwarden, Keychain, etc.)
     private let concealedTypeIdentifiers: Set<String> = [
@@ -34,13 +44,33 @@ public final class ClipboardManager: ObservableObject {
     ]
 
     private init() {
-        startMonitoring()
+        if Defaults[.clipboardHistoryPersist] {
+            loadHistory()
+        }
+        Defaults.publisher(.clipboardHistoryPersist, options: [])
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] change in
+                Task { @MainActor in
+                    guard change.newValue == Defaults[.clipboardHistoryPersist] else { return }
+                    self?.setPersistenceEnabled(change.newValue)
+                }
+            }
+            .store(in: &settingsObservers)
+        Defaults.publisher(.clipboardHistoryMaxItems, options: [])
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.trimHistory()
+                    self?.saveHistory()
+                }
+            }
+            .store(in: &settingsObservers)
     }
 
     // MARK: - Monitoring
 
     public func startMonitoring() {
-        stopMonitoring()
+        guard Defaults[.clipboardHistoryEnabled], pollTimer == nil else { return }
         lastChangeCount = NSPasteboard.general.changeCount
         pollTimer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -52,6 +82,72 @@ public final class ClipboardManager: ObservableObject {
     public func stopMonitoring() {
         pollTimer?.invalidate()
         pollTimer = nil
+        ClipboardPanelController.shared.hide()
+    }
+
+    private func trimHistory() {
+        let limit = max(10, Defaults[.clipboardHistoryMaxItems])
+        while items.count > limit, let index = items.lastIndex(where: { !$0.isPinned }) {
+            items.remove(at: index)
+        }
+    }
+
+    private func loadHistory() {
+        isLoadingHistory = true
+        historyGeneration += 1
+        let generation = historyGeneration
+        let url = Self.historyURL
+        storageQueue.async { [weak self] in
+            let saved = (try? Data(contentsOf: url)).flatMap { try? PropertyListDecoder().decode([ClipboardItem].self, from: $0) } ?? []
+            Task { @MainActor [weak self] in
+                guard let self, self.historyGeneration == generation, Defaults[.clipboardHistoryPersist] else { return }
+                let current = self.items
+                self.items = current + saved.filter { old in
+                    !current.contains { item in
+                        item.id == old.id || (item.stringValue != nil && item.stringValue == old.stringValue)
+                            || (item.imageData != nil && item.imageData == old.imageData)
+                    }
+                }
+                self.isLoadingHistory = false
+                self.trimHistory()
+                self.saveHistory()
+            }
+        }
+    }
+
+    private func setPersistenceEnabled(_ enabled: Bool) {
+        historyGeneration += 1
+        isLoadingHistory = false
+        if enabled {
+            saveHistory()
+        } else {
+            let url = Self.historyURL
+            storageQueue.async {
+                do {
+                    if FileManager.default.fileExists(atPath: url.path) {
+                        try FileManager.default.removeItem(at: url)
+                    }
+                } catch {
+                    NSLog("Clipboard history removal failed: %@", error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func saveHistory() {
+        guard Defaults[.clipboardHistoryPersist], !isLoadingHistory else { return }
+        let snapshot = items
+        let url = Self.historyURL
+        storageQueue.async {
+            do {
+                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                let data = try PropertyListEncoder().encode(snapshot)
+                try data.write(to: url, options: .atomic)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            } catch {
+                NSLog("Clipboard history save failed: %@", error.localizedDescription)
+            }
+        }
     }
 
     private func checkPasteboard() {
@@ -143,6 +239,13 @@ public final class ClipboardManager: ObservableObject {
     }
 
     private func insertItem(_ item: ClipboardItem) {
+        var item = item
+        if items.contains(where: { existing in
+            existing.isPinned && ((existing.stringValue != nil && existing.stringValue == item.stringValue)
+                || (existing.imageData != nil && existing.imageData == item.imageData))
+        }) {
+            item.isPinned = true
+        }
         // If exact item already exists, remove it first so it moves to top
         items.removeAll { existing in
             if let s1 = existing.stringValue, let s2 = item.stringValue, s1 == s2 {
@@ -156,14 +259,8 @@ public final class ClipboardManager: ObservableObject {
 
         items.insert(item, at: 0)
 
-        // Respect max items limit while preserving pinned items
-        let maxLimit = max(10, Defaults[.clipboardHistoryMaxItems])
-        if items.count > maxLimit {
-            let unpinnedIndices = items.indices.filter { !items[$0].isPinned && $0 >= maxLimit }
-            if let lastIndex = unpinnedIndices.last {
-                items.remove(at: lastIndex)
-            }
-        }
+        trimHistory()
+        saveHistory()
     }
 
     // MARK: - Filtered Items
@@ -217,16 +314,20 @@ public final class ClipboardManager: ObservableObject {
     public func togglePin(item: ClipboardItem) {
         if let idx = items.firstIndex(where: { $0.id == item.id }) {
             items[idx].isPinned.toggle()
+            trimHistory()
+            saveHistory()
         }
     }
 
     public func removeItem(item: ClipboardItem) {
         items.removeAll { $0.id == item.id }
+        saveHistory()
     }
 
     public func clearAll() {
         // Keep pinned items, delete unpinned
         items.removeAll { !$0.isPinned }
+        saveHistory()
     }
 
     public func pickColorFromScreen() {

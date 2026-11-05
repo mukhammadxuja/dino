@@ -31,7 +31,7 @@ public enum ClipboardItemType: String, Codable, CaseIterable, Identifiable, Send
     }
 }
 
-public struct ClipboardItem: Identifiable, Equatable, Hashable, Sendable {
+public struct ClipboardItem: Identifiable, Equatable, Hashable, Codable, Sendable {
     public let id: UUID
     public let type: ClipboardItemType
     public let stringValue: String?

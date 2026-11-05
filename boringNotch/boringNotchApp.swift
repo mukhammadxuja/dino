@@ -78,6 +78,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var screenGlowObservers: Set<AnyCancellable> = []
     private var glowWindowDismissTask: Task<Void, Never>?
     private var pomodoroNotificationObservers: Set<AnyCancellable> = []
+    private var clipboardEnabledObserver: AnyCancellable?
+    private var clipboardManager: ClipboardManager?
     private var strictModeEscGlobalMonitor: Any?
     private var strictModeEscLocalMonitor: Any?
     private var lastStrictModeEscPressAt: Date?
@@ -753,7 +755,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
 
         DinoHotKeyManager.shared.registerAllShortcuts()
-        _ = ClipboardManager.shared
+        if Defaults[.clipboardHistoryEnabled] {
+            clipboardManager = ClipboardManager.shared
+            clipboardManager?.startMonitoring()
+        }
+        clipboardEnabledObserver = Defaults.publisher(.clipboardHistoryEnabled, options: [])
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] change in
+                Task { @MainActor in
+                    guard let self, change.newValue == Defaults[.clipboardHistoryEnabled] else { return }
+                    if change.newValue {
+                        let manager = ClipboardManager.shared
+                        self.clipboardManager = manager
+                        manager.startMonitoring()
+                    } else {
+                        self.clipboardManager?.stopMonitoring()
+                    }
+                }
+            }
         _ = MicrophoneManager.shared
         _ = PrivacyHUDManager.shared
         CapsLockManager.shared.start()

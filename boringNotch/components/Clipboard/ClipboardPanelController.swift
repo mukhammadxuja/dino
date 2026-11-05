@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import Defaults
 import SwiftUI
 
 // Subclass NSPanel to allow borderless floating panel to accept key and main focus for text input
@@ -42,6 +43,7 @@ public final class ClipboardPanelController: NSObject, NSWindowDelegate {
     }
 
     public func show() {
+        guard Defaults[.clipboardHistoryEnabled] else { return }
         ClipboardManager.shared.rememberPreviousApp()
         ClipboardManager.shared.searchText = ""
         ClipboardManager.shared.selectedIndex = 0

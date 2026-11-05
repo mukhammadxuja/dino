@@ -1080,6 +1080,14 @@ struct ContentView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: workItem)
     }
 
+    private var availableIdleClickAction: IdleClickAction {
+        let action = Defaults[.idleClickAction]
+        if action == .weather || (!ReleaseFeatures.calendar && action == .calendar) {
+            return .none
+        }
+        return action
+    }
+
     private func handleTap() {
         if vm.notchState == .open {
             return
@@ -1116,7 +1124,7 @@ struct ContentView: View {
             }
             doOpen()
         } else {
-            switch Defaults[.idleClickAction] {
+            switch availableIdleClickAction {
             case .none:
                 triggerIdleBounce()
             case .music:
@@ -1350,8 +1358,7 @@ struct ContentView: View {
         if direction == .down {
             eligible = beganClosed
                 ? (vm.notchState == .closed
-                    && (hasActiveFeature || (Defaults[.idleClickAction] != .none
-                        && (ReleaseFeatures.calendar || Defaults[.idleClickAction] != .calendar))))
+                    && (hasActiveFeature || availableIdleClickAction != .none))
                 : (vm.notchState == .open && canCycleOpenSlot)
         } else {
             eligible = !beganClosed && vm.notchState == .open

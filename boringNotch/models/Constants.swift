@@ -436,7 +436,8 @@ extension Defaults.Keys {
     static let selectedVisualizer = Key<CustomVisualizer?>("selectedVisualizer", default: nil)
     
     // MARK: Clipboard History
-    static let clipboardHistoryEnabled = Key<Bool>("clipboardHistoryEnabled", default: true)
+    static let clipboardHistoryEnabled = Key<Bool>("clipboardHistoryEnabled", default: false)
+    static let clipboardHistoryPersist = Key<Bool>("clipboardHistoryPersist", default: false)
     static let clipboardHistoryAutoPaste = Key<Bool>("clipboardHistoryAutoPaste", default: true)
     static let clipboardHistoryMaxItems = Key<Int>("clipboardHistoryMaxItems", default: 50)
 
