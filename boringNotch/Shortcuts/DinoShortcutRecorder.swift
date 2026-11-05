@@ -48,7 +48,7 @@ public final class ShortcutRegistry: ObservableObject {
         .init(name: .toggleMicrophone, title: "Toggle Microphone", category: "System"),
         .init(name: .decreaseBacklight, title: "Decrease Backlight", category: "System"),
         .init(name: .increaseBacklight, title: "Increase Backlight", category: "System")
-    ]
+    ].filter { ReleaseFeatures.calendar || ($0.name != .selectCalendarModule && $0.name != .optionCalendarShortcut) }
 
     private init() {}
 

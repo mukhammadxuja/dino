@@ -7,6 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B96F62DC7CBA22167BA52D9C /* ShortcutsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC53397C6CDCE7B0E1F69822 /* ShortcutsSettingsView.swift */; };
+		D1B7A9496130E8E50649568D /* AdvancedSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CF95B8DF19AE1D76A7F4256 /* AdvancedSettingsView.swift */; };
+		6274972D1B812DE66724EAF7 /* AboutSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8B545E10BB7EDA8F392F5A0 /* AboutSettingsView.swift */; };
+		18A21E502F7B00841DD30F8A /* CalendarSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 891A2F9269020D5F59FCB893 /* CalendarSettingsView.swift */; };
+		DC134FF8781936E246B4710E /* ShelfSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 937FAAFFF09DCD000D295E39 /* ShelfSettingsView.swift */; };
+		E6649423544C7446A1EF5162 /* LockScreenSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00A247FBEAB12F4556F44BE8 /* LockScreenSettingsView.swift */; };
+		0B82D5BF6AFA10A91282D1D8 /* HoverDelaySlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EC33FAB1D1F936E52DC6603 /* HoverDelaySlider.swift */; };
+		965DC0706A1688278EC14A77 /* AppearanceDisplaySettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4622F52FEEDE2F4323641F2C /* AppearanceDisplaySettingsSection.swift */; };
+		E6503874637363000CBCF901 /* AppearanceHoverSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C94A356BEEEACB81A429DCE /* AppearanceHoverSettingsSection.swift */; };
+		BE77F4D837B26B2C79BE0734 /* AppearanceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BBAAD9AC2BDE5786E619FA /* AppearanceSettingsView.swift */; };
+		8F3378765BAE378141772929 /* NotchTuningSliderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D3D0442C95C2808DE8CDC7 /* NotchTuningSliderRow.swift */; };
+		D9DADFF1DE75C2393DA4529E /* IdleActivityCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF97DE0C8B87F7E3E481BA6E /* IdleActivityCard.swift */; };
+		E8837D1D612DD7DFFFA94894 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03C4F712A9EC1D36BEBA974 /* GeneralSettingsView.swift */; };
+		A319CF92352B4B9C91675002 /* PomodoroSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A319CF92352B4B9C91675001 /* PomodoroSettingsView.swift */; };
 		1100290C2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */; };
 		110029272E84FD4C00035A57 /* TemporaryFileStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */; };
 		1100292A2E8691B400035A57 /* FileShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110029292E8691B400035A57 /* FileShareView.swift */; };
@@ -234,6 +248,20 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		EC53397C6CDCE7B0E1F69822 /* ShortcutsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsSettingsView.swift; sourceTree = "<group>"; };
+		2CF95B8DF19AE1D76A7F4256 /* AdvancedSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedSettingsView.swift; sourceTree = "<group>"; };
+		C8B545E10BB7EDA8F392F5A0 /* AboutSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutSettingsView.swift; sourceTree = "<group>"; };
+		891A2F9269020D5F59FCB893 /* CalendarSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarSettingsView.swift; sourceTree = "<group>"; };
+		937FAAFFF09DCD000D295E39 /* ShelfSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfSettingsView.swift; sourceTree = "<group>"; };
+		00A247FBEAB12F4556F44BE8 /* LockScreenSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenSettingsView.swift; sourceTree = "<group>"; };
+		1EC33FAB1D1F936E52DC6603 /* HoverDelaySlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoverDelaySlider.swift; sourceTree = "<group>"; };
+		4622F52FEEDE2F4323641F2C /* AppearanceDisplaySettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceDisplaySettingsSection.swift; sourceTree = "<group>"; };
+		0C94A356BEEEACB81A429DCE /* AppearanceHoverSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceHoverSettingsSection.swift; sourceTree = "<group>"; };
+		B9BBAAD9AC2BDE5786E619FA /* AppearanceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsView.swift; sourceTree = "<group>"; };
+		12D3D0442C95C2808DE8CDC7 /* NotchTuningSliderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchTuningSliderRow.swift; sourceTree = "<group>"; };
+		FF97DE0C8B87F7E3E481BA6E /* IdleActivityCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleActivityCard.swift; sourceTree = "<group>"; };
+		B03C4F712A9EC1D36BEBA974 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
+		A319CF92352B4B9C91675001 /* PomodoroSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PomodoroSettingsView.swift; sourceTree = "<group>"; };
 		1100290B2E847E2800035A57 /* NSItemProvider+LoadHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSItemProvider+LoadHelpers.swift"; sourceTree = "<group>"; };
 		110029262E84FD4C00035A57 /* TemporaryFileStorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporaryFileStorageService.swift; sourceTree = "<group>"; };
 		110029292E8691B400035A57 /* FileShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileShareView.swift; sourceTree = "<group>"; };
@@ -837,7 +865,16 @@
 			isa = PBXGroup;
 			children = (
 				11C5E3152DFE88510065821E /* SettingsView.swift */,
+				76DCADC110EF8E82E2AE15E7 /* Shortcuts */,
+				E82E50754B02A0E4FDD5C8E0 /* Advanced */,
+				EF1D2343AD6756D3823E5ADE /* About */,
+				21AE8A26E6E39EB1ECE8DBE2 /* Calendar */,
+				4B9A1E3BFD0CC9668DB8953C /* Shelf */,
+				585589930EBDA6729C90BBBE /* LockScreen */,
+				29602A84CDA3486A2C4164B1 /* Appearance */,
+				99327C729F08C3553CE4AEB8 /* General */,
 				BB444E5FD20C69F5ED39A35D /* Media */,
+				A319CF92352B4B9C91675003 /* Pomodoro */,
 				C9442A6868C5F2955AD7FEC1 /* SettingsKeyboardBadge.swift */,
 				8AC4800C8364CEBF19D2BC8F /* HUD */,
 				D0D5EE31AEC5046EE82A6208 /* Battery */,
@@ -936,6 +973,83 @@
 				11F748832ECB27DC00F841DB /* MusicSlotConfigurationView.swift */,
 			);
 			path = Media;
+			sourceTree = "<group>";
+		};
+		A319CF92352B4B9C91675003 /* Pomodoro */ = {
+			isa = PBXGroup;
+			children = (
+				A319CF92352B4B9C91675001 /* PomodoroSettingsView.swift */,
+			);
+			path = Pomodoro;
+			sourceTree = "<group>";
+		};
+		99327C729F08C3553CE4AEB8 /* General */ = {
+			isa = PBXGroup;
+			children = (
+				B03C4F712A9EC1D36BEBA974 /* GeneralSettingsView.swift */,
+				FF97DE0C8B87F7E3E481BA6E /* IdleActivityCard.swift */,
+				12D3D0442C95C2808DE8CDC7 /* NotchTuningSliderRow.swift */,
+			);
+			path = General;
+			sourceTree = "<group>";
+		};
+		29602A84CDA3486A2C4164B1 /* Appearance */ = {
+			isa = PBXGroup;
+			children = (
+				B9BBAAD9AC2BDE5786E619FA /* AppearanceSettingsView.swift */,
+				0C94A356BEEEACB81A429DCE /* AppearanceHoverSettingsSection.swift */,
+				4622F52FEEDE2F4323641F2C /* AppearanceDisplaySettingsSection.swift */,
+				1EC33FAB1D1F936E52DC6603 /* HoverDelaySlider.swift */,
+			);
+			path = Appearance;
+			sourceTree = "<group>";
+		};
+		585589930EBDA6729C90BBBE /* LockScreen */ = {
+			isa = PBXGroup;
+			children = (
+				00A247FBEAB12F4556F44BE8 /* LockScreenSettingsView.swift */,
+			);
+			path = LockScreen;
+			sourceTree = "<group>";
+		};
+		4B9A1E3BFD0CC9668DB8953C /* Shelf */ = {
+			isa = PBXGroup;
+			children = (
+				937FAAFFF09DCD000D295E39 /* ShelfSettingsView.swift */,
+			);
+			path = Shelf;
+			sourceTree = "<group>";
+		};
+		21AE8A26E6E39EB1ECE8DBE2 /* Calendar */ = {
+			isa = PBXGroup;
+			children = (
+				891A2F9269020D5F59FCB893 /* CalendarSettingsView.swift */,
+			);
+			path = Calendar;
+			sourceTree = "<group>";
+		};
+		EF1D2343AD6756D3823E5ADE /* About */ = {
+			isa = PBXGroup;
+			children = (
+				C8B545E10BB7EDA8F392F5A0 /* AboutSettingsView.swift */,
+			);
+			path = About;
+			sourceTree = "<group>";
+		};
+		E82E50754B02A0E4FDD5C8E0 /* Advanced */ = {
+			isa = PBXGroup;
+			children = (
+				2CF95B8DF19AE1D76A7F4256 /* AdvancedSettingsView.swift */,
+			);
+			path = Advanced;
+			sourceTree = "<group>";
+		};
+		76DCADC110EF8E82E2AE15E7 /* Shortcuts */ = {
+			isa = PBXGroup;
+			children = (
+				EC53397C6CDCE7B0E1F69822 /* ShortcutsSettingsView.swift */,
+			);
+			path = Shortcuts;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1188,6 +1302,20 @@
 				B10F84A32C6C9596009F3026 /* TestView.swift in Sources */,
 				1443E7F32C609DCE0027C1FC /* matters.swift in Sources */,
 				11C5E3162DFE88510065821E /* SettingsView.swift in Sources */,
+				B96F62DC7CBA22167BA52D9C /* ShortcutsSettingsView.swift in Sources */,
+				D1B7A9496130E8E50649568D /* AdvancedSettingsView.swift in Sources */,
+				6274972D1B812DE66724EAF7 /* AboutSettingsView.swift in Sources */,
+				18A21E502F7B00841DD30F8A /* CalendarSettingsView.swift in Sources */,
+				DC134FF8781936E246B4710E /* ShelfSettingsView.swift in Sources */,
+				E6649423544C7446A1EF5162 /* LockScreenSettingsView.swift in Sources */,
+				0B82D5BF6AFA10A91282D1D8 /* HoverDelaySlider.swift in Sources */,
+				965DC0706A1688278EC14A77 /* AppearanceDisplaySettingsSection.swift in Sources */,
+				E6503874637363000CBCF901 /* AppearanceHoverSettingsSection.swift in Sources */,
+				BE77F4D837B26B2C79BE0734 /* AppearanceSettingsView.swift in Sources */,
+				8F3378765BAE378141772929 /* NotchTuningSliderRow.swift in Sources */,
+				D9DADFF1DE75C2393DA4529E /* IdleActivityCard.swift in Sources */,
+				E8837D1D612DD7DFFFA94894 /* GeneralSettingsView.swift in Sources */,
+				A319CF92352B4B9C91675002 /* PomodoroSettingsView.swift in Sources */,
 				6201F03E18E54332A3C52313 /* MediaControlsSettingsCard.swift in Sources */,
 				21C58CE632F385CE86F25A54 /* MediaLiveActivitySettingsCard.swift in Sources */,
 				82B02D7CE27D1BADFA2B9477 /* MediaPlaybackSettingsCard.swift in Sources */,

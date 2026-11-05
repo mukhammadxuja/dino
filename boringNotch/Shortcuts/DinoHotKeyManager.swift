@@ -27,14 +27,17 @@ public final class DinoHotKeyManager {
         KeyboardShortcuts.onKeyDown(for: .selectWeatherModule, action: triggerWeather)
         KeyboardShortcuts.onKeyDown(for: .optionWeatherShortcut, action: triggerWeather)
         
-        // Calendar Module (`Cmd + Shift + A` or `Option + C`)
-        let triggerCalendar: () -> Void = {
-            Task { @MainActor in
-                DinoCoordinator.shared.toggleOrMorphSlot(.calendar)
+        if ReleaseFeatures.calendar {
+            // Calendar Module (`Cmd + Shift + A` or `Option + C`)
+            let triggerCalendar: () -> Void = {
+                Task { @MainActor in
+                    DinoCoordinator.shared.toggleOrMorphSlot(.calendar)
+                }
             }
+            KeyboardShortcuts.onKeyDown(for: .selectCalendarModule, action: triggerCalendar)
+            KeyboardShortcuts.onKeyDown(for: .optionCalendarShortcut, action: triggerCalendar)
+
         }
-        KeyboardShortcuts.onKeyDown(for: .selectCalendarModule, action: triggerCalendar)
-        KeyboardShortcuts.onKeyDown(for: .optionCalendarShortcut, action: triggerCalendar)
 
         // Music Module (`Cmd + Shift + P` or `Option + P`)
         let triggerMusic: () -> Void = {

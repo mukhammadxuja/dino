@@ -594,7 +594,7 @@ struct NotchHomeView: View {
         switch activeSlot {
         case .pomodoro:
             return .pomodoro
-        case .calendar:
+        case .calendar where ReleaseFeatures.calendar:
             return .calendar
         case .battery:
             return .battery
@@ -611,7 +611,7 @@ struct NotchHomeView: View {
         if activeModule == .pomodoro {
             return .pomodoro
         }
-        if activeModule == .calendar && Defaults[.showCalendar] {
+        if ReleaseFeatures.calendar && activeModule == .calendar && Defaults[.showCalendar] {
             return .calendar
         }
         if activeModule == .battery {
@@ -654,7 +654,7 @@ struct NotchHomeView: View {
                 case .pomodoro:
                     PomodoroHomePage(isPomodoroMirrorEnabled: $isPomodoroMirrorEnabled)
                 case .calendar:
-                    calendarPage
+                    if ReleaseFeatures.calendar { calendarPage }
                 case .battery:
                     BatteryHomePage()
                 case .shelf:

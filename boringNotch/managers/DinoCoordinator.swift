@@ -32,6 +32,7 @@ public enum DinoSlot: Equatable, Hashable, Sendable {
 
     var isAvailableInRelease: Bool {
         switch self {
+        case .calendar: return ReleaseFeatures.calendar
         case .coding: return ReleaseFeatures.code
         case .webcam: return ReleaseFeatures.mirror
         case .download: return ReleaseFeatures.downloads

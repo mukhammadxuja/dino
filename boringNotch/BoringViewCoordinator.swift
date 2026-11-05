@@ -88,7 +88,7 @@ class BoringViewCoordinator: ObservableObject {
         case "pomodoro": return .pomodoro
         case "shelf": return .shelf
         case "weather": return .weather
-        case "calendar": return .calendar
+        case "calendar": return ReleaseFeatures.calendar ? .calendar : nil
         default: return nil
         }
     }

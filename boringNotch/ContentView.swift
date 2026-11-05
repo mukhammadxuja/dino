@@ -511,12 +511,12 @@ struct ContentView: View {
             && (musicManager.isPlaying || !musicManager.isPlayerIdle || isShowingMusicSneakPeek)
             && coordinator.musicLiveActivityEnabled
             && !vm.hideOnClosed
-            && (activeModule != .calendar || isShowingMusicSneakPeek)
+            && (!ReleaseFeatures.calendar || activeModule != .calendar || isShowingMusicSneakPeek)
             && (activeModule != .pomodoro || isShowingMusicSneakPeek || !pomodoroManager.hasActiveSession)
     }
 
     private var shouldShowCalendarClosedVisual: Bool {
-        showCalendar
+        ReleaseFeatures.calendar && showCalendar
             && activeModule == .calendar
             && vm.notchState == .closed
             && !vm.hideOnClosed
@@ -530,7 +530,7 @@ struct ContentView: View {
             && vm.notchState == .closed
             && !vm.hideOnClosed
             && (!musicManager.isPlaying && musicManager.isPlayerIdle)
-            && (showCalendar || showNotHumanFace || (ReleaseFeatures.mirror && showMirror))
+            && ((ReleaseFeatures.calendar && showCalendar) || showNotHumanFace || (ReleaseFeatures.mirror && showMirror))
     }
 
     private var hasActiveFeature: Bool {
@@ -1130,8 +1130,12 @@ struct ContentView: View {
                 DinoCoordinator.shared.activateSlotDirectly(.weather)
                 doOpen()
             case .calendar:
-                DinoCoordinator.shared.activateSlotDirectly(.calendar)
-                doOpen()
+                if ReleaseFeatures.calendar {
+                    DinoCoordinator.shared.activateSlotDirectly(.calendar)
+                    doOpen()
+                } else {
+                    triggerIdleBounce()
+                }
             }
         }
     }
@@ -1346,7 +1350,8 @@ struct ContentView: View {
         if direction == .down {
             eligible = beganClosed
                 ? (vm.notchState == .closed
-                    && (hasActiveFeature || Defaults[.idleClickAction] != .none))
+                    && (hasActiveFeature || (Defaults[.idleClickAction] != .none
+                        && (ReleaseFeatures.calendar || Defaults[.idleClickAction] != .calendar))))
                 : (vm.notchState == .open && canCycleOpenSlot)
         } else {
             eligible = !beganClosed && vm.notchState == .open

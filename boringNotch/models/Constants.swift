@@ -14,6 +14,7 @@ enum ReleaseFeatures {
     static let code = false
     static let mirror = false
     static let downloads = false
+    static let calendar = false
 }
 
 private let availableDirectories = FileManager

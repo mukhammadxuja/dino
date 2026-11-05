@@ -17,7 +17,7 @@ enum OnboardingStep {
     case finished
 }
 
-private let calendarService = CalendarService()
+private var calendarService: CalendarService { CalendarService() }
 
 struct OnboardingView: View {
     @State var step: OnboardingStep = .welcome
@@ -30,7 +30,7 @@ struct OnboardingView: View {
             case .welcome:
                 WelcomeView {
                     withAnimation(.easeInOut(duration: 0.6)) {
-                        step = .calendarPermission
+                        step = ReleaseFeatures.calendar ? .calendarPermission : .musicPermission
                     }
                 }
                 .transition(.opacity)
@@ -45,13 +45,13 @@ struct OnboardingView: View {
                         Task {
                             await requestCameraPermission()
                             withAnimation(.easeInOut(duration: 0.6)) {
-                                step = .calendarPermission
+                                step = ReleaseFeatures.calendar ? .calendarPermission : .musicPermission
                             }
                         }
                     },
                     onSkip: {
                         withAnimation(.easeInOut(duration: 0.6)) {
-                            step = .calendarPermission
+                            step = ReleaseFeatures.calendar ? .calendarPermission : .musicPermission
                         }
                     }
                 )
