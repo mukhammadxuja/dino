@@ -1193,13 +1193,14 @@ final class BluetoothHUDManager: NSObject, ObservableObject, CBCentralManagerDel
     private var authorizationManager: CBCentralManager?
     private var didInitialFetch = false
     private var didInstallAudioOutputListener = false
+    private var audioOutputListener: AudioObjectPropertyListenerBlock?
     private var isStarted = false
+    private var lifecycleGeneration = 0
     private var lastConnectedDeviceAddress: String = ""
     private var connectAudioPlayer: AVAudioPlayer?
 
     override init() {
         super.init()
-        prewarmConnectSound()
     }
 
     func start() {
@@ -1215,10 +1216,25 @@ final class BluetoothHUDManager: NSObject, ObservableObject, CBCentralManagerDel
     }
 
     func stop() {
-        guard isStarted else { return }
+        lifecycleGeneration &+= 1
         isStarted = false
         connectNotification?.unregister()
         connectNotification = nil
+        if let audioOutputListener {
+            var address = AudioObjectPropertyAddress(
+                mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, .main, audioOutputListener)
+        }
+        audioOutputListener = nil
+        didInstallAudioOutputListener = false
+        didInitialFetch = false
+        lastConnectedDeviceAddress = ""
+        authorizationManager = nil
+        connectAudioPlayer?.stop()
+        connectAudioPlayer = nil
     }
 
     func requestAuthorization() {
@@ -1258,11 +1274,15 @@ final class BluetoothHUDManager: NSObject, ObservableObject, CBCentralManagerDel
     }
 
     func prewarmConnectSound() {
+        guard isStarted, Defaults[.hudAirPodsEnabled], connectAudioPlayer == nil else { return }
+        let generation = lifecycleGeneration
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self = self, self.connectAudioPlayer == nil else { return }
             let player = self.createConnectAudioPlayer()
             player?.prepareToPlay()
             DispatchQueue.main.async {
+                guard generation == self.lifecycleGeneration,
+                      self.isStarted, Defaults[.hudAirPodsEnabled] else { return }
                 self.connectAudioPlayer = player
                 print("🔊 [BluetoothHUDManager] Pre-warmed connect.wav audio player")
             }
@@ -1296,6 +1316,7 @@ final class BluetoothHUDManager: NSObject, ObservableObject, CBCentralManagerDel
     }
 
     func playConnectSound() {
+        guard isStarted, Defaults[.hudAirPodsEnabled] else { return }
         if let player = connectAudioPlayer {
             if player.isPlaying {
                 player.stop()
@@ -1326,6 +1347,7 @@ final class BluetoothHUDManager: NSObject, ObservableObject, CBCentralManagerDel
     }
 
     private func handleDeviceConnection(_ device: IOBluetoothDevice) {
+        guard isStarted, Defaults[.hudAirPodsEnabled] else { return }
         guard let name = device.name, !name.isEmpty else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
                 if let retryName = device.name, !retryName.isEmpty {
@@ -1350,7 +1372,8 @@ final class BluetoothHUDManager: NSObject, ObservableObject, CBCentralManagerDel
     }
 
     func triggerAirPodsHUD(deviceName: String, battery: Int) {
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard self?.isStarted == true, Defaults[.hudAirPodsEnabled] else { return }
             BoringViewCoordinator.shared.toggleSneakPeek(
                 status: true,
                 type: .airPods,
@@ -1408,14 +1431,17 @@ final class BluetoothHUDManager: NSObject, ObservableObject, CBCentralManagerDel
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.evaluateAudioOutputChange()
+        }
         let status = AudioObjectAddPropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject),
             &addr,
-            DispatchQueue.main
-        ) { [weak self] _, _ in
-            self?.evaluateAudioOutputChange()
-        }
+            DispatchQueue.main,
+            listener
+        )
         didInstallAudioOutputListener = status == noErr
+        if status == noErr { audioOutputListener = listener }
     }
 
     private func evaluateAudioOutputChange() {

@@ -46,9 +46,7 @@ final class MediaKeyInterceptor: ObservableObject {
     private var isFeedbackSoundEnabled: Bool = false
     private var lastFeedbackCheck: Date = .distantPast
     
-    private init() {
-        prewarmAudio()
-    }
+    private init() {}
     
     // MARK: - Event Tap
     
@@ -141,6 +139,10 @@ final class MediaKeyInterceptor: ObservableObject {
         }
         runLoopSource = nil
         eventTap = nil
+        audioPlayer?.stop()
+        audioPlayer = nil
+        isFeedbackSoundEnabled = false
+        lastFeedbackCheck = .distantPast
         activationState = .disabled
     }
 
@@ -216,6 +218,8 @@ final class MediaKeyInterceptor: ObservableObject {
     }
     
     private func prewarmAudio() {
+        guard Defaults[.hudReplacement], eventTap != nil, audioPlayer == nil else { return }
+        let generation = lifecycleGeneration
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             // 1. Pre-read and cache feedback sound setting from NSGlobalDomain
             let feedback = UserDefaults.standard.persistentDomain(forName: "NSGlobalDomain")?["com.apple.sound.beep.feedback"] as? Int
@@ -238,10 +242,12 @@ final class MediaKeyInterceptor: ObservableObject {
             }
 
             DispatchQueue.main.async {
-                self?.isFeedbackSoundEnabled = enabled
-                self?.lastFeedbackCheck = Date()
+                guard let self, generation == self.lifecycleGeneration,
+                      Defaults[.hudReplacement], self.eventTap != nil else { return }
+                self.isFeedbackSoundEnabled = enabled
+                self.lastFeedbackCheck = Date()
                 if let player = player {
-                    self?.audioPlayer = player
+                    self.audioPlayer = player
                     print("🔊 [MediaKeyInterceptor] Pre-warmed Bezel audio player (feedback enabled: \(enabled))")
                 }
             }

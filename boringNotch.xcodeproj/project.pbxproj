@@ -183,6 +183,11 @@
 		F5258E898A46E3407F1F4782 /* BatteryNotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 615C6F0DAF61169782B08AD3 /* BatteryNotificationSettingsView.swift */; };
 		9CC5F1A1C7D3A5D2B5FC5C97 /* BatterySettingsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9515BEA4F197AAADC31F98B /* BatterySettingsSupport.swift */; };
 		E97373016CB3E55041FB956C /* BatterySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7780148D9D175700C8A8AE83 /* BatterySettingsView.swift */; };
+		8F440614EE67A02DF75CDEA0 /* HUDIndicatorSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48BDEF2C879D05B4EF174F60 /* HUDIndicatorSettingsView.swift */; };
+		27F4F1D3C1B5053BA870903C /* HUDSettingsPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB9D2155F18CC6D668307BC3 /* HUDSettingsPreview.swift */; };
+		F768E68A591856243992CE44 /* HUDSettingsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA17C0CEDCDA561FC7BF9F8 /* HUDSettingsSupport.swift */; };
+		D12102A15F72930475F6D818 /* HUDSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA9329FDD9953360304366B /* HUDSettingsView.swift */; };
+		8820BA74BD0A08872D6E9978 /* HUDSystemSettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86EFAD008BCD4B5AEF4877FA /* HUDSystemSettingsCard.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -396,6 +401,11 @@
 		4E4387EF6E71E469F7F58304 /* BatteryHistoryCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatteryHistoryCharts.swift; sourceTree = "<group>"; };
 		C1607A4A83B0A95B1DEE7C4B /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		4FF8B8D5A8B85D5081F4EBD2 /* SettingsSidebarBatteryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSidebarBatteryRow.swift; sourceTree = "<group>"; };
+		48BDEF2C879D05B4EF174F60 /* HUDIndicatorSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDIndicatorSettingsView.swift; sourceTree = "<group>"; };
+		AB9D2155F18CC6D668307BC3 /* HUDSettingsPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDSettingsPreview.swift; sourceTree = "<group>"; };
+		0AA17C0CEDCDA561FC7BF9F8 /* HUDSettingsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDSettingsSupport.swift; sourceTree = "<group>"; };
+		BAA9329FDD9953360304366B /* HUDSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDSettingsView.swift; sourceTree = "<group>"; };
+		86EFAD008BCD4B5AEF4877FA /* HUDSystemSettingsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDSystemSettingsCard.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -812,6 +822,7 @@
 			children = (
 				11F748832ECB27DC00F841DB /* MusicSlotConfigurationView.swift */,
 				11C5E3152DFE88510065821E /* SettingsView.swift */,
+				8AC4800C8364CEBF19D2BC8F /* HUD */,
 				D0D5EE31AEC5046EE82A6208 /* Battery */,
 				C0DE00012F00000000000001 /* CodeSettingsView.swift */,
 				C0DE00012F00000000000003 /* MirrorSettingsCard.swift */,
@@ -881,6 +892,18 @@
 				4FF8B8D5A8B85D5081F4EBD2 /* SettingsSidebarBatteryRow.swift */,
 			);
 			path = Legacy;
+			sourceTree = "<group>";
+		};
+		8AC4800C8364CEBF19D2BC8F /* HUD */ = {
+			isa = PBXGroup;
+			children = (
+				48BDEF2C879D05B4EF174F60 /* HUDIndicatorSettingsView.swift */,
+				AB9D2155F18CC6D668307BC3 /* HUDSettingsPreview.swift */,
+				0AA17C0CEDCDA561FC7BF9F8 /* HUDSettingsSupport.swift */,
+				BAA9329FDD9953360304366B /* HUDSettingsView.swift */,
+				86EFAD008BCD4B5AEF4877FA /* HUDSystemSettingsCard.swift */,
+			);
+			path = HUD;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1133,6 +1156,11 @@
 				B10F84A32C6C9596009F3026 /* TestView.swift in Sources */,
 				1443E7F32C609DCE0027C1FC /* matters.swift in Sources */,
 				11C5E3162DFE88510065821E /* SettingsView.swift in Sources */,
+				8F440614EE67A02DF75CDEA0 /* HUDIndicatorSettingsView.swift in Sources */,
+				27F4F1D3C1B5053BA870903C /* HUDSettingsPreview.swift in Sources */,
+				F768E68A591856243992CE44 /* HUDSettingsSupport.swift in Sources */,
+				D12102A15F72930475F6D818 /* HUDSettingsView.swift in Sources */,
+				8820BA74BD0A08872D6E9978 /* HUDSystemSettingsCard.swift in Sources */,
 				0D080ACB88FFB1EF938AE146 /* BatteryMetricsModel.swift in Sources */,
 				99810A92412E190B0CD3AAD6 /* BatteryMetricsReader.swift in Sources */,
 				1929E51F04B7B230D938292B /* BatteryNotificationCards.swift in Sources */,
