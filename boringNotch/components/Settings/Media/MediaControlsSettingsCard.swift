@@ -1,0 +1,52 @@
+import Defaults
+import SwiftUI
+
+struct MediaControlsSettingsCard: View {
+    @Default(.enableLyrics) private var enableLyrics
+
+    // MARK: - 4. Media Controls Card
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Media Controls")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.secondary)
+
+            VStack(spacing: 0) {
+                // Drag & Drop Configuration
+                VStack(alignment: .leading, spacing: 10) {
+                    MusicSlotConfigurationView()
+                }
+                .padding(16)
+
+                MediaSettingsDivider()
+
+                // Lyrics Toggle Row
+                MediaSettingsRow(
+                    icon: "quote.bubble.fill",
+                    iconColor: .purple,
+                    title: "Show lyrics below artist name",
+                    subtitle: "Display real-time lyrics under the track artist when available",
+                    badge: "Beta"
+                ) {
+                    Toggle("", isOn: $enableLyrics)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .tint(.effectiveAccent)
+                }
+            }
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+            )
+
+            Text("Customize which controls appear in the music player. Volume expands when active.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+                .padding(.top, 2)
+        }
+    }
+}

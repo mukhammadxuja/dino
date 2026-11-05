@@ -11,7 +11,6 @@ import UniformTypeIdentifiers
 
 struct MusicSlotConfigurationView: View {
     @Default(.musicControlSlots) private var musicControlSlots
-    @ObservedObject private var musicManager = MusicManager.shared
     @State private var draggedSlot: MusicControlButton?
     @State private var hoveredSlotIndex: Int? = nil
 

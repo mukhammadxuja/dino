@@ -188,6 +188,14 @@
 		F768E68A591856243992CE44 /* HUDSettingsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA17C0CEDCDA561FC7BF9F8 /* HUDSettingsSupport.swift */; };
 		D12102A15F72930475F6D818 /* HUDSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA9329FDD9953360304366B /* HUDSettingsView.swift */; };
 		8820BA74BD0A08872D6E9978 /* HUDSystemSettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86EFAD008BCD4B5AEF4877FA /* HUDSystemSettingsCard.swift */; };
+		6201F03E18E54332A3C52313 /* MediaControlsSettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D08075D6916C489DD881AE1 /* MediaControlsSettingsCard.swift */; };
+		21C58CE632F385CE86F25A54 /* MediaLiveActivitySettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 736ED03FEB6ADA611490C8FA /* MediaLiveActivitySettingsCard.swift */; };
+		82B02D7CE27D1BADFA2B9477 /* MediaPlaybackSettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D289A40656D8C2FFDE263441 /* MediaPlaybackSettingsCard.swift */; };
+		D1B7D03E61DA09F1CE4A1C1B /* MediaSelectionCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCA40C934F7FAD46AF234D7D /* MediaSelectionCards.swift */; };
+		F1113B8326D6EBBC0D134CF1 /* MediaSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E22DB937128505AEDF59E3 /* MediaSettingsRow.swift */; };
+		D6B7C90E90F452FD61F6E09E /* MediaSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814D8EDF9C04191D16D5D730 /* MediaSettingsView.swift */; };
+		C30E6766109BB2A4F5103F92 /* MediaSourceSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FC7BE07D9191ADF64F7DD2 /* MediaSourceSettingsSection.swift */; };
+		C01F18774B612462BCF980A9 /* SettingsKeyboardBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9442A6868C5F2955AD7FEC1 /* SettingsKeyboardBadge.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -406,6 +414,14 @@
 		0AA17C0CEDCDA561FC7BF9F8 /* HUDSettingsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDSettingsSupport.swift; sourceTree = "<group>"; };
 		BAA9329FDD9953360304366B /* HUDSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDSettingsView.swift; sourceTree = "<group>"; };
 		86EFAD008BCD4B5AEF4877FA /* HUDSystemSettingsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDSystemSettingsCard.swift; sourceTree = "<group>"; };
+		0D08075D6916C489DD881AE1 /* MediaControlsSettingsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaControlsSettingsCard.swift; sourceTree = "<group>"; };
+		736ED03FEB6ADA611490C8FA /* MediaLiveActivitySettingsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaLiveActivitySettingsCard.swift; sourceTree = "<group>"; };
+		D289A40656D8C2FFDE263441 /* MediaPlaybackSettingsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPlaybackSettingsCard.swift; sourceTree = "<group>"; };
+		FCA40C934F7FAD46AF234D7D /* MediaSelectionCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaSelectionCards.swift; sourceTree = "<group>"; };
+		14E22DB937128505AEDF59E3 /* MediaSettingsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaSettingsRow.swift; sourceTree = "<group>"; };
+		814D8EDF9C04191D16D5D730 /* MediaSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaSettingsView.swift; sourceTree = "<group>"; };
+		90FC7BE07D9191ADF64F7DD2 /* MediaSourceSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaSourceSettingsSection.swift; sourceTree = "<group>"; };
+		C9442A6868C5F2955AD7FEC1 /* SettingsKeyboardBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsKeyboardBadge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -820,8 +836,9 @@
 		B18654302C6F4590000B926A /* Settings */ = {
 			isa = PBXGroup;
 			children = (
-				11F748832ECB27DC00F841DB /* MusicSlotConfigurationView.swift */,
 				11C5E3152DFE88510065821E /* SettingsView.swift */,
+				BB444E5FD20C69F5ED39A35D /* Media */,
+				C9442A6868C5F2955AD7FEC1 /* SettingsKeyboardBadge.swift */,
 				8AC4800C8364CEBF19D2BC8F /* HUD */,
 				D0D5EE31AEC5046EE82A6208 /* Battery */,
 				C0DE00012F00000000000001 /* CodeSettingsView.swift */,
@@ -904,6 +921,21 @@
 				86EFAD008BCD4B5AEF4877FA /* HUDSystemSettingsCard.swift */,
 			);
 			path = HUD;
+			sourceTree = "<group>";
+		};
+		BB444E5FD20C69F5ED39A35D /* Media */ = {
+			isa = PBXGroup;
+			children = (
+				0D08075D6916C489DD881AE1 /* MediaControlsSettingsCard.swift */,
+				736ED03FEB6ADA611490C8FA /* MediaLiveActivitySettingsCard.swift */,
+				D289A40656D8C2FFDE263441 /* MediaPlaybackSettingsCard.swift */,
+				FCA40C934F7FAD46AF234D7D /* MediaSelectionCards.swift */,
+				14E22DB937128505AEDF59E3 /* MediaSettingsRow.swift */,
+				814D8EDF9C04191D16D5D730 /* MediaSettingsView.swift */,
+				90FC7BE07D9191ADF64F7DD2 /* MediaSourceSettingsSection.swift */,
+				11F748832ECB27DC00F841DB /* MusicSlotConfigurationView.swift */,
+			);
+			path = Media;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1156,6 +1188,14 @@
 				B10F84A32C6C9596009F3026 /* TestView.swift in Sources */,
 				1443E7F32C609DCE0027C1FC /* matters.swift in Sources */,
 				11C5E3162DFE88510065821E /* SettingsView.swift in Sources */,
+				6201F03E18E54332A3C52313 /* MediaControlsSettingsCard.swift in Sources */,
+				21C58CE632F385CE86F25A54 /* MediaLiveActivitySettingsCard.swift in Sources */,
+				82B02D7CE27D1BADFA2B9477 /* MediaPlaybackSettingsCard.swift in Sources */,
+				D1B7D03E61DA09F1CE4A1C1B /* MediaSelectionCards.swift in Sources */,
+				F1113B8326D6EBBC0D134CF1 /* MediaSettingsRow.swift in Sources */,
+				D6B7C90E90F452FD61F6E09E /* MediaSettingsView.swift in Sources */,
+				C30E6766109BB2A4F5103F92 /* MediaSourceSettingsSection.swift in Sources */,
+				C01F18774B612462BCF980A9 /* SettingsKeyboardBadge.swift in Sources */,
 				8F440614EE67A02DF75CDEA0 /* HUDIndicatorSettingsView.swift in Sources */,
 				27F4F1D3C1B5053BA870903C /* HUDSettingsPreview.swift in Sources */,
 				F768E68A591856243992CE44 /* HUDSettingsSupport.swift in Sources */,
