@@ -1108,6 +1108,7 @@ extension PrivacyHUDManager: CLLocationManagerDelegate {
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         triggerLocationHUD()
     }
+    
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         // CoreLocation requires didFailWithError when requestLocation() is used

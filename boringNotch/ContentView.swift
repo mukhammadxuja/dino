@@ -317,7 +317,7 @@ struct ContentView: View {
     }
 
     private var currentNotchShape: NotchShape {
-        let bottomRadius: CGFloat = {
+        let defaultBottomRadius: CGFloat = {
             if DinoCoordinator.shared.activeSlot == .webcam && vm.notchState == .open {
                 return 24
             }
@@ -325,6 +325,9 @@ struct ContentView: View {
                 ? cornerRadiusInsets.opened.bottom
                 : cornerRadiusInsets.closed.bottom
         }()
+        let bottomRadius = !isCurrentDisplayIsland && isShowingInlineMusicPlaybackPeek
+            ? max(defaultBottomRadius, 22)
+            : defaultBottomRadius
         return NotchShape(
             topCornerRadius: topCornerRadius,
             bottomCornerRadius: bottomRadius
@@ -419,7 +422,12 @@ struct ContentView: View {
 
         if isShowingInlineMusicPlaybackPeek {
             let coverWidth = max(0, vm.effectiveClosedNotchHeight - 12)
-            return max(380 + (2 * coverWidth) + 16, chinWidth)
+            return MusicLiveActivityView.inlineNotchWidth(
+                cameraWidth: vm.closedNotchSize.width,
+                coverWidth: coverWidth,
+                songTitle: musicManager.songTitle,
+                artistName: musicManager.artistName
+            )
         }
 
         let showsBatteryStatusPill = coordinator.expandingView.show
@@ -738,9 +746,11 @@ struct ContentView: View {
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchSize)
                             .animation(
-                                isShowingSystemToastHUD
+                                !isCurrentDisplayIsland && isShowingInlineMusicPlaybackPeek
                                     ? .interactiveSpring(response: 0.46, dampingFraction: 0.9, blendDuration: 0)
-                                    : animationSpring,
+                                    : (isShowingSystemToastHUD
+                                        ? .interactiveSpring(response: 0.46, dampingFraction: 0.9, blendDuration: 0)
+                                        : animationSpring),
                                 value: computedChinWidth
                             )
                     }
@@ -1906,6 +1916,39 @@ struct MusicLiveActivityView: View {
         return title.localizedCapitalized
     }
 
+    static func inlineMusicMetadata(songTitle: String, artistName: String) -> String {
+        let details = [artistName, displaySongTitle(songTitle)]
+            .filter { !$0.isEmpty }
+            .joined(separator: " • ")
+        return details.isEmpty ? "♪" : "♪ \(details)"
+    }
+
+    static func inlineNotchArtistWidth(_ artistName: String) -> CGFloat {
+        guard !artistName.isEmpty else { return 0 }
+        let font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        let measuredWidth = ceil((artistName as NSString).size(withAttributes: [.font: font]).width)
+        return min(92, max(44, measuredWidth + 2))
+    }
+
+    static func inlineNotchSongWidth(_ songTitle: String) -> CGFloat {
+        let title = displaySongTitle(songTitle)
+        let font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        let measuredWidth = ceil((title as NSString).size(withAttributes: [.font: font]).width)
+        return min(120, max(76, measuredWidth + 8))
+    }
+
+    static func inlineNotchWidth(
+        cameraWidth: CGFloat,
+        coverWidth: CGFloat,
+        songTitle: String,
+        artistName: String
+    ) -> CGFloat {
+        let artistWidth = inlineNotchArtistWidth(artistName)
+        let leftWingWidth = coverWidth + (artistWidth > 0 ? 6 + artistWidth : 0)
+        let rightWingWidth = inlineNotchSongWidth(songTitle) + 6 + min(20, coverWidth)
+        return cameraWidth + (2 * max(leftWingWidth, rightWingWidth))
+    }
+
     static func inlineIslandWidth(
         isBuiltIn: Bool,
         songTitle: String,
@@ -1979,128 +2022,173 @@ struct MusicLiveActivityView: View {
                 coverWidth: coverSize
             )
             : 0
+        let inlineMusicMetadata = Self.inlineMusicMetadata(
+            songTitle: musicManager.songTitle,
+            artistName: musicManager.artistName
+        )
+        let inlineTextColor = Defaults[.coloredSpectrogram]
+            ? Color(nsColor: musicManager.avgColor)
+            : Color.gray
+        let inlineTitleWidth: CGFloat = isCurrentDisplayIsland
+            ? max(40, inlineIslandWidth - coverSize - 6)
+            : Self.inlineNotchSongWidth(musicManager.songTitle)
+        let inlineArtistWidth = Self.inlineNotchArtistWidth(musicManager.artistName)
+        let inlineVisualizerWidth = min(20, coverSize)
+        let inlineLeftWingWidth = coverSize + (inlineArtistWidth > 0 ? 6 + inlineArtistWidth : 0)
+        let inlineRightWingWidth = inlineTitleWidth + 6 + inlineVisualizerWidth
+        let inlineWingWidth = max(inlineLeftWingWidth, inlineRightWingWidth)
         let defaultCenterSpacerWidth: CGFloat = isCurrentDisplayIsland
             ? (isShowingMusicSneakPeek ? max(10, islandSneakPeekWidth - (coverSize * 2) - 20) : (isCurrentScreenBuiltin ? 68 : 50))
             : (isCurrentScreenBuiltin ? (vm.closedNotchSize.width + 14) : (vm.closedNotchSize.width - 10))
         let inlineCenterSpacerWidth: CGFloat = isCurrentDisplayIsland
-            ? max(24, inlineIslandWidth - coverSize - 6)
-            : 380 + coverSize + 8
-        let inlineTrackDetails = [musicManager.artistName, Self.displaySongTitle(musicManager.songTitle)]
-            .filter { !$0.isEmpty }
-            .joined(separator: " • ")
-        let inlineMusicMetadata = inlineTrackDetails.isEmpty ? "♪" : "♪ \(inlineTrackDetails)"
-        let inlineTitleWidth: CGFloat = isCurrentDisplayIsland
-            ? max(40, inlineCenterSpacerWidth)
-            : max(80, inlineCenterSpacerWidth - vm.closedNotchSize.width - 4)
+            ? inlineTitleWidth
+            : vm.closedNotchSize.width
+
+        let albumCoverView = ZStack {
+            Image(nsImage: musicManager.albumArt)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: coverSize, height: coverSize)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 4.5 : 4.8) : MusicPlayerImageSizes.cornerRadiusInset.closed,
+                        style: .continuous
+                    )
+                )
+                .rotation3DEffect(.degrees(coverRotationY), axis: (x: 0, y: 1, z: 0))
+                .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
+                .opacity(showGesturePrev ? 0 : 1)
+                .animation(.easeOut(duration: 0.2), value: showGesturePrev)
+
+            if showGesturePrev {
+                Image(systemName: "backward.fill")
+                    .font(.system(size: coverSize * 0.45, weight: .bold))
+                    .foregroundStyle(.white)
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .frame(width: coverSize, height: coverSize)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            isCoverHovering = hovering
+            if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
+                coverHoverDismissTask?.cancel()
+                withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
+                    showCoverHoverMusicDetails = true
+                }
+            }
+        }
 
         VStack(spacing: isShowingMusicSneakPeek && !isInlinePlaybackPeek ? 4 : 0) {
-            HStack(spacing: isInlinePlaybackPeek && isCurrentDisplayIsland ? 6 : (isInlinePlaybackPeek ? 8 : 0)) {
-                // MARK: Left side - Album art with gesture prev icon & hover sneak peek
-                ZStack {
-                    Image(nsImage: musicManager.albumArt)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: coverSize, height: coverSize)
-                        .clipShape(
-                            RoundedRectangle(
-                                cornerRadius: isCurrentDisplayIsland ? (isCurrentScreenBuiltin ? 4.5 : 4.8) : MusicPlayerImageSizes.cornerRadiusInset.closed,
-                                style: .continuous
-                            )
-                        )
-                        .rotation3DEffect(.degrees(coverRotationY), axis: (x: 0, y: 1, z: 0))
-                        .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
-                        .opacity(showGesturePrev ? 0 : 1)
-                        .animation(.easeOut(duration: 0.2), value: showGesturePrev)
-
-                    // Gesture: swipe right → prev icon replaces cover
-                    if showGesturePrev {
-                        Image(systemName: "backward.fill")
-                            .font(.system(size: coverSize * 0.45, weight: .bold))
-                            .foregroundStyle(.white)
-                            .transition(.scale.combined(with: .opacity))
-                    }
-                }
-                .frame(width: coverSize, height: coverSize)
-                .contentShape(Rectangle())
-                .onHover { hovering in
-                    isCoverHovering = hovering
-                    if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
-                        coverHoverDismissTask?.cancel()
-                        withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
-                            showCoverHoverMusicDetails = true
-                        }
-                    }
-                }
-
-                if isDualActivityActive && !isCurrentDisplayIsland {
-                    HStack {
-                        Spacer(minLength: 0)
-                        Button(action: {
-                            onOpenPomodoro?()
-                        }) {
-                            Text(pomodoroManager.formattedRemainingTime)
-                                .font(.system(size: isCurrentScreenBuiltin ? 12.5 : 11.0, weight: .semibold, design: .rounded))
-                                .monospacedDigit()
-                                .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
+            HStack(spacing: isInlinePlaybackPeek && isCurrentDisplayIsland ? 6 : 0) {
+                if isInlinePlaybackPeek && !isCurrentDisplayIsland {
+                    HStack(spacing: 6) {
+                        albumCoverView
+                        if !musicManager.artistName.isEmpty {
+                            Text(musicManager.artistName)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(inlineTextColor)
                                 .lineLimit(1)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3.5)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(isPomodoroHovered ? Color.white.opacity(0.18) : Color.clear)
-                                )
+                                .truncationMode(.tail)
+                                .frame(width: inlineArtistWidth, alignment: .leading)
                         }
-                        .buttonStyle(.plain)
-                        .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.16)) {
-                                isPomodoroHovered = hovering
-                            }
-                        }
-                        Spacer(minLength: 0)
                     }
-                    .frame(
-                        width: defaultCenterSpacerWidth,
-                        height: vm.effectiveClosedNotchHeight
-                    )
-                } else {
+                    .frame(width: inlineWingWidth, height: vm.effectiveClosedNotchHeight, alignment: .leading)
+
                     Rectangle()
                         .fill(Color.clear)
-                        .contentShape(Rectangle())
-                        .overlay(
-                            HStack(alignment: .center, spacing: 4) {
-                                if isInlinePlaybackPeek {
-                                    if !isCurrentDisplayIsland {
-                                        Spacer(minLength: vm.closedNotchSize.width)
-                                    }
-                                    MarqueeText(
-                                        .constant(inlineMusicMetadata),
-                                        font: .system(size: 11, weight: .medium),
-                                        textColor: Defaults[.coloredSpectrogram]
-                                            ? Color(nsColor: musicManager.avgColor)
-                                            : Color.gray,
-                                        minDuration: 0.4,
-                                        frameWidth: inlineTitleWidth,
-                                        alignment: .leading,
-                                        fadeMaskWhenScrolling: true
+                        .frame(width: vm.closedNotchSize.width, height: vm.effectiveClosedNotchHeight)
+
+                    HStack(spacing: 6) {
+                        MarqueeText(
+                            .constant(Self.displaySongTitle(musicManager.songTitle)),
+                            font: .system(size: 11, weight: .medium),
+                            textColor: inlineTextColor,
+                            minDuration: 0.4,
+                            frameWidth: inlineTitleWidth,
+                            alignment: .trailing,
+                            fadeMaskWhenScrolling: true
+                        )
+                        .frame(width: inlineTitleWidth, alignment: .trailing)
+
+                        musicPlayingAnimation(coverSize: inlineVisualizerWidth, showGestureNext: showGestureNext)
+                            .frame(width: inlineVisualizerWidth, height: coverSize)
+                            .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                    }
+                    .frame(width: inlineWingWidth, height: vm.effectiveClosedNotchHeight, alignment: .trailing)
+                } else {
+                    albumCoverView
+
+                    if isDualActivityActive && !isCurrentDisplayIsland {
+                        HStack {
+                            Spacer(minLength: 0)
+                            Button(action: {
+                                onOpenPomodoro?()
+                            }) {
+                                Text(pomodoroManager.formattedRemainingTime)
+                                    .font(.system(size: isCurrentScreenBuiltin ? 12.5 : 11.0, weight: .semibold, design: .rounded))
+                                    .monospacedDigit()
+                                    .foregroundStyle(pomodoroManager.isBreakPhase ? Color.green : Color.white)
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3.5)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .fill(isPomodoroHovered ? Color.white.opacity(0.18) : Color.clear)
                                     )
-                                    .frame(width: inlineTitleWidth, alignment: .trailing)
+                            }
+                            .buttonStyle(.plain)
+                            .onHover { hovering in
+                                withAnimation(.easeInOut(duration: 0.16)) {
+                                    isPomodoroHovered = hovering
                                 }
                             }
-                        )
+                            Spacer(minLength: 0)
+                        }
                         .frame(
-                            width: isInlinePlaybackPeek
-                                ? inlineCenterSpacerWidth
-                                : defaultCenterSpacerWidth
+                            width: defaultCenterSpacerWidth,
+                            height: vm.effectiveClosedNotchHeight
                         )
+                    } else {
+                        Rectangle()
+                            .fill(Color.clear)
+                            .contentShape(Rectangle())
+                            .overlay(
+                                HStack(alignment: .center, spacing: 4) {
+                                    if isInlinePlaybackPeek {
+                                        if !isCurrentDisplayIsland {
+                                            Spacer(minLength: vm.closedNotchSize.width)
+                                        }
+                                        MarqueeText(
+                                            .constant(inlineMusicMetadata),
+                                            font: .system(size: 11, weight: .medium),
+                                            textColor: inlineTextColor,
+                                            minDuration: 0.4,
+                                            frameWidth: inlineTitleWidth,
+                                            alignment: .leading,
+                                            fadeMaskWhenScrolling: true
+                                        )
+                                        .frame(width: inlineTitleWidth, alignment: .trailing)
+                                    }
+                                }
+                            )
+                            .frame(
+                                width: isInlinePlaybackPeek
+                                    ? inlineCenterSpacerWidth
+                                    : defaultCenterSpacerWidth
+                            )
+                    }
                 }
 
             }
             .overlay(alignment: .trailing) {
-                musicPlayingAnimation(coverSize: coverSize, showGestureNext: showGestureNext)
-                    .blur(radius: isInlinePlaybackPeek ? 6 : 0)
-                    .opacity(isInlinePlaybackPeek ? 0 : 1)
-                    .animation(.spring(response: 0.32, dampingFraction: 0.88), value: isInlinePlaybackPeek)
-                    .allowsHitTesting(!isInlinePlaybackPeek)
+                if isCurrentDisplayIsland || !isInlinePlaybackPeek {
+                    musicPlayingAnimation(coverSize: coverSize, showGestureNext: showGestureNext)
+                        .blur(radius: isInlinePlaybackPeek ? 6 : 0)
+                        .opacity(isInlinePlaybackPeek ? 0 : 1)
+                        .animation(.spring(response: 0.32, dampingFraction: 0.88), value: isInlinePlaybackPeek)
+                        .allowsHitTesting(!isInlinePlaybackPeek)
+                }
             }
             .contentShape(Rectangle())
             .frame(
