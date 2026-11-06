@@ -18,6 +18,8 @@ enum SneakContentType {
     case mic
     case micActivity
     case battery
+    case charging
+    case unplugged
     case download
     case antigravity
     case camera
@@ -253,7 +255,7 @@ class BoringViewCoordinator: ObservableObject {
 
     func toggleSneakPeek(
         status: Bool, type: SneakContentType, duration: TimeInterval = 1.5, value: CGFloat = 0,
-        icon: String = ""
+        icon: String = "", force: Bool = false
     ) {
         if !status {
             Task { @MainActor in
@@ -277,9 +279,16 @@ class BoringViewCoordinator: ObservableObject {
         }
 
         if type != .music && type != .mic && type != .micActivity && type != .camera && type != .screenRecord && type != .capsLock && type != .location && type != .airPods {
-            if !Defaults[.hudReplacement] {
+            if !Defaults[.hudReplacement] && !force {
                 return
             }
+        }
+
+        guard !force else {
+            Task { @MainActor in
+                self.presentSneakPeek(type: type, duration: duration, value: value, icon: icon)
+            }
+            return
         }
 
         switch type {
@@ -301,6 +310,10 @@ class BoringViewCoordinator: ObservableObject {
             guard Defaults[.hudMicEnabled] else { return }
         case .screenRecord:
             guard Defaults[.hudScreenRecordEnabled] else { return }
+        case .charging:
+            guard Defaults[.hudChargingEnabled] else { return }
+        case .unplugged:
+            guard Defaults[.hudUnpluggedEnabled] else { return }
         default:
             break
         }
@@ -352,12 +365,14 @@ class BoringViewCoordinator: ObservableObject {
             case .capsLock: return .hud(.capsLock(isOn: value > 0))
             case .location: return .hud(.location(isInUse: value > 0))
             case .airPods: return .hud(.airPods(name: icon.isEmpty ? "AirPods Pro" : icon, battery: Int(value)))
+            case .charging: return .hud(.charging)
+            case .unplugged: return .hud(.unplugged)
             default: return .hud(.volume(value: Double(value)))
             }
         }()
 
         // Unify BoringViewCoordinator & DinoCoordinator state updates in a single interactiveSpring transaction
-        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78, blendDuration: 0)) {
+        withAnimation(.interactiveSpring(response: 0.42, dampingFraction: 0.88, blendDuration: 0)) {
             self.sneakPeek.show = true
             self.sneakPeek.type = type
             self.sneakPeek.value = value
@@ -373,7 +388,7 @@ class BoringViewCoordinator: ObservableObject {
 
     @MainActor
     private func dismissSneakPeek() {
-        withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78, blendDuration: 0)) {
+        withAnimation(.interactiveSpring(response: 0.42, dampingFraction: 0.88, blendDuration: 0)) {
             self.sneakPeek.show = false
             if DinoCoordinator.shared.currentPriority == .p1Toast {
                 DinoCoordinator.shared.dismissToast(animated: false)
@@ -424,7 +439,7 @@ class BoringViewCoordinator: ObservableObject {
         browser: BrowserType = .chromium
     ) {
         Task { @MainActor in
-            withAnimation(.interactiveSpring(response: 0.35, dampingFraction: 0.78, blendDuration: 0)) {
+            withAnimation(.interactiveSpring(response: 0.42, dampingFraction: 0.88, blendDuration: 0)) {
                 self.expandingView.show = status
                 self.expandingView.type = type
                 self.expandingView.value = value

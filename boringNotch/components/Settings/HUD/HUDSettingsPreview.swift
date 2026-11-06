@@ -5,17 +5,26 @@ struct HUDSettingsPreview: View {
     let indicator: HUDIndicator
 
     @ViewBuilder var body: some View {
-        switch indicator {
-        case .volume: previewVolumeHUD
-        case .brightness: previewBrightnessHUD
-        case .backlight: previewBacklightHUD
-        case .airpods: previewAirPodsHUD
-        case .capslock: previewCapsLockHUD
-        case .location: previewLocationHUD
-        case .camera: previewCameraHUD
-        case .mic: previewMicHUD
-        case .screenrecord: previewScreenRecordHUD
+        Group {
+            switch indicator {
+            case .volume: previewVolumeHUD
+            case .brightness: previewBrightnessHUD
+            case .backlight: previewBacklightHUD
+            case .airpods: previewAirPodsHUD
+            case .capslock: previewCapsLockHUD
+            case .location: previewLocationHUD
+            case .camera: previewCameraHUD
+            case .mic: previewMicHUD
+            case .screenrecord: previewScreenRecordHUD
+            case .charging: previewChargingHUD
+            case .unplugged: previewUnpluggedHUD
+            }
         }
+        .padding(.horizontal, 10)
+        .frame(height: 42)
+        .background(Capsule().fill(Color.black))
+        .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75))
+        .shadow(color: .black.opacity(0.55), radius: 9, x: 0, y: 4)
     }
 
     private var previewVolumeHUD: some View {
@@ -158,5 +167,25 @@ struct HUDSettingsPreview: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 28)
+    }
+
+    private var previewChargingHUD: some View {
+        BatteryInlineAlertContent(
+            isLow: false,
+            percentage: 99,
+            color: .green,
+            title: "Charging"
+        )
+        .frame(width: 220, height: 27)
+    }
+
+    private var previewUnpluggedHUD: some View {
+        BatteryInlineAlertContent(
+            isLow: false,
+            percentage: 99,
+            color: .white,
+            title: "Unplugged"
+        )
+        .frame(width: 220, height: 27)
     }
 }

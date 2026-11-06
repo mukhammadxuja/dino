@@ -3,7 +3,7 @@ import Defaults
 import SwiftUI
 
 enum HUDIndicator: String, CaseIterable, Identifiable {
-    case volume, brightness, backlight, airpods, capslock, location, camera, mic, screenrecord
+    case volume, brightness, backlight, airpods, capslock, location, camera, mic, screenrecord, charging, unplugged
 
     var id: String { rawValue }
 
@@ -18,6 +18,8 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .camera: return "Camera In-Use"
         case .mic: return "Microphone In-Use"
         case .screenrecord: return "Screen Recording"
+        case .charging: return "Charging"
+        case .unplugged: return "Unplugged"
         }
     }
 
@@ -32,6 +34,8 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .camera: return "Privacy indicator when the webcam or Continuity Camera is active"
         case .mic: return "Privacy indicator when the system microphone is recording audio"
         case .screenrecord: return "Privacy alert when screen capture or screen recording is active"
+        case .charging: return "Inline HUD when the power adapter is connected"
+        case .unplugged: return "Inline HUD when the power adapter is disconnected"
         }
     }
 
@@ -46,6 +50,8 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .camera: return "video.fill"
         case .mic: return "mic.fill"
         case .screenrecord: return "record.circle.fill"
+        case .charging: return "battery.100percent"
+        case .unplugged: return "battery.0percent"
         }
     }
 
@@ -60,6 +66,8 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .camera: return .green
         case .mic: return .orange
         case .screenrecord: return .red
+        case .charging: return .green
+        case .unplugged: return .orange
         }
     }
 
@@ -74,6 +82,8 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .camera: return .hudCameraEnabled
         case .mic: return .hudMicEnabled
         case .screenrecord: return .hudScreenRecordEnabled
+        case .charging: return .hudChargingEnabled
+        case .unplugged: return .hudUnpluggedEnabled
         }
     }
 
@@ -88,6 +98,8 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .camera: return "Fires when any app starts using the webcam. Shows a green privacy capsule and 'Camera On' alert."
         case .mic: return "Fires when an app accesses the microphone. Displays an orange audio capsule and 'Mic On' indicator."
         case .screenrecord: return "Fires when macOS screencapture, QuickTime, or meeting software records the screen. Displays a red recording capsule."
+        case .charging: return "Shows a separate inline charging HUD when the power adapter connects."
+        case .unplugged: return "Shows a separate inline unplugged HUD when the power adapter disconnects."
         }
     }
 }
@@ -177,9 +189,15 @@ private struct HUDIndicatorSettingsRow: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("LIVE PREVIEW")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.secondary.opacity(0.8))
+                    HStack {
+                        Text("LIVE PREVIEW")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary.opacity(0.8))
+                        Spacer()
+                        Button("Test") { testHUD(indicator) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
                     HStack {
                         Spacer()
                         HUDSettingsPreview(indicator: indicator)
@@ -207,6 +225,34 @@ private struct HUDIndicatorSettingsRow: View {
             default:
                 break
             }
+        }
+    }
+
+    private func testHUD(_ indicator: HUDIndicator) {
+        let coordinator = BoringViewCoordinator.shared
+        switch indicator {
+        case .volume:
+            coordinator.toggleSneakPeek(status: true, type: .volume, value: 0.75, force: true)
+        case .brightness:
+            coordinator.toggleSneakPeek(status: true, type: .brightness, value: 0.65, force: true)
+        case .backlight:
+            coordinator.toggleSneakPeek(status: true, type: .backlight, value: 0.5, force: true)
+        case .airpods:
+            coordinator.toggleSneakPeek(status: true, type: .airPods, duration: 2.5, value: 94, icon: "AirPods Pro", force: true)
+        case .capslock:
+            coordinator.toggleSneakPeek(status: true, type: .capsLock, value: 1, force: true)
+        case .location:
+            coordinator.toggleSneakPeek(status: true, type: .location, value: 1, force: true)
+        case .camera:
+            coordinator.toggleSneakPeek(status: true, type: .camera, value: 1, force: true)
+        case .mic:
+            coordinator.toggleSneakPeek(status: true, type: .micActivity, value: 1, force: true)
+        case .screenrecord:
+            coordinator.toggleSneakPeek(status: true, type: .screenRecord, value: 1, force: true)
+        case .charging:
+            coordinator.toggleExpandingView(status: true, type: .charging)
+        case .unplugged:
+            coordinator.toggleExpandingView(status: true, type: .unplugged)
         }
     }
 }

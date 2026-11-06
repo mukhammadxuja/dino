@@ -51,7 +51,7 @@ struct BatteryView: View {
                     width: batteryWidth + 1
                 )
 
-            RoundedRectangle(cornerRadius: 2.5)
+            RoundedRectangle(cornerRadius: 3.5)
                 .fill(batteryColor)
                 .frame(
                     width: CGFloat(((CGFloat(CFloat(levelBattery)) / 100) * (batteryWidth - 6))),
@@ -414,7 +414,6 @@ struct CustomBatteryToastView: View {
         let tintColor: Color = batteryModel.activeGlowColor ?? defaultNeon
         let displayPercentage = batteryModel.alertPercentage > 0 ? batteryModel.alertPercentage : Int(batteryModel.levelBattery)
         let targetProgress = min(max(CGFloat(displayPercentage) / 100.0, 0.0), 1.0)
-        let remainingTimeText = batteryModel.formattedRemainingTime
 
         HStack(spacing: 12) {
             // Interactive Horizontal Motion Slider
@@ -538,12 +537,6 @@ struct CustomBatteryToastView: View {
             }
             .frame(height: 24)
 
-            // Remaining Time Estimate (~15m)
-            Text(remainingTimeText)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(tintColor)
-                .lineLimit(1)
-                .fixedSize()
         }
         .padding(.leading, 18)
         .padding(.trailing, 16)
@@ -606,86 +599,75 @@ struct CustomBatteryToastMiniPreview: View {
             : Color(red: 48/255, green: 209/255, blue: 88/255)
         let tintColor: Color = colorHex != nil ? Color.fromHex(colorHex!) : defaultNeon
         let progress = min(max(CGFloat(percentage) / 100.0, 0.0), 1.0)
-        let timeText = isLow ? "~15m" : (isCharged ? "100%" : "~1h 15m")
+        GeometryReader { geo in
+            let trackWidth = geo.size.width
+            let centerY = geo.size.height / 2.0
+            let badgeWidth: CGFloat = 30.0
+            let badgeHeight: CGFloat = 16.0
+            let halfBadge = badgeWidth / 2.0
+            let fillWidth = max(0, trackWidth * progress)
+            let badgeX = min(max(fillWidth, halfBadge), max(halfBadge, trackWidth - halfBadge))
 
-        HStack(spacing: 8) {
-            GeometryReader { geo in
-                let trackWidth = geo.size.width
-                let centerY = geo.size.height / 2.0
-                let badgeWidth: CGFloat = 30.0
-                let badgeHeight: CGFloat = 16.0
-                let halfBadge = badgeWidth / 2.0
-                let fillWidth = max(0, trackWidth * progress)
-                let badgeX = min(max(fillWidth, halfBadge), max(halfBadge, trackWidth - halfBadge))
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.white.opacity(0.18))
+                    .frame(width: trackWidth, height: 3)
+                    .position(x: trackWidth / 2.0, y: centerY)
 
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.18))
-                        .frame(width: trackWidth, height: 3)
-                        .position(x: trackWidth / 2.0, y: centerY)
+                Capsule()
+                    .fill(tintColor)
+                    .frame(width: max(0, badgeX), height: 3)
+                    .position(x: max(0, badgeX) / 2.0, y: centerY)
 
+                if isLow {
+                    let trailWidth = min(trackWidth - (badgeX + halfBadge * 0.5), 35.0)
+                    if trailWidth > 0 {
+                        LinearGradient(
+                            colors: [tintColor.opacity(0.85), tintColor.opacity(0.0)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: trailWidth, height: 5)
+                        .blur(radius: 2.5)
+                        .position(x: badgeX + halfBadge * 0.5 + (trailWidth / 2.0), y: centerY)
+                    }
+                } else {
+                    let trailWidth = min(badgeX - halfBadge * 0.5, 35.0)
+                    if trailWidth > 0 {
+                        LinearGradient(
+                            colors: [tintColor.opacity(0.0), tintColor.opacity(0.85)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: trailWidth, height: 5)
+                        .blur(radius: 2.5)
+                        .position(x: (badgeX - halfBadge * 0.5) - (trailWidth / 2.0), y: centerY)
+                    }
+                }
+
+                ZStack {
                     Capsule()
                         .fill(tintColor)
-                        .frame(width: max(0, badgeX), height: 3)
-                        .position(x: max(0, badgeX) / 2.0, y: centerY)
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5))
+                        .shadow(color: tintColor.opacity(0.6), radius: 4, x: isLow ? 3 : -3, y: 0)
 
-                    if isLow {
-                        let trailWidth = min(trackWidth - (badgeX + halfBadge * 0.5), 35.0)
-                        if trailWidth > 0 {
-                            LinearGradient(
-                                colors: [tintColor.opacity(0.85), tintColor.opacity(0.0)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                            .frame(width: trailWidth, height: 5)
-                            .blur(radius: 2.5)
-                            .position(x: badgeX + halfBadge * 0.5 + (trailWidth / 2.0), y: centerY)
-                        }
-                    } else {
-                        let trailWidth = min(badgeX - halfBadge * 0.5, 35.0)
-                        if trailWidth > 0 {
-                            LinearGradient(
-                                colors: [tintColor.opacity(0.0), tintColor.opacity(0.85)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                            .frame(width: trailWidth, height: 5)
-                            .blur(radius: 2.5)
-                            .position(x: (badgeX - halfBadge * 0.5) - (trailWidth / 2.0), y: centerY)
-                        }
+                    HStack(spacing: 1.5) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundStyle(Color.white)
+
+                        Text("\(percentage)")
+                            .font(.system(size: 8.5, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.white)
                     }
-
-                    ZStack {
-                        Capsule()
-                            .fill(tintColor)
-                            .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5))
-                            .shadow(color: tintColor.opacity(0.6), radius: 4, x: isLow ? 3 : -3, y: 0)
-
-                        HStack(spacing: 1.5) {
-                            Image(systemName: "bolt.fill")
-                                .font(.system(size: 7, weight: .bold))
-                                .foregroundStyle(Color.white)
-
-                            Text("\(percentage)")
-                                .font(.system(size: 8.5, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.white)
-                        }
-                    }
-                    .frame(width: badgeWidth, height: badgeHeight)
-                    .position(x: badgeX, y: centerY)
                 }
+                .frame(width: badgeWidth, height: badgeHeight)
+                .position(x: badgeX, y: centerY)
             }
-            .frame(height: 18)
-
-            Text(timeText)
-                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(tintColor)
-                .fixedSize()
         }
-        .padding(.leading, 10)
-        .padding(.trailing, 9)
+        .frame(width: 150, height: 18)
         .padding(.vertical, 5)
-        .frame(width: 175, height: 32)
+        .frame(width: 160, height: 32)
         .background(
             ZStack {
                 Capsule().fill(Color.black)

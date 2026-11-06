@@ -113,15 +113,15 @@ class BatteryActivityManager {
             )
             
             checkAndNotify(
-                previous: previousInfo.currentCapacity,
-                current: batteryInfo.currentCapacity,
-                eventGenerator: { .batteryLevelChanged(level: $0) }
-            )
-            
-            checkAndNotify(
                 previous: previousInfo.isCharging,
                 current: batteryInfo.isCharging,
                 eventGenerator: { .isChargingChanged(isCharging: $0) }
+            )
+
+            checkAndNotify(
+                previous: previousInfo.currentCapacity,
+                current: batteryInfo.currentCapacity,
+                eventGenerator: { .batteryLevelChanged(level: $0) }
             )
             
             checkAndNotify(
@@ -144,8 +144,8 @@ class BatteryActivityManager {
         } else {
             // First time notification
             enqueueNotification(.powerSourceChanged(isPluggedIn: batteryInfo.isPluggedIn))
-            enqueueNotification(.batteryLevelChanged(level: batteryInfo.currentCapacity))
             enqueueNotification(.isChargingChanged(isCharging: batteryInfo.isCharging))
+            enqueueNotification(.batteryLevelChanged(level: batteryInfo.currentCapacity))
             enqueueNotification(.lowPowerModeChanged(isEnabled: batteryInfo.isInLowPowerMode))
             enqueueNotification(.timeToFullChargeChanged(time: batteryInfo.timeToFullCharge))
             enqueueNotification(.maxCapacityChanged(capacity: batteryInfo.maxCapacity))

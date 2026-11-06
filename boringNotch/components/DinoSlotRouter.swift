@@ -90,8 +90,25 @@ struct DinoSlotRouter: View {
 
     @ViewBuilder
     private var closedSlotView: some View {
-        if coordinator.expandingView.type == .battery && coordinator.expandingView.show && vm.notchState == .closed {
+        if coordinator.expandingView.show && vm.notchState == .closed
+            && (coordinator.expandingView.type == .charging || coordinator.expandingView.type == .unplugged) {
+            PowerStatusInlineHUD(
+                isCharging: coordinator.expandingView.type == .charging,
+                isCurrentDisplayIsland: isCurrentDisplayIsland,
+                height: vm.effectiveClosedNotchHeight,
+                width: computedChinWidth,
+                closedNotchWidth: vm.closedNotchSize.width
+            )
+            .transition(.asymmetric(
+                insertion: .scale(scale: 0.88, anchor: .top).combined(with: .opacity),
+                removal: .scale(scale: 0.94, anchor: .top).combined(with: .opacity)
+            ))
+        } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show && vm.notchState == .closed {
             BatteryClosedNotchLayoutView(isCurrentDisplayIsland: isCurrentDisplayIsland)
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.88, anchor: .top).combined(with: .opacity),
+                    removal: .scale(scale: 0.94, anchor: .top).combined(with: .opacity)
+                ))
         } else if isAntigravityActive {
             AntigravityLiveActivity()
                 .frame(width: computedChinWidth, height: vm.effectiveClosedNotchHeight, alignment: .center)

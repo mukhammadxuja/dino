@@ -183,14 +183,10 @@ struct LowBatteryAlertCardView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    // 3. Alert Preview + Test Button (flex items center between)
+                    // 3. Live preview label + Test button
                     HStack {
-                        HStack(spacing: 6) {
-                            Image(systemName: "eye")
-                                .font(.system(size: 13))
-                            Text("Alert Preview")
-                                .font(.system(size: 12, weight: .medium))
-                        }
+                        Text("Live preview")
+                            .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
 
                         Spacer()
@@ -240,21 +236,13 @@ struct LowBatteryAlertCardView: View {
                         .padding(.top, 2)
 
                         if Defaults[.batteryToastType] == .dynamicNotch && alert.position != "Center" {
-                            HStack(spacing: 8) {
-                                Image(systemName: "bolt.fill")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(Color.fromHex(alert.colorHex))
-
-                                Rectangle()
-                                    .fill(Color.black)
-                                    .frame(width: 34, height: 7)
-
-                                Text("\(alert.percentage)")
-                                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                                    .foregroundStyle(Color.fromHex(alert.colorHex))
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
+                            BatteryInlineAlertContent(
+                                isLow: true,
+                                percentage: alert.percentage,
+                                color: Color.fromHex(alert.colorHex),
+                                compact: true
+                            )
+                            .frame(width: 150, height: 21)
                             .background(Capsule().fill(Color.black))
                             .padding(.top, 2)
                         } else {
@@ -424,14 +412,10 @@ struct ChargedAlertCardView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    // 3. Alert Preview + Test Button
+                    // 3. Live preview label + Test button
                     HStack {
-                        HStack(spacing: 6) {
-                            Image(systemName: "eye")
-                                .font(.system(size: 13))
-                            Text("Alert Preview")
-                                .font(.system(size: 12, weight: .medium))
-                        }
+                        Text("Live preview")
+                            .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
 
                         Spacer()
@@ -481,21 +465,13 @@ struct ChargedAlertCardView: View {
                         .padding(.top, 2)
 
                         if Defaults[.batteryToastType] == .dynamicNotch && position != "Center" {
-                            HStack(spacing: 8) {
-                                Image(systemName: "bolt.fill")
-                                    .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(.green)
-
-                                Rectangle()
-                                    .fill(Color.black)
-                                    .frame(width: 34, height: 7)
-
-                                Text("\(threshold)")
-                                    .font(.system(size: 9, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.green)
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
+                            BatteryInlineAlertContent(
+                                isLow: false,
+                                percentage: threshold,
+                                color: Color.fromHex("#34C759"),
+                                compact: true
+                            )
+                            .frame(width: 150, height: 21)
                             .background(Capsule().fill(Color.black))
                             .padding(.top, 2)
                         } else {

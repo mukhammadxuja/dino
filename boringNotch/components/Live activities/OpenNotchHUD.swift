@@ -123,6 +123,19 @@ struct OpenNotchHUD: View {
                     Image(systemName: "airpodspro")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(.white)
+                case .charging:
+                    ZStack(alignment: .bottomTrailing) {
+                        Image(systemName: "battery.100percent")
+                            .font(.system(size: 15, weight: .semibold))
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 7, weight: .black))
+                            .offset(x: 2, y: 2)
+                    }
+                    .foregroundColor(.green)
+                case .unplugged:
+                    Image(systemName: "battery.0percent")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.orange)
                 default:
                     EmptyView()
                 }
@@ -167,6 +180,14 @@ struct OpenNotchHUD: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.white)
                     .fixedSize()
+            } else if type == .charging {
+                Text("Charging")
+                    .foregroundStyle(.green)
+                    .fixedSize()
+            } else if type == .unplugged {
+                Text("Unplugged")
+                    .foregroundStyle(.orange)
+                    .fixedSize()
             } else {
                 DraggableProgressBar(value: $value, onChange: { newVal in
                      updateSystemValue(newVal)
@@ -175,7 +196,7 @@ struct OpenNotchHUD: View {
             }
             
             // Percentage Text
-            if type != .mic && type != .micActivity && type != .camera && type != .screenRecord && type != .capsLock && type != .location && type != .airPods && showPercentage {
+            if type != .mic && type != .micActivity && type != .camera && type != .screenRecord && type != .capsLock && type != .location && type != .airPods && type != .charging && type != .unplugged && showPercentage {
                 Text("\(Int(value * 100))%")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.gray)

@@ -145,10 +145,25 @@ struct SystemEventIndicatorModifier: View {
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Color.white)
                         .frame(width: 24, height: 16)
+                case .charging:
+                    ZStack(alignment: .bottomTrailing) {
+                        Image(systemName: "battery.100percent")
+                            .font(.system(size: 15, weight: .semibold))
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 7, weight: .black))
+                            .offset(x: 2, y: 2)
+                    }
+                    .foregroundStyle(.green)
+                    .frame(width: 24, height: 18)
+                case .unplugged:
+                    Image(systemName: "battery.0percent")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.orange)
+                        .frame(width: 24, height: 18)
                 default:
                     EmptyView()
             }
-            if (eventType != .mic && eventType != .micActivity && eventType != .camera && eventType != .screenRecord && eventType != .capsLock && eventType != .location && eventType != .airPods) {
+            if (eventType != .mic && eventType != .micActivity && eventType != .camera && eventType != .screenRecord && eventType != .capsLock && eventType != .location && eventType != .airPods && eventType != .charging && eventType != .unplugged) {
                 DraggableProgressBar(value: $value)
                 if Defaults[.showClosedNotchHUDPercentage] {
                     Text("\(Int(value * 100))%")
@@ -190,6 +205,16 @@ struct SystemEventIndicatorModifier: View {
             } else if eventType == .airPods {
                 Text("\(icon.isEmpty ? "AirPods Pro" : icon) (\(Int(value))%)")
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .allowsTightening(true)
+            } else if eventType == .charging {
+                Text("Charging")
+                    .foregroundStyle(.green)
+                    .lineLimit(1)
+                    .allowsTightening(true)
+            } else if eventType == .unplugged {
+                Text("Unplugged")
+                    .foregroundStyle(.orange)
                     .lineLimit(1)
                     .allowsTightening(true)
             }

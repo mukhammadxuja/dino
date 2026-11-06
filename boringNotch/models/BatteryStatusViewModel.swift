@@ -88,7 +88,6 @@ class BatteryStatusViewModel: ObservableObject {
     @Published var alertPosition: String = "Top"
     @Published var alertTriggerId: UUID = UUID()
     private var triggeredLowAlertIds: Set<UUID> = []
-    private var isChargedAlertTriggered: Bool = false
 
     private var glowDismissTask: Task<Void, Never>?
     private var customToastDismissTask: Task<Void, Never>?
@@ -129,15 +128,20 @@ class BatteryStatusViewModel: ObservableObject {
             withAnimation {
                 self.isPluggedIn = isPluggedIn
                 self.statusText = isPluggedIn ? "Plugged In" : "Unplugged"
-                self.notifyImportanChangeStatus()
+            }
+            if isPluggedIn && Defaults[.hudChargingEnabled] {
+                self.coordinator.toggleExpandingView(status: true, type: .charging)
+            } else if !isPluggedIn && Defaults[.hudUnpluggedEnabled] {
+                self.coordinator.toggleExpandingView(status: true, type: .unplugged)
             }
 
         case .batteryLevelChanged(let level):
             print("🔋 Battery level: \(Int(level))%")
+            let previousLevel = levelBattery
             withAnimation {
                 self.levelBattery = level
             }
-            self.checkThresholds(level: level)
+            self.checkThresholds(level: level, previousLevel: previousLevel)
 
         case .lowPowerModeChanged(let isEnabled):
             print("⚡ Low power mode: \(isEnabled ? "Enabled" : "Disabled")")
@@ -151,7 +155,6 @@ class BatteryStatusViewModel: ObservableObject {
             print("🔌 Charging: \(isCharging ? "Yes" : "No")")
             print("maxCapacity: \(self.maxCapacity)")
             print("levelBattery: \(self.levelBattery)")
-            self.notifyImportanChangeStatus()
             withAnimation {
                 self.isCharging = isCharging
                 self.statusText =
@@ -201,7 +204,7 @@ class BatteryStatusViewModel: ObservableObject {
         }
     }
 
-    private func checkThresholds(level: Float) {
+    private func checkThresholds(level: Float, previousLevel: Float) {
         guard Defaults[.batteryAlertsEnabled] else { return }
 
         let intLevel = Int(level)
@@ -227,27 +230,25 @@ class BatteryStatusViewModel: ObservableObject {
                     triggeredLowAlertIds.remove(alert.id)
                 }
             }
-            isChargedAlertTriggered = false
-        } else if isCharging || isPluggedIn {
+        } else {
             // Plugged in or charging -> reset low battery triggers
             triggeredLowAlertIds.removeAll()
 
             let chargedThreshold = Defaults[.chargedAlertThreshold]
-            if intLevel >= chargedThreshold {
-                if !isChargedAlertTriggered {
-                    isChargedAlertTriggered = true
-                    triggerAlert(
-                        type: .highBattery,
-                        percentage: chargedThreshold,
-                        colorHex: "#34C759",
-                        position: Defaults[.chargedAlertPosition],
-                        soundName: Defaults[.chargedAlertSoundEnabled] ? Defaults[.chargedAlertSoundName].rawValue : nil,
-                        borderGlow: Defaults[.chargedAlertGlowEnabled],
-                        isSimulation: false
-                    )
-                }
-            } else if intLevel < chargedThreshold - 3 {
-                isChargedAlertTriggered = false
+            let crossedChargedThreshold = isPluggedIn && isCharging
+                && Int(previousLevel) < chargedThreshold
+                && intLevel >= chargedThreshold
+
+            if crossedChargedThreshold {
+                triggerAlert(
+                    type: .highBattery,
+                    percentage: chargedThreshold,
+                    colorHex: "#34C759",
+                    position: Defaults[.chargedAlertPosition],
+                    soundName: Defaults[.chargedAlertSoundEnabled] ? Defaults[.chargedAlertSoundName].rawValue : nil,
+                    borderGlow: Defaults[.chargedAlertGlowEnabled],
+                    isSimulation: false
+                )
             }
         }
     }
@@ -279,9 +280,9 @@ class BatteryStatusViewModel: ObservableObject {
             }
         }
 
-        let currentLevel = percentage ?? (isSimulation
-            ? (type == .lowBattery ? 20 : Defaults[.chargedAlertThreshold])
-            : Int(levelBattery))
+        let currentLevel = isSimulation
+            ? (percentage ?? (type == .lowBattery ? 20 : Defaults[.chargedAlertThreshold]))
+            : Int(levelBattery)
 
         self.alertPercentage = currentLevel
         self.alertPosition = position

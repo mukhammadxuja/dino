@@ -145,12 +145,13 @@ enum BatteryToastType: String, CaseIterable, Identifiable, Defaults.Serializable
     var title: String {
         switch self {
         case .dynamicNotch: return "Inline"
-        case .customToast: return "Custom Toast"
+        case .customToast: return "Toast"
         }
     }
 }
 
 enum BatterySoundChoice: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case none = "No Sound"
     case subtle = "Subtle"
     case glass = "Glass"
     case ping = "Ping"
@@ -164,6 +165,8 @@ enum BatterySoundChoice: String, CaseIterable, Identifiable, Defaults.Serializab
 
     func play() {
         switch self {
+        case .none:
+            break
         case .lowBattery:
             AudioPlayer().play(fileName: "low_battery", fileExtension: "mp3", subdirectory: "sounds")
         default:
@@ -535,6 +538,8 @@ extension Defaults.Keys {
     static let hudCameraEnabled = Key<Bool>("hudCameraEnabled", default: true)
     static let hudMicEnabled = Key<Bool>("hudMicEnabled", default: true)
     static let hudScreenRecordEnabled = Key<Bool>("hudScreenRecordEnabled", default: true)
+    static let hudChargingEnabled = Key<Bool>("hudChargingEnabled", default: true)
+    static let hudUnpluggedEnabled = Key<Bool>("hudUnpluggedEnabled", default: true)
     
     // MARK: Shelf
     static let boringShelf = Key<Bool>("boringShelf", default: true)

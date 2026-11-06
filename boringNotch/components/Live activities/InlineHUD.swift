@@ -146,6 +146,21 @@ struct InlineHUD: View {
                         AirPodsVideoView()
                             .frame(width: 24, height: 24)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
+                    case .charging:
+                        ZStack(alignment: .bottomTrailing) {
+                            Image(systemName: "battery.100percent")
+                                .font(.system(size: 15, weight: .semibold))
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: 7, weight: .black))
+                                .offset(x: 2, y: 2)
+                        }
+                        .foregroundStyle(.green)
+                        .frame(width: 24, height: 18)
+                    case .unplugged:
+                        Image(systemName: "battery.0percent")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.orange)
+                            .frame(width: 24, height: 18)
                     default:
                         EmptyView()
                 }
@@ -153,7 +168,7 @@ struct InlineHUD: View {
             .foregroundStyle(.white)
             .symbolVariant(.fill)
             
-            if type != .mic && type != .micActivity && type != .camera && type != .screenRecord && type != .capsLock && type != .location && type != .airPods {
+            if type != .mic && type != .micActivity && type != .camera && type != .screenRecord && type != .capsLock && type != .location && type != .airPods && type != .charging && type != .unplugged {
                 Text(Type2Name(type))
                     .font(.subheadline)
                     .fontWeight(.medium)
@@ -225,6 +240,18 @@ struct InlineHUD: View {
                 let batteryVal = Int(value > 1 ? value : value * 100)
                 AirPodsBatteryRingView(battery: batteryVal)
                     .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
+            } else if type == .charging {
+                Text("Charging")
+                    .foregroundStyle(.green)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .lineLimit(1)
+                    .fixedSize()
+            } else if type == .unplugged {
+                Text("Unplugged")
+                    .foregroundStyle(.orange)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .lineLimit(1)
+                    .fixedSize()
             } else {
                 HStack(spacing: 6) {
                     DraggableProgressBar(value: $value, onChange: { v in
@@ -266,7 +293,7 @@ struct InlineHUD: View {
             return isScreenBuiltin ? 112 : 106
         case .volume, .brightness, .backlight:
             return isScreenBuiltin ? 236 : 228
-        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location:
+        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .charging, .unplugged:
             return isScreenBuiltin ? 180 : 175
         default:
             return isScreenBuiltin ? 180 : 175
@@ -279,7 +306,7 @@ struct InlineHUD: View {
             return 52
         case .volume, .brightness, .backlight:
             return 82
-        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location:
+        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .charging, .unplugged:
             return 52
         default:
             return 60
@@ -292,7 +319,7 @@ struct InlineHUD: View {
             return 52
         case .volume, .brightness, .backlight:
             return 98
-        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location:
+        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .charging, .unplugged:
             return 88
         default:
             return 80

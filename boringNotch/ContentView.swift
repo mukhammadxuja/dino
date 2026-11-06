@@ -7,6 +7,7 @@
 //
 
 import AVFoundation
+import AppKit
 import Combine
 import Defaults
 import KeyboardShortcuts
@@ -255,6 +256,7 @@ struct ContentView: View {
     }
 
     private var isIslandShowing: Bool {
+        if isBatteryInlineAlertVisible { return true }
         if effectiveIslandVisibility == .alwaysVisible {
             return true
         }
@@ -262,6 +264,15 @@ struct ContentView: View {
             return isIslandClickedDown || isIslandTransientlyVisible
         }
         return isHovering || isShowingMusicSneakPeek || isIslandTransientlyVisible
+    }
+
+    private var isBatteryInlineAlertVisible: Bool {
+        guard vm.notchState == .closed && coordinator.expandingView.show else { return false }
+        if coordinator.expandingView.type == .charging || coordinator.expandingView.type == .unplugged {
+            return true
+        }
+        return coordinator.expandingView.type == .battery
+            && Defaults[.batteryToastType] == .dynamicNotch
     }
 
     private var centeredMenuBarOffset: CGFloat {
@@ -356,22 +367,22 @@ struct ContentView: View {
         let activeSlot = DinoCoordinator.shared.activeSlot
 
         if isCurrentDisplayIsland {
-            if isShowingSystemToastHUD {
+            if isBatteryInlineAlertVisible {
+                return 236
+            } else if isShowingSystemToastHUD {
                 let type = coordinator.sneakPeek.type
                 switch type {
                 case .airPods:
                     return isCurrentScreenBuiltin ? 112 : 106
                 case .volume, .brightness, .backlight:
                     return isCurrentScreenBuiltin ? 236 : 228
-                case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location:
+                case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .charging, .unplugged:
                     return isCurrentScreenBuiltin ? 180 : 175
                 default:
                     return isCurrentScreenBuiltin ? 180 : 175
                 }
             } else if isShowingMusicSneakPeek {
                 return isCurrentScreenBuiltin ? 190 : 165
-            } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show && vm.notchState == .closed {
-                return isCurrentScreenBuiltin ? 170 : 145
             } else if isAntigravityActive {
                 return isCurrentScreenBuiltin ? 190 : 160
             } else if isDualActivityActive || DinoCoordinator.shared.isDualActivityActive {
@@ -388,7 +399,7 @@ struct ContentView: View {
             case .calendar:
                 return isCurrentScreenBuiltin ? 140 : 115
             case .battery:
-                return isCurrentScreenBuiltin ? 170 : 145
+                return 236
             case .idle, .shelf, .download, .webcam, .coding, .hud:
                 return isCurrentScreenBuiltin ? 88 : 70
             }
@@ -396,14 +407,32 @@ struct ContentView: View {
 
         var chinWidth: CGFloat = vm.closedNotchSize.width + (2 * topCornerRadius) + 8
 
-        if coordinator.expandingView.type == .battery && coordinator.expandingView.show
+        let showsBatteryStatusPill = coordinator.expandingView.show
             && vm.notchState == .closed
-        {
-            if Defaults[.batteryToastType] == .dynamicNotch {
-                chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 24)
-            } else {
-                chinWidth = 640
-            }
+            && (coordinator.expandingView.type == .charging
+                || coordinator.expandingView.type == .unplugged
+                || (coordinator.expandingView.type == .battery && Defaults[.batteryToastType] == .dynamicNotch))
+
+        if showsBatteryStatusPill {
+            // Reserve the actual camera width between the left and right HUD wings.
+            let batteryModel = BatteryStatusViewModel.shared
+            let isPowerStatus = coordinator.expandingView.type == .charging || coordinator.expandingView.type == .unplugged
+            let isChargingStatus = coordinator.expandingView.type == .charging
+            let percentage = isPowerStatus
+                ? Int(batteryModel.levelBattery)
+                : (batteryModel.lastAlertTriggered != nil ? batteryModel.alertPercentage : Int(batteryModel.levelBattery))
+            let title = isPowerStatus
+                ? (isChargingStatus ? "Charging" : "Unplugged")
+                : (batteryModel.lastAlertTriggered.map { $0 == .lowBattery ? "Low Battery" : "Charged" }
+                    ?? (batteryModel.levelBattery <= 20 ? "Low Battery" : "Charged"))
+            chinWidth = BatteryAlertNotchContent.requiredWidth(
+                cameraWidth: vm.closedNotchSize.width,
+                title: title,
+                percentage: percentage
+            )
+        } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show
+            && vm.notchState == .closed {
+            chinWidth = 640
         } else if isShowingSystemToastHUD {
             let type = coordinator.sneakPeek.type
             if isCurrentScreenBuiltin {
@@ -412,7 +441,7 @@ struct ContentView: View {
                     chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 50)
                 case .volume, .brightness, .backlight:
                     chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 110)
-                case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location:
+                case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .charging, .unplugged:
                     chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 75)
                 default:
                     chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 65)
@@ -423,7 +452,7 @@ struct ContentView: View {
                     chinWidth = 106
                 case .volume, .brightness, .backlight:
                     chinWidth = 228
-                case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location:
+                case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .charging, .unplugged:
                     chinWidth = 175
                 default:
                     chinWidth = 175
@@ -690,7 +719,12 @@ struct ContentView: View {
                         return view
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchSize)
-                            .animation(animationSpring, value: computedChinWidth)
+                            .animation(
+                                isShowingSystemToastHUD
+                                    ? .interactiveSpring(response: 0.46, dampingFraction: 0.9, blendDuration: 0)
+                                    : animationSpring,
+                                value: computedChinWidth
+                            )
                     }
                     .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
                     .onHover { hovering in
@@ -1608,26 +1642,27 @@ struct BatteryClosedNotchLayoutView: View {
 
     var body: some View {
         if batteryToastType == .dynamicNotch {
-            let itemSize = max(0, vm.effectiveClosedNotchHeight - 12)
             let tintColor: Color = batteryModel.activeGlowColor ?? (batteryModel.levelBattery <= 20 ? .red : .green)
-            let displayPercentage = batteryModel.alertPercentage > 0 ? batteryModel.alertPercentage : Int(batteryModel.levelBattery)
+            let displayPercentage = batteryModel.lastAlertTriggered != nil ? batteryModel.alertPercentage : Int(batteryModel.levelBattery)
 
-            HStack {
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(tintColor)
-                    .frame(width: itemSize, height: itemSize)
-
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(width: isCurrentDisplayIsland ? 64 : (vm.closedNotchSize.width - cornerRadiusInsets.closed.top), height: vm.effectiveClosedNotchHeight)
-
-                Text("\(displayPercentage)")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(tintColor)
-                    .frame(width: itemSize, height: itemSize)
+            if isCurrentDisplayIsland {
+                BatteryInlineAlertContent(
+                    isLow: batteryModel.lastAlertTriggered.map { $0 == .lowBattery } ?? (batteryModel.levelBattery <= 20),
+                    percentage: displayPercentage,
+                    color: tintColor
+                )
+                .frame(width: 220, height: vm.effectiveClosedNotchHeight)
+            } else {
+                BatteryAlertNotchContent(
+                    title: batteryModel.lastAlertTriggered.map { $0 == .lowBattery ? "Low Battery" : "Charged" }
+                        ?? (batteryModel.levelBattery <= 20 ? "Low Battery" : "Charged"),
+                    percentage: displayPercentage,
+                    color: tintColor,
+                    closedNotchWidth: vm.closedNotchSize.width,
+                    height: vm.effectiveClosedNotchHeight
+                )
+                .frame(height: vm.effectiveClosedNotchHeight)
             }
-            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
         } else {
             HStack(spacing: 0) {
                 HStack {
@@ -1655,6 +1690,163 @@ struct BatteryClosedNotchLayoutView: View {
             }
             .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
         }
+    }
+}
+
+struct BatteryInlineAlertContent: View {
+    let isLow: Bool
+    let percentage: Int
+    let color: Color
+    var compact = false
+    var title: String? = nil
+
+    private var level: CGFloat { CGFloat(min(100, max(0, percentage))) / 100 }
+
+    var body: some View {
+        HStack(spacing: compact ? 4 : 6) {
+            Text(title ?? (isLow ? "Low Battery" : "Charged"))
+                .foregroundStyle(.white)
+                .font(.system(size: compact ? 9 : 12, weight: .semibold))
+                .lineLimit(1)
+            Spacer(minLength: compact ? 7 : 16)
+            Text("\(min(100, max(0, percentage)))%")
+                .font(.system(size: compact ? 9 : 12, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(color)
+            HStack(spacing: 1) {
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: compact ? 3.5 : 5)
+                            .fill(color.opacity(0.35))
+                        Rectangle()
+                            .fill(color)
+                            .frame(width: level > 0 ? max(compact ? 3 : 4, geometry.size.width * level) : 0)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: compact ? 3.5 : 5))
+                }
+                .frame(width: compact ? 20 : 27, height: compact ? 10 : 13)
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(color.opacity(0.65))
+                    .frame(width: 2, height: compact ? 4 : 6)
+                    .clipShape(RoundedRectangle(cornerRadius: compact ? 2 : 3))
+            }
+        }
+        .padding(.horizontal, compact ? 7 : 4)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title ?? (isLow ? "Low Battery" : "Charged")), \(min(100, max(0, percentage))) percent")
+    }
+}
+
+struct PowerStatusInlineHUD: View {
+    @ObservedObject private var batteryModel = BatteryStatusViewModel.shared
+
+    let isCharging: Bool
+    let isCurrentDisplayIsland: Bool
+    let height: CGFloat
+    let width: CGFloat
+    let closedNotchWidth: CGFloat
+
+    private var percentage: Int { Int(batteryModel.levelBattery) }
+    private var tint: Color { isCharging ? .green : .white }
+
+    var body: some View {
+        Group {
+            if isCurrentDisplayIsland {
+                BatteryInlineAlertContent(
+                    isLow: false,
+                    percentage: percentage,
+                    color: tint,
+                    title: isCharging ? "Charging" : "Unplugged"
+                )
+                .frame(width: 220, height: height)
+            } else {
+                BatteryAlertNotchContent(
+                    title: isCharging ? "Charging" : "Unplugged",
+                    percentage: percentage,
+                    color: tint,
+                    closedNotchWidth: closedNotchWidth,
+                    height: height
+                )
+                .frame(width: width, height: height)
+            }
+        }
+    }
+
+}
+
+struct BatteryAlertNotchContent: View {
+    let title: String
+    let percentage: Int
+    let color: Color
+    let closedNotchWidth: CGFloat
+    let height: CGFloat
+
+    private static let cameraClearance: CGFloat = 12
+    private var level: CGFloat { CGFloat(min(100, max(0, percentage))) / 100 }
+    private var contentWidth: CGFloat { Self.requiredWidth(cameraWidth: closedNotchWidth, title: title, percentage: percentage) }
+
+    static func requiredWidth(cameraWidth: CGFloat, title: String, percentage: Int) -> CGFloat {
+        let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        let percentageFont = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
+        let titleWidth = ceil((title as NSString).size(withAttributes: [.font: titleFont]).width)
+        let percentageText = "\(min(100, max(0, percentage)))%"
+        let percentageWidth = ceil((percentageText as NSString).size(withAttributes: [.font: percentageFont]).width)
+        let sideContentWidth = titleWidth + percentageWidth + 5 + 30
+        let sidePadding: CGFloat = 4
+        return cameraWidth + cameraClearance + sideContentWidth + (sidePadding * 2)
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .contentTransition(.opacity)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.leading, 4)
+
+            Rectangle()
+                .fill(Color.clear)
+                .frame(width: closedNotchWidth + Self.cameraClearance)
+
+            HStack(spacing: 5) {
+                Text("\(min(100, max(0, percentage)))%")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .foregroundStyle(color)
+                    .fixedSize()
+
+                HStack(spacing: 1) {
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 5)
+                                .fill(color.opacity(0.35))
+                            Rectangle()
+                                .fill(color)
+                                .frame(width: max(3, geometry.size.width * level))
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                    }
+                    .frame(width: 27, height: 13)
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(color.opacity(0.65))
+                        .frame(width: 2, height: 6)
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.trailing, 4)
+        }
+        .frame(
+            width: contentWidth,
+            height: height
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title), \(percentage) percent")
+        .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.78), value: title)
+        .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.78), value: percentage)
     }
 }
 

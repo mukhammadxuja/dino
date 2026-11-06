@@ -254,6 +254,27 @@ public struct DinoSlotContainerView: View {
                 }
             }
             .padding(.horizontal, 10)
+        case .charging:
+            HStack(spacing: 7) {
+                Image(systemName: "battery.100percent")
+                    .foregroundColor(.green)
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.green)
+                Text("Charging")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 10)
+        case .unplugged:
+            HStack(spacing: 7) {
+                Image(systemName: "battery.0percent")
+                    .foregroundColor(.orange)
+                Text("Unplugged")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 10)
         }
     }
 }
