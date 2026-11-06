@@ -16,6 +16,7 @@ struct IslandContainerLayout<Content: View>: View {
     let isCurrentScreenBuiltin: Bool
     let islandStyle: IslandStyle
     let isShowingMusicSneakPeek: Bool
+    let isInlinePlaybackPeek: Bool
     let isDualActivityActive: Bool
     let isHovering: Bool
     let isScaleHovered: Bool
@@ -132,8 +133,8 @@ struct IslandContainerLayout<Content: View>: View {
                     ? openHorizontalPadding
                     : (isCurrentDisplayIsland ? (isShowingMusicSneakPeek ? 10 : 8) : (topCornerRadius + 6))
             )
-            .padding(.top, vm.notchState == .open ? openTopPadding : (isShowingMusicSneakPeek ? 4 : 0))
-            .padding(.bottom, vm.notchState == .open ? openBottomPadding : (isShowingMusicSneakPeek ? 6 : 0))
+            .padding(.top, vm.notchState == .open ? openTopPadding : (isShowingMusicSneakPeek && !isInlinePlaybackPeek ? 4 : 0))
+            .padding(.bottom, vm.notchState == .open ? openBottomPadding : (isShowingMusicSneakPeek && !isInlinePlaybackPeek ? 6 : 0))
             .background(surfaceBackground)
             .conditionalModifier(isCurrentDisplayIsland) { view in
                 view.clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))

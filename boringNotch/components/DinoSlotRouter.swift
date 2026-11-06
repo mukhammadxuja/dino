@@ -258,7 +258,8 @@ struct DinoSlotRouter: View {
                         NotchHomeView(
                             albumArtNamespace: albumArtNamespace,
                             mediaGestureDirection: mediaGestureDirection,
-                            mediaGestureIconVisible: mediaGestureIconVisible
+                            mediaGestureIconVisible: mediaGestureIconVisible,
+                            coverRotationY: coverRotationY
                         )
                     case .shelf:
                         shelfView

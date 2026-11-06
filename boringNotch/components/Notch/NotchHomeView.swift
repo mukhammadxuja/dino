@@ -16,12 +16,14 @@ struct MusicPlayerView: View {
     let albumArtNamespace: Namespace.ID
     let mediaGestureDirection: MediaGestureDirection
     let mediaGestureIconVisible: Bool
+    let coverRotationY: Double
 
     var body: some View {
         MusicControlsView(
             albumArtNamespace: albumArtNamespace,
             mediaGestureDirection: mediaGestureDirection,
-            mediaGestureIconVisible: mediaGestureIconVisible
+            mediaGestureIconVisible: mediaGestureIconVisible,
+            coverRotationY: coverRotationY
         )
     }
 }
@@ -29,6 +31,7 @@ struct MusicPlayerView: View {
 struct AlbumArtView: View {
     @ObservedObject var musicManager = MusicManager.shared
     let albumArtNamespace: Namespace.ID
+    let coverRotationY: Double
 
     var body: some View {
         albumArtButton
@@ -61,6 +64,7 @@ struct AlbumArtView: View {
         Image(nsImage: musicManager.albumArt)
             .resizable()
             .aspectRatio(1, contentMode: .fill)
+            .rotation3DEffect(.degrees(coverRotationY), axis: (x: 0, y: 1, z: 0))
             .matchedGeometryEffect(id: "albumArt", in: albumArtNamespace)
             .clipped()
             .clipShape(
@@ -79,6 +83,7 @@ struct MusicControlsView: View {
     let albumArtNamespace: Namespace.ID
     let mediaGestureDirection: MediaGestureDirection
     let mediaGestureIconVisible: Bool
+    let coverRotationY: Double
     @State private var sliderValue: Double = 0
     @State private var dragging: Bool = false
     @State private var lastDragged: Date = .distantPast
@@ -97,7 +102,7 @@ struct MusicControlsView: View {
 
     private var topInfoRow: some View {
         HStack(alignment: .bottom, spacing: 14) {
-            AlbumArtView(albumArtNamespace: albumArtNamespace)
+            AlbumArtView(albumArtNamespace: albumArtNamespace, coverRotationY: coverRotationY)
                 .frame(width: 66, height: 66)
                 .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
 
@@ -566,6 +571,7 @@ struct NotchHomeView: View {
     let albumArtNamespace: Namespace.ID
     let mediaGestureDirection: MediaGestureDirection
     let mediaGestureIconVisible: Bool
+    let coverRotationY: Double
     @State private var isPomodoroMirrorEnabled = false
 
     var body: some View {
@@ -649,7 +655,8 @@ struct NotchHomeView: View {
                     MusicHomePage(
                         albumArtNamespace: albumArtNamespace,
                         mediaGestureDirection: mediaGestureDirection,
-                        mediaGestureIconVisible: mediaGestureIconVisible
+                        mediaGestureIconVisible: mediaGestureIconVisible,
+                        coverRotationY: coverRotationY
                     )
                 case .pomodoro:
                     PomodoroHomePage(isPomodoroMirrorEnabled: $isPomodoroMirrorEnabled)
@@ -711,6 +718,7 @@ private struct MusicHomePage: View {
     let albumArtNamespace: Namespace.ID
     let mediaGestureDirection: MediaGestureDirection
     let mediaGestureIconVisible: Bool
+    let coverRotationY: Double
 
     private var shouldShowCamera: Bool {
         Defaults[.showMirror] && cameraAvailable && vm.isCameraExpanded
@@ -727,7 +735,8 @@ private struct MusicHomePage: View {
                 MusicPlayerView(
                     albumArtNamespace: albumArtNamespace,
                     mediaGestureDirection: mediaGestureDirection,
-                    mediaGestureIconVisible: mediaGestureIconVisible
+                    mediaGestureIconVisible: mediaGestureIconVisible,
+                    coverRotationY: coverRotationY
                 )
                     .frame(width: musicWidth, alignment: .leading)
 
