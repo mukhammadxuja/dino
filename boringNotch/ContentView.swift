@@ -38,91 +38,99 @@ private struct OpenFeatureStretchView<Content: View>: View {
 private struct ClosedIslandRevealView<Content: View>: View {
     let isActive: Bool
     let isVisible: Bool
-    let islandStyle: IslandStyle
+    let hiddenOffsetY: CGFloat
     let content: Content
 
-    @State private var dotScale: CGFloat = 0
-    @State private var expansion: CGFloat = 0
-    @State private var expansionTask: Task<Void, Never>?
+    @State private var revealProgress: CGFloat = 0
+    @State private var retractTask: Task<Void, Never>?
 
     var body: some View {
-        let contentOpacity = isActive ? Double(max(0, min(1, (expansion - 0.4) / 0.6))) : 1
-        let shellOpacity = Double(max(0, min(1, (1 - expansion) / 0.3)))
-
         content
-            .opacity(contentOpacity)
-            .overlay {
-                if isActive {
-                    GeometryReader { geometry in
-                        let height = geometry.size.height
-                        let diameter = min(geometry.size.width, height)
-                        let width = diameter + (geometry.size.width - diameter) * expansion
-                        RoundedRectangle(cornerRadius: height / 2, style: .continuous)
-                            .fill(islandStyle == .glass ? Color.black.opacity(0.68) : .black)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: height / 2, style: .continuous)
-                                    .stroke(Color.white.opacity(islandStyle == .glass ? 0.16 : 0.18), lineWidth: 0.8)
-                            }
-                            .shadow(color: .black.opacity(0.28), radius: 5, y: 2)
-                            .frame(width: width, height: height)
-                            .scaleEffect(dotScale)
-                            .opacity(shellOpacity)
-                            .position(x: geometry.size.width / 2, y: height / 2)
-                    }
-                    .allowsHitTesting(false)
-                }
-            }
+            .offset(y: isActive ? -hiddenOffsetY * (1 - revealProgress) : 0)
+            .opacity(isActive ? Double(revealProgress) : 1)
             .onAppear {
                 if isActive && isVisible {
                     reveal()
                 } else {
-                    dotScale = isActive ? 0 : 1
-                    expansion = isActive ? 0 : 1
+                    revealProgress = isActive ? 0 : 1
                 }
             }
             .onChange(of: isVisible) { _, visible in
-                expansionTask?.cancel()
-                if isActive && visible {
-                    reveal()
-                } else if isActive {
-                    withAnimation(.easeIn(duration: 0.14)) {
-                        expansion = 0
-                        dotScale = 0
+                guard isActive else { return }
+                retractTask?.cancel()
+                if visible {
+                    withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.82)) {
+                        revealProgress = 1
                     }
                 } else {
-                    dotScale = 1
-                    expansion = 1
+                    retractTask = Task { @MainActor in
+                        // Let the sneak-peek content spring back to the closed pill first.
+                        try? await Task.sleep(for: .milliseconds(180))
+                        guard !Task.isCancelled else { return }
+                        withAnimation(.interactiveSpring(response: 0.86, dampingFraction: 0.9)) {
+                            revealProgress = 0
+                        }
+                    }
                 }
             }
             .onChange(of: isActive) { _, active in
-                expansionTask?.cancel()
-                if !active {
-                    dotScale = 1
-                    expansion = 1
-                } else if !isVisible {
-                    dotScale = 0
-                    expansion = 0
+                retractTask?.cancel()
+                if active && !isVisible {
+                    revealProgress = 0
+                } else {
+                    withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.82)) {
+                        revealProgress = 1
+                    }
                 }
             }
             .onDisappear {
-                expansionTask?.cancel()
+                retractTask?.cancel()
             }
     }
 
     private func reveal() {
-        expansionTask?.cancel()
-        expansion = 0
-        dotScale = 0
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.82)) {
-            dotScale = 1
+        withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.82)) {
+            revealProgress = 1
         }
-        expansionTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(120))
-            guard !Task.isCancelled else { return }
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
-                expansion = 1
+    }
+}
+
+private struct IslandRevealTargetView: View {
+    let width: CGFloat
+    let height: CGFloat
+    let cornerRadius: CGFloat
+    let yOffset: CGFloat
+    let highlightsOnHover: Bool
+    @Binding var isHovered: Bool
+    let onHoverChanged: (Bool) -> Void
+    let onTap: () -> Void
+
+    private var feedbackOpacity: Double {
+        highlightsOnHover && isHovered ? 0.18 : 0
+    }
+
+    var body: some View {
+        Color.black.opacity(0.001)
+            .frame(width: width, height: height)
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.white.opacity(feedbackOpacity))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .stroke(Color.white.opacity(feedbackOpacity > 0 ? 0.22 : 0), lineWidth: 0.8)
+                    }
             }
-        }
+            .animation(.easeOut(duration: 0.16), value: isHovered)
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .offset(y: yOffset)
+            .onHover { hovering in
+                isHovered = highlightsOnHover && hovering
+                onHoverChanged(hovering)
+            }
+            .onTapGesture {
+                isHovered = false
+                onTap()
+            }
     }
 }
 
@@ -173,6 +181,8 @@ struct ContentView: View {
     @State private var coverHoverDismissTask: Task<Void, Never>?
     @State private var isIslandTransientlyVisible: Bool = false
     @State private var transientVisibilityTask: Task<Void, Never>?
+    @State private var islandHUDExpansionTask: Task<Void, Never>?
+    @State private var isIslandHUDExpanded: Bool = false
     @State private var coverRotationY: Double = 0
 
     @Namespace var albumArtNamespace
@@ -191,6 +201,7 @@ struct ContentView: View {
     @State private var idleBounceTask: Task<Void, Never>?
     @State private var idleBounceWorkItem: DispatchWorkItem?
     @State private var isIslandClickedDown: Bool = false
+    @State private var isIslandRevealTargetHovered: Bool = false
     @State private var islandRetractTask: Task<Void, Never>?
     
     // Displays & Island Mode
@@ -256,7 +267,7 @@ struct ContentView: View {
     }
 
     private var isIslandShowing: Bool {
-        if isBatteryInlineAlertVisible { return true }
+        if isBatteryInlineAlertVisible || isShowingSystemToastHUD { return true }
         if effectiveIslandVisibility == .alwaysVisible {
             return true
         }
@@ -298,7 +309,7 @@ struct ContentView: View {
         if effectiveIslandVisibility == .alwaysVisible {
             return centeredMenuBarOffset
         } else {
-            // The closed island stays in place; its mask reveals a dot, then expands.
+            // Keep the closed island aligned below the menu bar for its spring reveal.
             return dropDownOffset
         }
     }
@@ -308,6 +319,18 @@ struct ContentView: View {
         if vm.notchState == .open { return 1.0 }
         if effectiveIslandVisibility == .alwaysVisible { return 1.0 }
         return isIslandShowing ? 1.0 : 0.0
+    }
+
+    private var computedChinWidthAnimation: Animation {
+        if isShowingInlineMusicPlaybackPeek {
+            return isCurrentDisplayIsland
+                ? .interactiveSpring(response: 0.34, dampingFraction: 0.84, blendDuration: 0)
+                : .interactiveSpring(response: 0.46, dampingFraction: 0.9, blendDuration: 0)
+        }
+        if isShowingSystemToastHUD {
+            return .interactiveSpring(response: 0.46, dampingFraction: 0.9, blendDuration: 0)
+        }
+        return animationSpring
     }
 
     private var topCornerRadius: CGFloat {
@@ -383,6 +406,9 @@ struct ContentView: View {
             } else if isBatteryInlineAlertVisible {
                 return 236
             } else if isShowingSystemToastHUD {
+                if !isIslandHUDExpanded {
+                    return defaultIslandWidth(for: DinoCoordinator.shared.backgroundSlot)
+                }
                 let type = coordinator.sneakPeek.type
                 switch type {
                 case .airPods:
@@ -395,7 +421,7 @@ struct ContentView: View {
                     return isCurrentScreenBuiltin ? 180 : 175
                 }
             } else if isShowingMusicSneakPeek {
-                return isCurrentScreenBuiltin ? 190 : 165
+                return isCurrentScreenBuiltin ? 176 : 152
             } else if isAntigravityActive {
                 return isCurrentScreenBuiltin ? 190 : 160
             } else if isDualActivityActive || DinoCoordinator.shared.isDualActivityActive {
@@ -532,6 +558,18 @@ struct ContentView: View {
         return chinWidth
     }
 
+    private func defaultIslandWidth(for slot: DinoSlot) -> CGFloat {
+        switch slot {
+        case .music: return isCurrentScreenBuiltin ? 150 : 130
+        case .pomodoro: return isCurrentScreenBuiltin ? 172 : 144
+        case .weather: return isCurrentScreenBuiltin ? 120 : 105
+        case .calendar: return isCurrentScreenBuiltin ? 140 : 115
+        case .battery: return 236
+        case .idle, .shelf, .download, .webcam, .coding, .hud:
+            return isCurrentScreenBuiltin ? 88 : 70
+        }
+    }
+
     private var isAntigravityActive: Bool {
         ReleaseFeatures.code
             && Defaults[.codeActivityEnabled]
@@ -659,32 +697,65 @@ struct ContentView: View {
         }
     }
 
-    var body: some View {
-        ZStack(alignment: .top) {
-            if isCurrentDisplayIsland && vm.notchState == .closed && !isIslandShowing && !vm.hideOnClosed {
-                // Keep the menu bar hover/click target without drawing a second
-                // pill above the island's fixed reveal position.
-                Color.black.opacity(0.001)
-                .frame(
-                    width: max(112, vm.closedNotchSize.width),
-                    height: max(24, vm.effectiveClosedNotchHeight)
-                )
-                .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
-                .offset(y: centeredMenuBarOffset)
-                .onHover { hovering in
+    @ViewBuilder
+    private var islandRevealTarget: some View {
+        if isCurrentDisplayIsland && vm.notchState == .closed && !isIslandShowing && !vm.hideOnClosed {
+            IslandRevealTargetView(
+                width: max(88, computedChinWidth - 16),
+                height: max(24, vm.effectiveClosedNotchHeight),
+                cornerRadius: islandCornerRadius,
+                yOffset: centeredMenuBarOffset,
+                highlightsOnHover: effectiveIslandVisibility == .onClick,
+                isHovered: $isIslandRevealTargetHovered,
+                onHoverChanged: { hovering in
                     if effectiveIslandVisibility == .onHover {
                         handleHover(hovering)
                     }
-                }
-                .onTapGesture {
+                },
+                onTap: {
                     withAnimation(animationSpring) {
                         isIslandClickedDown = true
                         isHovering = true
                     }
                 }
-                .zIndex(10)
-                .allowsHitTesting(!isIslandShowing && vm.notchState == .closed)
+            )
+            .zIndex(10)
+            .allowsHitTesting(!isIslandShowing && vm.notchState == .closed)
+        }
+    }
+
+    private func handleSystemToastVisibilityChange(_ isShowing: Bool) {
+        islandHUDExpansionTask?.cancel()
+        guard isCurrentDisplayIsland && isShowing else {
+            isIslandHUDExpanded = false
+            return
+        }
+
+        isIslandHUDExpanded = false
+        islandHUDExpansionTask = Task { @MainActor in
+            // Drop the default-width island first, then reveal the HUD.
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled,
+                  self.isShowingSystemToastHUD,
+                  self.isCurrentDisplayIsland,
+                  self.vm.notchState == .closed else { return }
+            withAnimation(.interactiveSpring(response: 0.46, dampingFraction: 0.86)) {
+                self.isIslandHUDExpanded = true
             }
+        }
+    }
+
+    private func shouldCloseOpenNotchAfterSharing() -> Bool {
+        let batteryPopoverIsInactive = !vm.isBatteryPopoverActive
+        let pointerIsOutside = !isHovering
+        let notchIsOpen = vm.notchState == .open
+        let sharingAllowsClose = !SharingStateManager.shared.preventNotchClose
+        return batteryPopoverIsInactive && pointerIsOutside && notchIsOpen && sharingAllowsClose
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            islandRevealTarget
 
             if isCurrentDisplayIsland && isIslandShowing && vm.notchState == .closed
                 && effectiveIslandVisibility != .alwaysVisible && !vm.hideOnClosed {
@@ -713,7 +784,7 @@ struct ContentView: View {
                 ClosedIslandRevealView(
                     isActive: isCurrentDisplayIsland && vm.notchState == .closed,
                     isVisible: isIslandShowing,
-                    islandStyle: islandStyle,
+                    hiddenOffsetY: max(islandYOffset, 0) + max(vm.effectiveClosedNotchHeight, 44) + 72,
                     content: OpenFeatureStretchView(
                         stretch: openFeatureStretch,
                         content: islandContainerView.frame(
@@ -729,7 +800,11 @@ struct ContentView: View {
                         anchor: .top
                     )
                     .offset(y: min(0, islandYOffset))
-                    .opacity(vm.notchState == .closed && vm.hideOnClosed ? 0 : islandOpacity)
+                    .opacity(
+                        vm.notchState == .closed && vm.hideOnClosed
+                            ? 0
+                            : (isCurrentDisplayIsland ? 1 : islandOpacity)
+                    )
                     .allowsHitTesting(
                         (isIslandShowing || vm.notchState == .open || !isCurrentDisplayIsland)
                         && (!vm.hideOnClosed || vm.notchState == .open)
@@ -737,7 +812,7 @@ struct ContentView: View {
                     .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: isScaleHovered)
                     .animation(.interactiveSpring(response: 0.42, dampingFraction: 0.80), value: isHovering)
                     .animation(.interactiveSpring(response: 0.44, dampingFraction: 0.82), value: islandYOffset)
-                    .animation(.easeInOut(duration: 0.18), value: islandOpacity)
+                    .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.84), value: islandOpacity)
                     .conditionalModifier(true) { view in
                         let openAnimation = Animation.interactiveSpring(response: 0.36, dampingFraction: 0.68, blendDuration: 0)
                         let closeAnimation = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.74, blendDuration: 0)
@@ -745,14 +820,7 @@ struct ContentView: View {
                         return view
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchSize)
-                            .animation(
-                                !isCurrentDisplayIsland && isShowingInlineMusicPlaybackPeek
-                                    ? .interactiveSpring(response: 0.46, dampingFraction: 0.9, blendDuration: 0)
-                                    : (isShowingSystemToastHUD
-                                        ? .interactiveSpring(response: 0.46, dampingFraction: 0.9, blendDuration: 0)
-                                        : animationSpring),
-                                value: computedChinWidth
-                            )
+                            .animation(computedChinWidthAnimation, value: computedChinWidth)
                     }
                     .contentShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
                     .onHover { hovering in
@@ -848,6 +916,9 @@ struct ContentView: View {
                     .onReceive(MusicManager.shared.$isPlaying) { _ in }
                     .onReceive(MusicManager.shared.$isPlayerIdle) { _ in }
                     .onReceive(PomodoroManager.shared.$state) { _ in }
+                    .onChange(of: isShowingSystemToastHUD) { _, isShowing in
+                        handleSystemToastVisibilityChange(isShowing)
+                    }
                     .onChange(of: coordinator.sneakPeek.show) { _, isShowing in
                         if isShowing && coordinator.sneakPeek.type == .music && vm.notchState == .closed {
                             transientVisibilityTask?.cancel()
@@ -860,22 +931,20 @@ struct ContentView: View {
                                 let delay = max(0.25, Defaults[.collapseDelay])
                                 try? await Task.sleep(for: .seconds(delay))
                                 guard !Task.isCancelled else { return }
-                                if !self.isHovering && !self.isShowingMusicSneakPeek {
-                                    withAnimation(self.animationSpring) {
-                                        self.isIslandTransientlyVisible = false
-                                    }
+                                withAnimation(self.animationSpring) {
+                                    self.isIslandTransientlyVisible = false
                                 }
                             }
                         }
                     }
                     .onChange(of: vm.isBatteryPopoverActive) {
-                        if !vm.isBatteryPopoverActive && !isHovering && vm.notchState == .open && !SharingStateManager.shared.preventNotchClose {
+                        if shouldCloseOpenNotchAfterSharing() {
                             hoverTask?.cancel()
                             hoverTask = Task {
                                 try? await Task.sleep(for: .milliseconds(100))
                                 guard !Task.isCancelled else { return }
                                 await MainActor.run {
-                                    if !self.vm.isBatteryPopoverActive && !self.isHovering && self.vm.notchState == .open && !SharingStateManager.shared.preventNotchClose {
+                                    if self.shouldCloseOpenNotchAfterSharing() {
                                         self.closeWithSpring()
                                     }
                                 }
@@ -983,7 +1052,10 @@ struct ContentView: View {
                 isCurrentScreenBuiltin: isCurrentScreenBuiltin,
                 computedChinWidth: computedChinWidth,
                 isShowingMusicSneakPeek: isShowingMusicSneakPeek,
-                isShowingSystemToastHUD: isShowingSystemToastHUD,
+                isShowingSystemToastHUD: isShowingSystemToastHUD
+                    && (!isCurrentDisplayIsland || isIslandHUDExpanded),
+                isSystemToastHUDPendingExpansion: isShowingSystemToastHUD
+                    && isCurrentDisplayIsland && !isIslandHUDExpanded,
                 isDualActivityActive: isDualActivityActive,
                 isAntigravityActive: isAntigravityActive,
                 shouldShowPomodoroInlineClosedVisual: shouldShowPomodoroInlineClosedVisual,
@@ -2013,7 +2085,7 @@ struct MusicLiveActivityView: View {
         let isInlinePlaybackPeek = Defaults[.sneakPeekStyles] == .inline
             && ((coordinator.expandingView.show && coordinator.expandingView.type == .music)
                 || showCoverHoverMusicDetails)
-        let islandSneakPeekWidth: CGFloat = isCurrentScreenBuiltin ? 190 : 165
+        let islandSneakPeekWidth: CGFloat = isCurrentScreenBuiltin ? 176 : 152
         let inlineIslandWidth = isCurrentDisplayIsland
             ? Self.inlineIslandWidth(
                 isBuiltIn: isCurrentScreenBuiltin,
@@ -2038,7 +2110,7 @@ struct MusicLiveActivityView: View {
         let inlineRightWingWidth = inlineTitleWidth + 6 + inlineVisualizerWidth
         let inlineWingWidth = max(inlineLeftWingWidth, inlineRightWingWidth)
         let defaultCenterSpacerWidth: CGFloat = isCurrentDisplayIsland
-            ? (isShowingMusicSneakPeek ? max(10, islandSneakPeekWidth - (coverSize * 2) - 20) : (isCurrentScreenBuiltin ? 68 : 50))
+            ? (isShowingMusicSneakPeek ? max(10, islandSneakPeekWidth - coverSize - 20) : (isCurrentScreenBuiltin ? 68 : 50))
             : (isCurrentScreenBuiltin ? (vm.closedNotchSize.width + 14) : (vm.closedNotchSize.width - 10))
         let inlineCenterSpacerWidth: CGFloat = isCurrentDisplayIsland
             ? inlineTitleWidth
@@ -2073,7 +2145,10 @@ struct MusicLiveActivityView: View {
             isCoverHovering = hovering
             if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
                 coverHoverDismissTask?.cancel()
-                withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
+                withAnimation(.interactiveSpring(
+                    response: isCurrentDisplayIsland ? 0.2 : 0.38,
+                    dampingFraction: isCurrentDisplayIsland ? 0.82 : 0.78
+                )) {
                     showCoverHoverMusicDetails = true
                 }
             }
@@ -2150,33 +2225,58 @@ struct MusicLiveActivityView: View {
                             height: vm.effectiveClosedNotchHeight
                         )
                     } else {
-                        Rectangle()
-                            .fill(Color.clear)
-                            .contentShape(Rectangle())
-                            .overlay(
-                                HStack(alignment: .center, spacing: 4) {
-                                    if isInlinePlaybackPeek {
-                                        if !isCurrentDisplayIsland {
+                        if !isCurrentDisplayIsland {
+                            Rectangle()
+                                .fill(Color.clear)
+                                .contentShape(Rectangle())
+                                .overlay(
+                                    HStack(alignment: .center, spacing: 4) {
+                                        if isInlinePlaybackPeek {
                                             Spacer(minLength: vm.closedNotchSize.width)
+                                            MarqueeText(
+                                                .constant(inlineMusicMetadata),
+                                                font: .system(size: 11, weight: .medium),
+                                                textColor: inlineTextColor,
+                                                minDuration: 0.4,
+                                                frameWidth: inlineTitleWidth,
+                                                alignment: .leading,
+                                                fadeMaskWhenScrolling: true
+                                            )
+                                            .frame(width: inlineTitleWidth, alignment: .trailing)
                                         }
-                                        MarqueeText(
-                                            .constant(inlineMusicMetadata),
-                                            font: .system(size: 11, weight: .medium),
-                                            textColor: inlineTextColor,
-                                            minDuration: 0.4,
-                                            frameWidth: inlineTitleWidth,
-                                            alignment: .leading,
-                                            fadeMaskWhenScrolling: true
-                                        )
-                                        .frame(width: inlineTitleWidth, alignment: .trailing)
                                     }
-                                }
-                            )
-                            .frame(
-                                width: isInlinePlaybackPeek
-                                    ? inlineCenterSpacerWidth
-                                    : defaultCenterSpacerWidth
-                            )
+                                )
+                                .frame(
+                                    width: isInlinePlaybackPeek
+                                        ? inlineCenterSpacerWidth
+                                        : defaultCenterSpacerWidth
+                                )
+                        } else {
+                            Rectangle()
+                                .fill(Color.clear)
+                                .contentShape(Rectangle())
+                                .overlay(
+                                    HStack(alignment: .center, spacing: 4) {
+                                        if isInlinePlaybackPeek {
+                                            MarqueeText(
+                                                .constant(inlineMusicMetadata),
+                                                font: .system(size: 11, weight: .medium),
+                                                textColor: inlineTextColor,
+                                                minDuration: 0.4,
+                                                frameWidth: inlineTitleWidth,
+                                                alignment: .leading,
+                                                fadeMaskWhenScrolling: true
+                                            )
+                                            .frame(width: inlineTitleWidth, alignment: .trailing)
+                                        }
+                                    }
+                                )
+                                .frame(
+                                    width: isInlinePlaybackPeek
+                                        ? inlineCenterSpacerWidth
+                                        : defaultCenterSpacerWidth
+                                )
+                        }
                     }
                 }
 
@@ -2195,6 +2295,9 @@ struct MusicLiveActivityView: View {
                 height: vm.effectiveClosedNotchHeight,
                 alignment: .center
             )
+            .animation(isCurrentDisplayIsland ? .interactiveSpring(response: 0.34, dampingFraction: 0.84) : nil, value: isInlinePlaybackPeek)
+            .animation(isCurrentDisplayIsland ? .spring(response: 0.68, dampingFraction: 0.88) : nil, value: musicManager.songTitle)
+            .animation(isCurrentDisplayIsland ? .spring(response: 0.68, dampingFraction: 0.88) : nil, value: musicManager.artistName)
 
             // Centered Sneak Peek details row below cover & visualizer
             if isShowingMusicSneakPeek && !isInlinePlaybackPeek {
@@ -2204,7 +2307,9 @@ struct MusicLiveActivityView: View {
                 let songText = musicManager.artistName.isEmpty
                     ? "♪ \(musicManager.songTitle)"
                     : "♪ \(musicManager.songTitle) • \(musicManager.artistName)"
-                let textAvailableWidth = isCurrentDisplayIsland ? (islandSneakPeekWidth - 28) : (vm.closedNotchSize.width - 20)
+                let textAvailableWidth = isCurrentDisplayIsland
+                    ? (islandSneakPeekWidth - 28)
+                    : (vm.closedNotchSize.width - 20)
                 let textColor = Defaults[.playerColorTinting]
                     ? Color(nsColor: musicManager.avgColor).ensureMinimumBrightness(factor: 0.6)
                     : .white.opacity(0.9)
@@ -2236,7 +2341,7 @@ struct MusicLiveActivityView: View {
                             font: .system(size: 11, weight: .medium, design: .rounded),
                             textColor: textColor,
                             minDuration: 1.5,
-                            frameWidth: textAvailableWidth - 12,
+                            frameWidth: isCurrentDisplayIsland ? textAvailableWidth : (textAvailableWidth - 12),
                             alignment: .center,
                             fadeMaskWhenScrolling: true
                         )

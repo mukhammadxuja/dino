@@ -1136,6 +1136,7 @@ extension PrivacyHUDManager: CLLocationManagerDelegate {
 }
 
 // MARK: - Caps Lock Indicator Manager
+
 final class CapsLockManager: NSObject {
     static let shared = CapsLockManager()
 

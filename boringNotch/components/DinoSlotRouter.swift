@@ -28,6 +28,7 @@ struct DinoSlotRouter: View {
     let computedChinWidth: CGFloat
     let isShowingMusicSneakPeek: Bool
     let isShowingSystemToastHUD: Bool
+    let isSystemToastHUDPendingExpansion: Bool
     let isDualActivityActive: Bool
     let isAntigravityActive: Bool
     let shouldShowPomodoroInlineClosedVisual: Bool
@@ -85,6 +86,10 @@ struct DinoSlotRouter: View {
     }
 
     @ObservedObject private var dinoCoordinator = DinoCoordinator.shared
+
+    private var closedDisplaySlot: DinoSlot {
+        isSystemToastHUDPendingExpansion ? dinoCoordinator.backgroundSlot : dinoCoordinator.activeSlot
+    }
 
     // MARK: - Closed Slot View Routing
 
@@ -144,7 +149,7 @@ struct DinoSlotRouter: View {
             .frame(alignment: .center)
             .transition(.opacity)
         } else {
-            switch dinoCoordinator.activeSlot {
+            switch closedDisplaySlot {
             case .music:
                 MusicLiveActivityView(
                     isCurrentDisplayIsland: isCurrentDisplayIsland,
@@ -200,7 +205,11 @@ struct DinoSlotRouter: View {
         }
 
         if coordinator.sneakPeek.show {
-            if (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && !isShowingSystemToastHUD && vm.notchState == .closed {
+            if (coordinator.sneakPeek.type != .music)
+                && (coordinator.sneakPeek.type != .battery)
+                && !isShowingSystemToastHUD
+                && !isSystemToastHUDPendingExpansion
+                && vm.notchState == .closed {
                 SystemEventIndicatorModifier(
                     eventType: $coordinator.sneakPeek.type,
                     value: $coordinator.sneakPeek.value,
