@@ -35,62 +35,189 @@ private struct OpenFeatureStretchView<Content: View>: View {
 }
 
 @MainActor
+private final class IslandMusicPeekPresentation: ObservableObject {
+    enum Phase: Equatable {
+        case idle, descending, presenting, collapsing, retracting, finished
+    }
+
+    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var generation = 0
+
+    private let holdDuration: Duration
+    private var trackID: String?
+    private var dismissTask: Task<Void, Never>?
+
+    init(holdDuration: Duration = .seconds(4.5)) {
+        self.holdDuration = holdDuration
+    }
+
+    var isManaged: Bool { phase != .idle }
+    var isRunning: Bool { phase != .idle && phase != .finished }
+    var showsDetails: Bool { phase == .presenting }
+
+    var visibility: Bool? {
+        switch phase {
+        case .idle: return nil
+        case .descending, .presenting, .collapsing: return true
+        case .retracting, .finished: return false
+        }
+    }
+
+    func present(trackID: String) {
+        guard self.trackID != trackID || !isRunning else { return }
+        dismissTask?.cancel()
+        self.trackID = trackID
+        generation &+= 1
+        if phase == .presenting {
+            scheduleDismissal()
+        } else {
+            phase = .descending
+        }
+    }
+
+    func didDescend(generation: Int) {
+        guard self.generation == generation, phase == .descending else { return }
+        withAnimation(.interactiveSpring(response: 0.42, dampingFraction: 0.88)) {
+            phase = .presenting
+        }
+        scheduleDismissal()
+    }
+
+    func didRetract(generation: Int) {
+        guard self.generation == generation, phase == .retracting else { return }
+        phase = .finished
+    }
+
+    func cancel() {
+        dismissTask?.cancel()
+        dismissTask = nil
+        trackID = nil
+        generation &+= 1
+        phase = .idle
+    }
+
+    private func scheduleDismissal() {
+        let currentGeneration = generation
+        dismissTask = Task { @MainActor [weak self, holdDuration] in
+            do {
+                try await Task.sleep(for: holdDuration)
+            } catch {
+                return
+            }
+            guard let self, self.generation == currentGeneration,
+                  self.phase == .presenting else { return }
+            // Keep the pill visible until its details have finished collapsing.
+            withAnimation(.interactiveSpring(response: 0.42, dampingFraction: 0.88),
+                          completionCriteria: .logicallyComplete) {
+                self.phase = .collapsing
+            } completion: {
+                guard self.generation == currentGeneration,
+                      self.phase == .collapsing else { return }
+                self.phase = .retracting
+            }
+        }
+    }
+}
+
+private struct IslandMusicPeekEvents: ViewModifier {
+    let request: String?
+    let trackID: String
+    let canPresent: Bool
+    let phase: IslandMusicPeekPresentation.Phase
+    let onRequest: (String) -> Void
+    let onUnavailable: () -> Void
+    let onCollapse: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: request, initial: true) { _, request in
+                if let request { onRequest(request) }
+            }
+            .onChange(of: trackID) { _, trackID in
+                // Metadata is committed here; @Published emits before playback state is stored.
+                if canPresent { onRequest(trackID) }
+            }
+            .onChange(of: canPresent) { _, canPresent in
+                if !canPresent { onUnavailable() }
+            }
+            .onChange(of: phase) { _, phase in
+                if phase == .collapsing { onCollapse() }
+            }
+    }
+}
+
+private struct ClosedIslandPresentation: Equatable {
+    let isActive: Bool
+    let isVisible: Bool
+    let isMusicPeekDescending: Bool
+    let musicPeekGeneration: Int
+}
+
+@MainActor
 private struct ClosedIslandRevealView<Content: View>: View {
     let isActive: Bool
     let isVisible: Bool
+    let isMusicPeekDescending: Bool
+    let musicPeekGeneration: Int
     let hiddenOffsetY: CGFloat
+    let onRevealComplete: (Int) -> Void
+    let onRetractionComplete: (Int) -> Void
     let content: Content
 
     @State private var revealProgress: CGFloat = 0
     @State private var retractTask: Task<Void, Never>?
+
+    private var presentation: ClosedIslandPresentation {
+        .init(isActive: isActive, isVisible: isVisible,
+              isMusicPeekDescending: isMusicPeekDescending,
+              musicPeekGeneration: musicPeekGeneration)
+    }
 
     var body: some View {
         content
             .offset(y: isActive ? -hiddenOffsetY * (1 - revealProgress) : 0)
             .opacity(isActive ? Double(revealProgress) : 1)
             .onAppear {
-                if isActive && isVisible {
-                    reveal()
-                } else {
-                    revealProgress = isActive ? 0 : 1
-                }
+                updatePresentation(previous: nil)
             }
-            .onChange(of: isVisible) { _, visible in
-                guard isActive else { return }
-                retractTask?.cancel()
-                if visible {
-                    withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.82)) {
-                        revealProgress = 1
-                    }
-                } else {
-                    retractTask = Task { @MainActor in
-                        // Let the sneak-peek content spring back to the closed pill first.
-                        try? await Task.sleep(for: .milliseconds(180))
-                        guard !Task.isCancelled else { return }
-                        withAnimation(.interactiveSpring(response: 0.86, dampingFraction: 0.9)) {
-                            revealProgress = 0
-                        }
-                    }
-                }
-            }
-            .onChange(of: isActive) { _, active in
-                retractTask?.cancel()
-                if active && !isVisible {
-                    revealProgress = 0
-                } else {
-                    withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.82)) {
-                        revealProgress = 1
-                    }
-                }
+            .onChange(of: presentation) { previous, _ in
+                updatePresentation(previous: previous)
             }
             .onDisappear {
                 retractTask?.cancel()
             }
     }
 
-    private func reveal() {
-        withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.82)) {
+    private func updatePresentation(previous: ClosedIslandPresentation?) {
+        retractTask?.cancel()
+        guard isActive else {
             revealProgress = 1
+            return
+        }
+        let generation = musicPeekGeneration
+        if isVisible {
+            let startsMusicPeek = isMusicPeekDescending
+                && previous?.musicPeekGeneration != generation
+            guard previous?.isVisible != true || previous?.isActive != true || startsMusicPeek else { return }
+            withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.82),
+                          completionCriteria: .logicallyComplete) {
+                revealProgress = 1
+            } completion: {
+                onRevealComplete(generation)
+            }
+        } else if previous == nil {
+            revealProgress = 0
+        } else {
+            retractTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(180))
+                guard !Task.isCancelled else { return }
+                withAnimation(.interactiveSpring(response: 0.86, dampingFraction: 0.9),
+                              completionCriteria: .logicallyComplete) {
+                    revealProgress = 0
+                } completion: {
+                    onRetractionComplete(generation)
+                }
+            }
         }
     }
 }
@@ -179,10 +306,9 @@ struct ContentView: View {
     // Hover states for closed notch music areas
     @State private var showCoverHoverMusicDetails: Bool = false
     @State private var coverHoverDismissTask: Task<Void, Never>?
-    @State private var isIslandTransientlyVisible: Bool = false
-    @State private var transientVisibilityTask: Task<Void, Never>?
     @State private var islandHUDExpansionTask: Task<Void, Never>?
     @State private var isIslandHUDExpanded: Bool = false
+    @StateObject private var islandMusicPeek = IslandMusicPeekPresentation()
     @State private var coverRotationY: Double = 0
 
     @Namespace var albumArtNamespace
@@ -266,15 +392,42 @@ struct ContentView: View {
         }
     }
 
+    private var canPresentIslandMusicPeek: Bool {
+        isCurrentDisplayIsland && effectiveIslandVisibility != .alwaysVisible
+            && vm.notchState == .closed && !vm.hideOnClosed
+            && Defaults[.enableSneakPeek]
+            && musicManager.isPlaying && !musicManager.isPlayerIdle
+            && !musicManager.songTitle.isEmpty
+            && !isShowingSystemToastHUD && !isBatteryInlineAlertVisible
+    }
+
+    private var islandMusicPeekRequest: String? {
+        guard canPresentIslandMusicPeek else { return nil }
+        let standardRequest = coordinator.sneakPeek.show && coordinator.sneakPeek.type == .music
+        let inlineRequest = coordinator.expandingView.show && coordinator.expandingView.type == .music
+        guard standardRequest || inlineRequest else { return nil }
+        return islandMusicTrackID
+    }
+
+    private var islandMusicTrackID: String {
+        [Defaults[.sneakPeekStyles].rawValue, musicManager.artistName, musicManager.album, musicManager.songTitle]
+            .joined(separator: "\u{0}")
+    }
+
+    private var isIslandMusicPeekManaged: Bool {
+        isCurrentDisplayIsland && islandMusicPeek.isManaged
+    }
+
     private var isIslandShowing: Bool {
         if isBatteryInlineAlertVisible || isShowingSystemToastHUD { return true }
+        if isCurrentDisplayIsland, let visibility = islandMusicPeek.visibility { return visibility }
         if effectiveIslandVisibility == .alwaysVisible {
             return true
         }
         if effectiveIslandVisibility == .onClick {
-            return isIslandClickedDown || isIslandTransientlyVisible
+            return isIslandClickedDown
         }
-        return isHovering || isShowingMusicSneakPeek || isIslandTransientlyVisible
+        return isHovering || isShowingMusicSneakPeek
     }
 
     private var isBatteryInlineAlertVisible: Bool {
@@ -360,7 +513,10 @@ struct ContentView: View {
 
 
     private var isShowingMusicSneakPeek: Bool {
-        (showCoverHoverMusicDetails || (coordinator.sneakPeek.show && coordinator.sneakPeek.type == .music))
+        if isIslandMusicPeekManaged {
+            return islandMusicPeek.showsDetails
+        }
+        return (showCoverHoverMusicDetails || (coordinator.sneakPeek.show && coordinator.sneakPeek.type == .music))
             && musicManager.isPlaying
             && !musicManager.isPlayerIdle
             && !musicManager.songTitle.isEmpty
@@ -638,7 +794,10 @@ struct ContentView: View {
     }
 
     private var isShowingInlineMusicPlaybackPeek: Bool {
-        Defaults[.sneakPeekStyles] == .inline
+        if isIslandMusicPeekManaged {
+            return islandMusicPeek.showsDetails && Defaults[.sneakPeekStyles] == .inline
+        }
+        return Defaults[.sneakPeekStyles] == .inline
             && ((coordinator.expandingView.show && coordinator.expandingView.type == .music)
                 || showCoverHoverMusicDetails)
     }
@@ -713,6 +872,7 @@ struct ContentView: View {
                     }
                 },
                 onTap: {
+                    islandMusicPeek.cancel()
                     withAnimation(animationSpring) {
                         isIslandClickedDown = true
                         isHovering = true
@@ -743,6 +903,13 @@ struct ContentView: View {
                 self.isIslandHUDExpanded = true
             }
         }
+    }
+
+    private func presentIslandMusicPeek(trackID: String) {
+        hoverTask?.cancel()
+        islandRetractTask?.cancel()
+        coverHoverDismissTask?.cancel()
+        islandMusicPeek.present(trackID: trackID)
     }
 
     private func shouldCloseOpenNotchAfterSharing() -> Bool {
@@ -784,7 +951,11 @@ struct ContentView: View {
                 ClosedIslandRevealView(
                     isActive: isCurrentDisplayIsland && vm.notchState == .closed,
                     isVisible: isIslandShowing,
+                    isMusicPeekDescending: islandMusicPeek.phase == .descending,
+                    musicPeekGeneration: islandMusicPeek.generation,
                     hiddenOffsetY: max(islandYOffset, 0) + max(vm.effectiveClosedNotchHeight, 44) + 72,
+                    onRevealComplete: { islandMusicPeek.didDescend(generation: $0) },
+                    onRetractionComplete: { islandMusicPeek.didRetract(generation: $0) },
                     content: OpenFeatureStretchView(
                         stretch: openFeatureStretch,
                         content: islandContainerView.frame(
@@ -909,7 +1080,8 @@ struct ContentView: View {
                         }
                         if Defaults[.enableSneakPeek]
                             && vm.notchState == .closed && !vm.hideOnClosed
-                            && Defaults[.sneakPeekStyles] == .standard {
+                            && Defaults[.sneakPeekStyles] == .standard
+                            && (!isCurrentDisplayIsland || effectiveIslandVisibility == .alwaysVisible) {
                             coordinator.toggleSneakPeek(status: true, type: .music, duration: 4.5)
                         }
                     }
@@ -919,24 +1091,20 @@ struct ContentView: View {
                     .onChange(of: isShowingSystemToastHUD) { _, isShowing in
                         handleSystemToastVisibilityChange(isShowing)
                     }
-                    .onChange(of: coordinator.sneakPeek.show) { _, isShowing in
-                        if isShowing && coordinator.sneakPeek.type == .music && vm.notchState == .closed {
-                            transientVisibilityTask?.cancel()
-                            withAnimation(animationSpring) {
-                                isIslandTransientlyVisible = true
-                            }
-                        } else if !isShowing && isIslandTransientlyVisible {
-                            transientVisibilityTask?.cancel()
-                            transientVisibilityTask = Task { @MainActor in
-                                let delay = max(0.25, Defaults[.collapseDelay])
-                                try? await Task.sleep(for: .seconds(delay))
-                                guard !Task.isCancelled else { return }
-                                withAnimation(self.animationSpring) {
-                                    self.isIslandTransientlyVisible = false
-                                }
-                            }
+                    .modifier(IslandMusicPeekEvents(
+                        request: islandMusicPeekRequest,
+                        trackID: islandMusicTrackID,
+                        canPresent: canPresentIslandMusicPeek,
+                        phase: islandMusicPeek.phase,
+                        onRequest: presentIslandMusicPeek,
+                        onUnavailable: {
+                            if islandMusicPeek.isManaged { islandMusicPeek.cancel() }
+                        },
+                        onCollapse: {
+                            coverHoverDismissTask?.cancel()
+                            showCoverHoverMusicDetails = false
                         }
-                    }
+                    ))
                     .onChange(of: vm.isBatteryPopoverActive) {
                         if shouldCloseOpenNotchAfterSharing() {
                             hoverTask?.cancel()
@@ -981,6 +1149,9 @@ struct ContentView: View {
         .background(dragDetector)
         .preferredColorScheme(.dark)
         .environmentObject(vm)
+        .onDisappear {
+            islandMusicPeek.cancel()
+        }
         .onChange(of: vm.anyDropZoneTargeting) { _, isTargeted in
             anyDropDebounceTask?.cancel()
 
@@ -1056,6 +1227,7 @@ struct ContentView: View {
                     && (!isCurrentDisplayIsland || isIslandHUDExpanded),
                 isSystemToastHUDPendingExpansion: isShowingSystemToastHUD
                     && isCurrentDisplayIsland && !isIslandHUDExpanded,
+                inlinePlaybackPeekOverride: isIslandMusicPeekManaged ? isShowingInlineMusicPlaybackPeek : nil,
                 isDualActivityActive: isDualActivityActive,
                 isAntigravityActive: isAntigravityActive,
                 shouldShowPomodoroInlineClosedVisual: shouldShowPomodoroInlineClosedVisual,
@@ -1161,13 +1333,14 @@ struct ContentView: View {
             }
 
             // Show music sneak peek (song title & artist) only if not in dual activity
-            if !MusicManager.shared.isPlayerIdle && !isDualActivityActive {
+            if !MusicManager.shared.isPlayerIdle && !isDualActivityActive && !islandMusicPeek.isRunning {
                 withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.78)) {
                     showCoverHoverMusicDetails = true
                 }
             }
 
             guard vm.notchState == .closed,
+                  !islandMusicPeek.isRunning,
                   effectiveIslandVisibility != .onClick,
                   Defaults[.openNotchOnHover] else { return }
 
@@ -1391,6 +1564,9 @@ struct ContentView: View {
                 isScaleHovered = true
             }
             let wasNotHovering = !isHovering
+            if wasNotHovering && islandMusicPeek.phase == .finished {
+                islandMusicPeek.cancel()
+            }
             withAnimation(animationSpring) {
                 isHovering = true
             }
@@ -1405,6 +1581,7 @@ struct ContentView: View {
             }
             
             guard vm.notchState == .closed,
+                  !islandMusicPeek.isRunning,
                   effectiveIslandVisibility != .onClick,
                   !coordinator.sneakPeek.show,
                   hasActiveFeature,
@@ -1416,6 +1593,7 @@ struct ContentView: View {
                 
                 await MainActor.run {
                     guard self.vm.notchState == .closed,
+                          !self.islandMusicPeek.isRunning,
                           self.isHovering,
                           self.hasActiveFeature,
                           !self.coordinator.sneakPeek.show else { return }
@@ -1971,6 +2149,7 @@ struct MusicLiveActivityView: View {
     let isDualActivityActive: Bool
     let useMusicVisualizer: Bool
     let islandStyle: IslandStyle
+    let inlinePlaybackPeekOverride: Bool?
 
     @Binding var showCoverHoverMusicDetails: Bool
     @Binding var coverHoverDismissTask: Task<Void, Never>?
@@ -2049,6 +2228,7 @@ struct MusicLiveActivityView: View {
         isDualActivityActive: Bool,
         useMusicVisualizer: Bool,
         islandStyle: IslandStyle,
+        inlinePlaybackPeekOverride: Bool? = nil,
         showCoverHoverMusicDetails: Binding<Bool>,
         coverHoverDismissTask: Binding<Task<Void, Never>?>,
         onOpenPomodoro: (() -> Void)? = nil
@@ -2063,6 +2243,7 @@ struct MusicLiveActivityView: View {
         self.isDualActivityActive = isDualActivityActive
         self.useMusicVisualizer = useMusicVisualizer
         self.islandStyle = islandStyle
+        self.inlinePlaybackPeekOverride = inlinePlaybackPeekOverride
         self._showCoverHoverMusicDetails = showCoverHoverMusicDetails
         self._coverHoverDismissTask = coverHoverDismissTask
         self.onOpenPomodoro = onOpenPomodoro
@@ -2082,9 +2263,9 @@ struct MusicLiveActivityView: View {
         }()
         let showGesturePrev = mediaGestureDirection == .right && mediaGestureIconVisible && musicManager.isPlaying
         let showGestureNext = mediaGestureDirection == .left && mediaGestureIconVisible && musicManager.isPlaying
-        let isInlinePlaybackPeek = Defaults[.sneakPeekStyles] == .inline
+        let isInlinePlaybackPeek = inlinePlaybackPeekOverride ?? (Defaults[.sneakPeekStyles] == .inline
             && ((coordinator.expandingView.show && coordinator.expandingView.type == .music)
-                || showCoverHoverMusicDetails)
+                || showCoverHoverMusicDetails))
         let islandSneakPeekWidth: CGFloat = isCurrentScreenBuiltin ? 176 : 152
         let inlineIslandWidth = isCurrentDisplayIsland
             ? Self.inlineIslandWidth(
@@ -2143,7 +2324,8 @@ struct MusicLiveActivityView: View {
         .contentShape(Rectangle())
         .onHover { hovering in
             isCoverHovering = hovering
-            if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle {
+            if hovering && vm.notchState == .closed && !musicManager.isPlayerIdle
+                && inlinePlaybackPeekOverride == nil {
                 coverHoverDismissTask?.cancel()
                 withAnimation(.interactiveSpring(
                     response: isCurrentDisplayIsland ? 0.2 : 0.38,

@@ -29,6 +29,7 @@ struct DinoSlotRouter: View {
     let isShowingMusicSneakPeek: Bool
     let isShowingSystemToastHUD: Bool
     let isSystemToastHUDPendingExpansion: Bool
+    let inlinePlaybackPeekOverride: Bool?
     let isDualActivityActive: Bool
     let isAntigravityActive: Bool
     let shouldShowPomodoroInlineClosedVisual: Bool
@@ -96,7 +97,8 @@ struct DinoSlotRouter: View {
     @ViewBuilder
     private var closedSlotView: some View {
         if coordinator.expandingView.show && vm.notchState == .closed
-            && (coordinator.expandingView.type == .charging || coordinator.expandingView.type == .unplugged) {
+            && (coordinator.expandingView.type == .charging || coordinator.expandingView.type == .unplugged)
+            && !isSystemToastHUDPendingExpansion {
             PowerStatusInlineHUD(
                 isCharging: coordinator.expandingView.type == .charging,
                 isCurrentDisplayIsland: isCurrentDisplayIsland,
@@ -142,6 +144,7 @@ struct DinoSlotRouter: View {
                 isDualActivityActive: true,
                 useMusicVisualizer: useMusicVisualizer,
                 islandStyle: islandStyle,
+                inlinePlaybackPeekOverride: inlinePlaybackPeekOverride,
                 showCoverHoverMusicDetails: $showCoverHoverMusicDetails,
                 coverHoverDismissTask: $coverHoverDismissTask,
                 onOpenPomodoro: onOpenPomodoro
@@ -162,6 +165,7 @@ struct DinoSlotRouter: View {
                     isDualActivityActive: false,
                     useMusicVisualizer: useMusicVisualizer,
                     islandStyle: islandStyle,
+                    inlinePlaybackPeekOverride: inlinePlaybackPeekOverride,
                     showCoverHoverMusicDetails: $showCoverHoverMusicDetails,
                     coverHoverDismissTask: $coverHoverDismissTask,
                     onOpenPomodoro: onOpenPomodoro
