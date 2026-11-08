@@ -481,7 +481,7 @@ struct ContentView: View {
                 ? .interactiveSpring(response: 0.34, dampingFraction: 0.84, blendDuration: 0)
                 : .interactiveSpring(response: 0.46, dampingFraction: 0.9, blendDuration: 0)
         }
-        if isShowingSystemToastHUD {
+        if isShowingSystemToastHUD || isBatteryInlineAlertVisible {
             return HUDAnimations.presentation
         }
         return animationSpring
@@ -917,7 +917,7 @@ struct ContentView: View {
                 ClosedIslandRevealView(
                     isActive: isCurrentDisplayIsland && vm.notchState == .closed,
                     isVisible: isIslandShowing,
-                    isShowingHUD: isShowingSystemToastHUD,
+                    isShowingHUD: isShowingSystemToastHUD || isBatteryInlineAlertVisible,
                     isMusicPeekDescending: islandMusicPeek.phase == .descending,
                     musicPeekGeneration: islandMusicPeek.generation,
                     hiddenOffsetY: max(islandYOffset, 0) + max(vm.effectiveClosedNotchHeight, 44) + 72,

@@ -333,7 +333,7 @@ struct InlineHUD: View {
             rightStatusView
         }
         .padding(.leading, 1)
-        .padding(.trailing, type == .airPods ? 10 : 4)
+        .padding(.trailing, 4)
         .frame(width: islandHUDWidth, height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
     }
 
@@ -457,10 +457,14 @@ final class AirPodsVideoCache {
 // MARK: - AirPods Video Animation Player
 struct AirPodsVideoView: View {
     var isActive = true
-    @State private var player: AVQueuePlayer?
-    @State private var looper: AVPlayerLooper?
+    @State private var players: [AVPlayer] = []
+    @State private var timeObservers: [Any] = []
+    @State private var activePlayerIndex = 0
+    @State private var isCrossfading = false
+    @State private var crossfadeTask: Task<Void, Never>?
     @State private var isVisible = false
     @State private var playbackGeneration = 0
+    private let crossfadeDuration: TimeInterval = 0.35
 
     // The supplied movie advertises an alpha channel but its background is opaque.
     // Key out near-black pixels so the HUD surface remains visible behind it.
@@ -485,8 +489,13 @@ struct AirPodsVideoView: View {
 
     var body: some View {
         Group {
-            if let p = player {
-                AirPodsVideoPlayerRepresentable(player: p)
+            if !players.isEmpty {
+                ZStack {
+                    ForEach(players.indices, id: \.self) { index in
+                        AirPodsVideoPlayerRepresentable(player: players[index])
+                            .opacity(index == activePlayerIndex ? 1 : 0)
+                    }
+                }
             } else {
                 Image(systemName: "airpodspro")
                     .font(.system(size: 14, weight: .semibold))
@@ -500,15 +509,14 @@ struct AirPodsVideoView: View {
 
     private func updatePlayback() {
         guard isVisible && isActive else { stopPlayback(); return }
-        guard player == nil else { return }
+        guard players.isEmpty else { return }
         playbackGeneration += 1
         let generation = playbackGeneration
         AirPodsVideoCache.shared.resolveVideoURL { url in
             guard let url, self.isVisible, self.isActive,
-                  self.playbackGeneration == generation, self.player == nil else { return }
+                  self.playbackGeneration == generation, self.players.isEmpty else { return }
             let asset = AVURLAsset(url: url)
-            let item = AVPlayerItem(asset: asset)
-            item.videoComposition = AVVideoComposition(asset: asset) { request in
+            let videoComposition = AVVideoComposition(asset: asset) { request in
                 guard let filter = CIFilter(name: "CIColorCube") else {
                     request.finish(with: request.sourceImage, context: nil)
                     return
@@ -519,22 +527,65 @@ struct AirPodsVideoView: View {
                 let image = (filter.outputImage ?? request.sourceImage).cropped(to: request.sourceImage.extent)
                 request.finish(with: image, context: nil)
             }
-            let videoPlayer = AVQueuePlayer()
-            videoPlayer.isMuted = true
-            let videoLooper = AVPlayerLooper(player: videoPlayer, templateItem: item)
-            self.player = videoPlayer
-            self.looper = videoLooper
-            videoPlayer.play()
+            let videoPlayers = (0..<2).map { _ in
+                let item = AVPlayerItem(asset: asset)
+                item.videoComposition = videoComposition
+                let player = AVPlayer(playerItem: item)
+                player.isMuted = true
+                return player
+            }
+            self.activePlayerIndex = 0
+            self.players = videoPlayers
+            self.timeObservers = videoPlayers.enumerated().map { index, player in
+                player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.05, preferredTimescale: 600),
+                                               queue: .main) { time in
+                    self.beginCrossfadeIfNeeded(index: index, time: time, generation: generation)
+                }
+            }
+            videoPlayers[0].play()
+        }
+    }
+
+    private func beginCrossfadeIfNeeded(index: Int, time: CMTime, generation: Int) {
+        guard isVisible, isActive, playbackGeneration == generation,
+              !isCrossfading, players.count == 2, index == activePlayerIndex,
+              let duration = players[index].currentItem?.duration.seconds,
+              duration.isFinite, duration > crossfadeDuration,
+              time.seconds >= duration - crossfadeDuration else { return }
+
+        isCrossfading = true
+        let nextIndex = 1 - index
+        let previousPlayer = players[index]
+        let nextPlayer = players[nextIndex]
+        nextPlayer.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { finished in
+            DispatchQueue.main.async {
+                guard self.isVisible, self.isActive, self.playbackGeneration == generation else { return }
+                guard finished else { self.isCrossfading = false; return }
+                nextPlayer.play()
+                withAnimation(.easeInOut(duration: self.crossfadeDuration)) {
+                    self.activePlayerIndex = nextIndex
+                }
+                self.crossfadeTask = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(self.crossfadeDuration))
+                    guard !Task.isCancelled, self.playbackGeneration == generation else { return }
+                    previousPlayer.pause()
+                    self.isCrossfading = false
+                }
+            }
         }
     }
 
     private func stopPlayback() {
         playbackGeneration += 1
-        player?.pause()
-        looper?.disableLooping()
-        player?.removeAllItems()
-        looper = nil
-        player = nil
+        crossfadeTask?.cancel()
+        crossfadeTask = nil
+        for (player, observer) in zip(players, timeObservers) {
+            player.removeTimeObserver(observer)
+        }
+        timeObservers = []
+        players.forEach { $0.pause(); $0.replaceCurrentItem(with: nil) }
+        players = []
+        isCrossfading = false
     }
 }
 

@@ -11,7 +11,7 @@ import Defaults
 import SwiftUI
 
 enum HUDAnimations {
-    static let presentation = Animation.interactiveSpring(response: 0.34, dampingFraction: 0.76)
+    static let presentation = Animation.interactiveSpring(response: 0.34, dampingFraction: 0.62)
 }
 
 enum SneakContentType {
@@ -455,7 +455,9 @@ class BoringViewCoordinator: ObservableObject {
         browser: BrowserType = .chromium
     ) {
         Task { @MainActor in
-            withAnimation(.interactiveSpring(response: 0.42, dampingFraction: 0.88, blendDuration: 0)) {
+            let isPowerHUD = type == .charging || type == .unplugged || type == .battery
+            withAnimation(isPowerHUD ? HUDAnimations.presentation
+                          : .interactiveSpring(response: 0.42, dampingFraction: 0.88, blendDuration: 0)) {
                 self.expandingView.show = status
                 self.expandingView.type = type
                 self.expandingView.value = value
