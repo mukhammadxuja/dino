@@ -16,32 +16,38 @@ enum NotchGestureActivation {
 
 extension View {
     func verticalSwipeGesture(
+        isEnabled: Bool = true,
         threshold: CGFloat = 4,
         action: @escaping (CGFloat, PanDirection, NSEvent.Phase, Bool) -> Void
     ) -> some View {
-        background(AxisScrollMonitor(isHorizontal: false, threshold: threshold, action: action))
+        background(AxisScrollMonitor(isHorizontal: false, isEnabled: isEnabled, threshold: threshold, action: action))
     }
 
     func horizontalSwipeGesture(
         threshold: CGFloat = 4,
         action: @escaping (CGFloat, PanDirection, NSEvent.Phase, Bool) -> Void
     ) -> some View {
-        background(AxisScrollMonitor(isHorizontal: true, threshold: threshold, action: action))
+        background(AxisScrollMonitor(isHorizontal: true, isEnabled: true, threshold: threshold, action: action))
     }
 }
 
 private struct AxisScrollMonitor: NSViewRepresentable {
     let isHorizontal: Bool
+    let isEnabled: Bool
     let threshold: CGFloat
     let action: (CGFloat, PanDirection, NSEvent.Phase, Bool) -> Void
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         context.coordinator.installMonitor(on: view)
+        context.coordinator.setEnabled(isEnabled)
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.action = action
+        context.coordinator.setEnabled(isEnabled)
+    }
 
     static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
         coordinator.removeMonitor()
@@ -54,7 +60,8 @@ private struct AxisScrollMonitor: NSViewRepresentable {
     @MainActor final class Coordinator: NSObject {
         private let isHorizontal: Bool
         private let threshold: CGFloat
-        private let action: (CGFloat, PanDirection, NSEvent.Phase, Bool) -> Void
+        var action: (CGFloat, PanDirection, NSEvent.Phase, Bool) -> Void
+        private var isEnabled = true
         private var monitor: Any?
         private var accumulated: CGFloat = 0
         private var active = false
@@ -94,6 +101,12 @@ private struct AxisScrollMonitor: NSViewRepresentable {
             lastWasPrecise = false
         }
 
+        func setEnabled(_ enabled: Bool) {
+            guard isEnabled != enabled else { return }
+            isEnabled = enabled
+            if !enabled { finish(.cancelled) }
+        }
+
         private func finish(_ phase: NSEvent.Phase) {
             endTask?.cancel()
             endTask = nil
@@ -115,6 +128,7 @@ private struct AxisScrollMonitor: NSViewRepresentable {
         }
 
         private func handleScroll(_ event: NSEvent) {
+            guard isEnabled else { return }
             if event.phase == .ended || event.phase == .cancelled {
                 finish(event.phase == .cancelled ? .cancelled : .ended)
                 return

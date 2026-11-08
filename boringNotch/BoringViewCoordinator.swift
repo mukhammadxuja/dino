@@ -454,15 +454,12 @@ class BoringViewCoordinator: ObservableObject {
         value: CGFloat = 0,
         browser: BrowserType = .chromium
     ) {
-        Task { @MainActor in
-            let isPowerHUD = type == .charging || type == .unplugged || type == .battery
-            withAnimation(isPowerHUD ? HUDAnimations.presentation
-                          : .interactiveSpring(response: 0.42, dampingFraction: 0.88, blendDuration: 0)) {
-                self.expandingView.show = status
-                self.expandingView.type = type
-                self.expandingView.value = value
-                self.expandingView.browser = browser
-            }
+        // Commit once on the main actor; a queued show must not outlive close/cleanup.
+        guard status || expandingView.type == type else { return }
+        let isPowerHUD = type == .charging || type == .unplugged || type == .battery
+        withAnimation(isPowerHUD ? HUDAnimations.presentation
+                      : .interactiveSpring(response: 0.42, dampingFraction: 0.88, blendDuration: 0)) {
+            expandingView = ExpandedItem(show: status, type: type, value: value, browser: browser)
         }
     }
 
@@ -481,6 +478,7 @@ class BoringViewCoordinator: ObservableObject {
                 }
             } else {
                 expandingViewTask?.cancel()
+                expandingViewTask = nil
             }
         }
     }
@@ -501,6 +499,8 @@ class BoringViewCoordinator: ObservableObject {
         sneakPeekTask = nil
         expandingViewTask?.cancel()
         expandingViewTask = nil
+        // Clearing only the timer leaves a visible inline peek with no way to expire.
+        if expandingView.show { expandingView.show = false }
         hudEnableTask?.cancel()
         hudEnableTask = nil
     }

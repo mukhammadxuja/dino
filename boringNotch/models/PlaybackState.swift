@@ -7,6 +7,38 @@
 
 import Foundation
 
+/// Keep an optimistic seek position until the controller acknowledges it.
+struct PlaybackSeekState {
+    private var target: TimeInterval?
+    private var requestedAt: Date?
+    private var minimumTimestamp: Date?
+
+    mutating func begin(at position: TimeInterval, now: Date) {
+        target = position
+        requestedAt = now
+        minimumTimestamp = now
+    }
+
+    mutating func reset() {
+        self = PlaybackSeekState()
+    }
+
+    mutating func accepts(position: TimeInterval, timestamp: Date, now: Date, isPlaying: Bool, playbackRate: Double) -> Bool {
+        guard let minimumTimestamp else { return true }
+        guard timestamp >= minimumTimestamp else { return false }
+        if let target, let requestedAt {
+            let progressed = isPlaying ? max(0, timestamp.timeIntervalSince(requestedAt)) * playbackRate : 0
+            let acknowledged = abs(position - (target + progressed)) <= 1
+            // A failed/rejected seek must eventually recover to the actual player time.
+            guard acknowledged || now.timeIntervalSince(requestedAt) >= 2 else { return false }
+            self.target = nil
+            self.requestedAt = nil
+        }
+        self.minimumTimestamp = timestamp
+        return true
+    }
+}
+
 enum RepeatMode: Int, Codable {
     case off = 1
     case one = 2

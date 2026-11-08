@@ -26,6 +26,7 @@ struct MarqueeText: View {
     @Binding var text: String
     var font: Font = .body
     var nsFont: NSFont.TextStyle = .body
+    var measurementFont: NSFont? = nil
     var textColor: Color = .primary
     var backgroundColor: Color = .clear
     var minDuration: Double = 1.5
@@ -38,12 +39,14 @@ struct MarqueeText: View {
     @State private var measuredText: String?
     @State private var measuredStyle: NSFont.TextStyle?
     @State private var measuredFont: Font?
+    @State private var measuredNSFont: NSFont?
     @State private var restartTask: Task<Void, Never>?
     
     init(
         _ text: Binding<String>,
         font: Font = .body,
         nsFont: NSFont.TextStyle = .body,
+        measurementFont: NSFont? = nil,
         textColor: Color = .primary,
         backgroundColor: Color = .clear,
         minDuration: Double = 1.5,
@@ -54,6 +57,7 @@ struct MarqueeText: View {
         _text = text
         self.font = font
         self.nsFont = nsFont
+        self.measurementFont = measurementFont
         self.textColor = textColor
         self.backgroundColor = backgroundColor
         self.minDuration = minDuration
@@ -63,10 +67,10 @@ struct MarqueeText: View {
         
     }
     
-    static func measureWidth(_ str: String, nsFont: NSFont.TextStyle) -> CGFloat {
+    static func measureWidth(_ str: String, nsFont: NSFont.TextStyle, measurementFont: NSFont? = nil) -> CGFloat {
         guard !str.isEmpty else { return 0 }
         let pointSize = NSFont.preferredFont(forTextStyle: nsFont).pointSize
-        let font = NSFont.systemFont(ofSize: pointSize > 0 ? pointSize : 11, weight: .medium)
+        let font = measurementFont ?? NSFont.systemFont(ofSize: pointSize > 0 ? pointSize : 11, weight: .medium)
         let size = (str as NSString).size(withAttributes: [.font: font])
         return ceil(size.width)
     }
@@ -134,6 +138,13 @@ struct MarqueeText: View {
             updateMeasuredWidth()
             triggerAnimation()
         }
+        .onChange(of: measurementFont) { _, _ in
+            updateMeasuredWidth()
+            triggerAnimation()
+        }
+        .onChange(of: frameWidth) { _, _ in
+            triggerAnimation()
+        }
         .onAppear {
             updateMeasuredWidth()
             triggerAnimation()
@@ -145,11 +156,12 @@ struct MarqueeText: View {
     }
 
     private func updateMeasuredWidth() {
-        guard measuredText != text || measuredStyle != nsFont || measuredFont != font else { return }
+        guard measuredText != text || measuredStyle != nsFont || measuredFont != font || measuredNSFont != measurementFont else { return }
         measuredText = text
         measuredStyle = nsFont
         measuredFont = font
-        textWidth = Self.measureWidth(text, nsFont: nsFont)
+        measuredNSFont = measurementFont
+        textWidth = Self.measureWidth(text, nsFont: nsFont, measurementFont: measurementFont)
     }
     
     private func triggerAnimation() {

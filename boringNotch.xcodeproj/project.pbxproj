@@ -210,6 +210,8 @@
 		D6B7C90E90F452FD61F6E09E /* MediaSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814D8EDF9C04191D16D5D730 /* MediaSettingsView.swift */; };
 		C30E6766109BB2A4F5103F92 /* MediaSourceSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FC7BE07D9191ADF64F7DD2 /* MediaSourceSettingsSection.swift */; };
 		C01F18774B612462BCF980A9 /* SettingsKeyboardBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9442A6868C5F2955AD7FEC1 /* SettingsKeyboardBadge.swift */; };
+		C0DE11202F00000000000002 /* MusicLyricsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE11202F00000000000001 /* MusicLyricsView.swift */; };
+		C0DE11202F00000000000004 /* LyricsTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE11202F00000000000003 /* LyricsTimeline.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -450,6 +452,8 @@
 		814D8EDF9C04191D16D5D730 /* MediaSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaSettingsView.swift; sourceTree = "<group>"; };
 		90FC7BE07D9191ADF64F7DD2 /* MediaSourceSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaSourceSettingsSection.swift; sourceTree = "<group>"; };
 		C9442A6868C5F2955AD7FEC1 /* SettingsKeyboardBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsKeyboardBadge.swift; sourceTree = "<group>"; };
+		C0DE11202F00000000000001 /* MusicLyricsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicLyricsView.swift; sourceTree = "<group>"; };
+		C0DE11202F00000000000003 /* LyricsTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsTimeline.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -842,6 +846,8 @@
 			isa = PBXGroup;
 			children = (
 				B19424082CD0FEFE003E5DC2 /* LottieAnimationView.swift */,
+				C0DE11202F00000000000001 /* MusicLyricsView.swift */,
+				C0DE11202F00000000000003 /* LyricsTimeline.swift */,
 				147163972C5D35B70068B555 /* MusicVisualizer.swift */,
 			);
 			path = Music;
@@ -1210,6 +1216,8 @@
 				B186543C2C6F49AE000B926A /* ShortcutConstants.swift in Sources */,
 				B1D100022D00000100000001 /* DinoCoordinator.swift in Sources */,
 				B1D100042D00000100000001 /* DinoHotKeyManager.swift in Sources */,
+				C0DE11202F00000000000002 /* MusicLyricsView.swift in Sources */,
+				C0DE11202F00000000000004 /* LyricsTimeline.swift in Sources */,
 				B1D100062D00000100000001 /* MusicSlotView.swift in Sources */,
 				B1D100082D00000100000001 /* PomodoroSlotView.swift in Sources */,
 				B1D1000A2D00000100000001 /* WeatherSlotView.swift in Sources */,

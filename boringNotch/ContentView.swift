@@ -295,6 +295,7 @@ struct ContentView: View {
     @State private var verticalGestureBeganClosed: Bool?
     @State private var verticalGestureDirection: PanDirection?
     @State private var verticalGestureReady = false
+    @State private var isShowingMusicLyrics = false
 
     @State private var haptics: Bool = false
 
@@ -964,9 +965,10 @@ struct ContentView: View {
                     .onHover { hovering in
                         handleHover(hovering)
                     }
+                    .onPreferenceChange(MusicLyricsPresentationKey.self) { isShowingMusicLyrics = $0 }
                     .conditionalModifier(Defaults[.enableGestures]) { view in
                         view
-                            .verticalSwipeGesture { translation, direction, phase, isPrecise in
+                            .verticalSwipeGesture(isEnabled: !isShowingMusicLyrics) { translation, direction, phase, isPrecise in
                                 handleVerticalGesture(
                                     translation: translation,
                                     direction: direction,

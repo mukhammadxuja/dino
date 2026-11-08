@@ -304,15 +304,13 @@ class BoringViewModel: NSObject, ObservableObject {
     }
 
     func close(resetSelection: Bool = true) {
+        // A blocked close must not cancel the active presentations' expiry timers.
+        guard !SharingStateManager.shared.preventNotchClose else { return }
         openRequestID = nil
         openNotchTask?.cancel()
         openNotchTask = nil
         coordinator.cancelAllTasks()
 
-        // Do not close while a share picker or sharing service is active
-        if SharingStateManager.shared.preventNotchClose {
-            return
-        }
         if notchState == .open {
             coordinator.rememberExpandedSlot(DinoCoordinator.shared.activeSlot)
         }

@@ -135,7 +135,16 @@ struct IslandContainerLayout<Content: View>: View {
             )
             .padding(.top, vm.notchState == .open ? openTopPadding : (isShowingMusicSneakPeek && !isInlinePlaybackPeek ? 4 : 0))
             .padding(.bottom, vm.notchState == .open ? openBottomPadding : (isShowingMusicSneakPeek && !isInlinePlaybackPeek ? 6 : 0))
-            .background(surfaceBackground)
+            .backgroundPreferenceValue(MusicLyricsPresentationKey.self) { showingLyrics in
+                ZStack {
+                    surfaceBackground
+                    if showingLyrics && vm.notchState == .open {
+                        MusicLyricsBackground()
+                            .transition(.opacity)
+                    }
+                }
+                .animation(.easeInOut(duration: 0.35), value: showingLyrics)
+            }
             .conditionalModifier(isCurrentDisplayIsland) { view in
                 view.clipShape(RoundedRectangle(cornerRadius: islandCornerRadius, style: .continuous))
             }

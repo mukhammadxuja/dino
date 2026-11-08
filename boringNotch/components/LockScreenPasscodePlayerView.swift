@@ -160,36 +160,8 @@ struct LockScreenPasscodePlayerView: View {
                 textColor: Color.white.opacity(0.65),
                 frameWidth: width
             )
-
-            if Defaults[.enableLyrics] {
-                TimelineView(.animation(minimumInterval: 0.25, paused: !musicManager.isPlaying || musicManager.isPlayerIdle)) { timeline in
-                    let currentElapsed: Double = {
-                        guard musicManager.isPlaying else { return musicManager.elapsedTime }
-                        let delta = timeline.date.timeIntervalSince(musicManager.timestampDate)
-                        let progressed = musicManager.elapsedTime + (delta * musicManager.playbackRate)
-                        return min(max(progressed, 0), musicManager.songDuration)
-                    }()
-                    let line: String = {
-                        if musicManager.isFetchingLyrics { return "Loading lyrics…" }
-                        if !musicManager.syncedLyrics.isEmpty {
-                            return musicManager.lyricLine(at: currentElapsed)
-                        }
-                        let trimmed = musicManager.currentLyrics.trimmingCharacters(in: .whitespacesAndNewlines)
-                        return trimmed.isEmpty ? "" : trimmed.replacingOccurrences(of: "\n", with: " ")
-                    }()
-                    if !line.isEmpty {
-                        MarqueeText(
-                            .constant(line),
-                            font: .system(size: 11.5, weight: .regular),
-                            nsFont: .caption1,
-                            textColor: Color.white.opacity(0.5),
-                            frameWidth: width
-                        )
-                        .lineLimit(1)
-                        .opacity(musicManager.isPlaying ? 1 : 0)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                }
+            if enableLyrics {
+                InlineMusicLyricsView(width: width)
             }
         }
     }

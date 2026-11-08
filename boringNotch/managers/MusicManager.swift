@@ -22,6 +22,7 @@ class MusicManager: ObservableObject {
     private var debounceIdleTask: Task<Void, Never>?
     private var lyricsFetchTask: Task<Void, Never>?
     private var seekTask: Task<Void, Never>?
+    private var seekState = PlaybackSeekState()
     private var refreshTask: Task<Void, Never>?
     private var refreshController: (any MediaControllerProtocol)?
     private var refreshRequestID: UUID?
@@ -84,6 +85,15 @@ class MusicManager: ObservableObject {
             }
             .store(in: &cancellables)
 
+        Defaults.publisher(.enableLyrics)
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.fetchLyricsIfAvailable(bundleIdentifier: self.bundleIdentifier, title: self.songTitle, artist: self.artistName)
+            }
+            .store(in: &cancellables)
+
         // Initialize deprecation check asynchronously
         Task { @MainActor in
             do {
@@ -105,6 +115,9 @@ class MusicManager: ObservableObject {
     
     public func destroy() {
         isDestroyed = true
+        seekTask?.cancel()
+        seekTask = nil
+        seekState.reset()
         refreshTask?.cancel()
         refreshTask = nil
         refreshController = nil
@@ -183,6 +196,9 @@ class MusicManager: ObservableObject {
     private func setActiveController(_ controller: any MediaControllerProtocol) {
         // Cancel any existing flip animation
         flipWorkItem?.cancel()
+        seekTask?.cancel()
+        seekTask = nil
+        seekState.reset()
 
         // Set new active controller
         activeController = controller
@@ -212,10 +228,16 @@ class MusicManager: ObservableObject {
         let artistChanged = state.artist != self.lastArtworkArtist
         let albumChanged = state.album != self.lastArtworkAlbum
         let bundleChanged = state.bundleIdentifier != self.lastArtworkBundleIdentifier
+        let trackChanged = titleChanged || artistChanged || albumChanged || bundleChanged
+        if trackChanged {
+            seekTask?.cancel()
+            seekTask = nil
+            seekState.reset()
+        }
 
         // Check for artwork changes
         let artworkChanged = state.artwork != nil && state.artwork != self.artworkData
-        let hasContentChange = titleChanged || artistChanged || albumChanged || artworkChanged || bundleChanged
+        let hasContentChange = trackChanged || artworkChanged
 
         // Handle artwork and visual transitions for changed content
         if hasContentChange {
@@ -238,17 +260,24 @@ class MusicManager: ObservableObject {
             self.lastArtworkArtist = state.artist
             self.lastArtworkAlbum = state.album
             self.lastArtworkBundleIdentifier = state.bundleIdentifier
+        }
 
-            // Fetch lyrics on content change
+        // Artwork can arrive late or change during playback; it must not clear the lyrics.
+        if trackChanged {
             self.fetchLyricsIfAvailable(bundleIdentifier: state.bundleIdentifier, title: state.title, artist: state.artist)
         }
 
-        if (playbackStarted || hasContentChange) && state.isPlaying
+        // Artwork-only refreshes must not keep restarting the automatic peek timer.
+        if (playbackStarted || trackChanged) && state.isPlaying
             && !state.title.isEmpty && !state.artist.isEmpty {
             self.updateSneakPeek()
         }
 
         let timeChanged = state.currentTime != self.elapsedTime
+        let acceptsTiming = seekState.accepts(
+            position: state.currentTime, timestamp: state.lastUpdated, now: Date(),
+            isPlaying: state.isPlaying, playbackRate: state.playbackRate
+        )
         let durationChanged = state.duration != self.songDuration
         let playbackRateChanged = state.playbackRate != self.playbackRate
         let shuffleChanged = state.isShuffled != self.isShuffled
@@ -267,7 +296,7 @@ class MusicManager: ObservableObject {
             self.album = state.album
         }
 
-        if timeChanged {
+        if acceptsTiming && timeChanged {
             self.elapsedTime = state.currentTime
         }
 
@@ -300,7 +329,7 @@ class MusicManager: ObservableObject {
             self.volume = state.volume
         }
         
-        self.timestampDate = state.lastUpdated
+        if acceptsTiming { self.timestampDate = state.lastUpdated }
     }
 
     func toggleFavoriteTrack() {
@@ -354,19 +383,17 @@ class MusicManager: ObservableObject {
 
     // MARK: - Lyrics
     private func fetchLyricsIfAvailable(bundleIdentifier: String?, title: String, artist: String) {
-        guard Defaults[.enableLyrics], !title.isEmpty else {
-            DispatchQueue.main.async {
-                self.isFetchingLyrics = false
-                self.currentLyrics = ""
-            }
-            return
-        }
-
         lyricsFetchTask?.cancel()
+        lyricsFetchTask = nil
+        currentLyrics = ""
+        syncedLyrics = []
+        isFetchingLyrics = !isDestroyed && Defaults[.enableLyrics] && !title.isEmpty
+        guard isFetchingLyrics else { return }
 
         // Prefer native Apple Music lyrics when available
         if let bundleIdentifier = bundleIdentifier, bundleIdentifier.contains("com.apple.Music") {
             lyricsFetchTask = Task { @MainActor in
+                guard !Task.isCancelled else { return }
                 let runningApps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Music")
                 guard !runningApps.isEmpty else {
                     guard !Task.isCancelled else { return }
@@ -374,8 +401,6 @@ class MusicManager: ObservableObject {
                     return
                 }
 
-                self.isFetchingLyrics = true
-                self.currentLyrics = ""
                 do {
                     let script = """
                     tell application \"Music\"
@@ -402,8 +427,8 @@ class MusicManager: ObservableObject {
                     if let result = try await AppleScriptHelper.execute(script), let lyricsString = result.stringValue, !lyricsString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         guard !Task.isCancelled else { return }
                         self.currentLyrics = lyricsString.trimmingCharacters(in: .whitespacesAndNewlines)
+                        self.syncedLyrics = LyricsTimeline.parseLRC(lyricsString)
                         self.isFetchingLyrics = false
-                        self.syncedLyrics = []
                         return
                     }
                 } catch {
@@ -414,8 +439,6 @@ class MusicManager: ObservableObject {
             }
         } else {
             lyricsFetchTask = Task { @MainActor in
-                self.isFetchingLyrics = true
-                self.currentLyrics = ""
                 guard !Task.isCancelled else { return }
                 await self.fetchLyricsFromWeb(title: title, artist: artist)
             }
@@ -455,20 +478,17 @@ class MusicManager: ObservableObject {
                 self.isFetchingLyrics = false
                 return
             }
-            if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]],
-               let first = jsonArray.first {
+            if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
                 guard !Task.isCancelled else { return }
-                // Prefer plain lyrics (syncedLyrics may also be present)
-                let plain = (first["plainLyrics"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let synced = (first["syncedLyrics"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let (plain, synced) = LyricsTimeline.resolveSearchResults(jsonArray)
                 let resolved = plain.isEmpty ? synced : plain
                 self.currentLyrics = resolved
-                self.isFetchingLyrics = false
                 if !synced.isEmpty {
-                    self.syncedLyrics = self.parseLRC(synced)
+                    self.syncedLyrics = LyricsTimeline.parseLRC(synced)
                 } else {
                     self.syncedLyrics = []
                 }
+                self.isFetchingLyrics = false
             } else {
                 guard !Task.isCancelled else { return }
                 self.currentLyrics = ""
@@ -484,35 +504,9 @@ class MusicManager: ObservableObject {
     }
 
     // MARK: - Synced lyrics helpers
-    private func parseLRC(_ lrc: String) -> [(time: Double, text: String)] {
-        var result: [(Double, String)] = []
-        lrc.split(separator: "\n").forEach { lineSub in
-            let line = String(lineSub)
-            // Match [mm:ss.xx] or [m:ss]
-            let pattern = #"\[(\d{1,2}):(\d{2})(?:\.(\d{1,2}))?\]"#
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
-            let nsLine = line as NSString
-            if let match = regex.firstMatch(in: line, range: NSRange(location: 0, length: nsLine.length)) {
-                let minStr = nsLine.substring(with: match.range(at: 1))
-                let secStr = nsLine.substring(with: match.range(at: 2))
-                let csRange = match.range(at: 3)
-                let centiStr = csRange.location != NSNotFound ? nsLine.substring(with: csRange) : "0"
-                let minutes = Double(minStr) ?? 0
-                let seconds = Double(secStr) ?? 0
-                let centis = Double(centiStr) ?? 0
-                let time = minutes * 60 + seconds + centis / 100.0
-                let textStart = match.range.location + match.range.length
-                let text = nsLine.substring(from: textStart).trimmingCharacters(in: .whitespaces)
-                if !text.isEmpty {
-                    result.append((time, text))
-                }
-            }
-        }
-        return result.sorted { $0.0 < $1.0 }
-    }
-
     func lyricLine(at elapsed: Double) -> String {
         guard !syncedLyrics.isEmpty else { return currentLyrics }
+        guard let first = syncedLyrics.first, elapsed >= first.time else { return "" }
         // Binary search for last line with time <= elapsed
         var low = 0
         var high = syncedLyrics.count - 1
@@ -590,7 +584,7 @@ class MusicManager: ObservableObject {
     public func estimatedPlaybackPosition(at date: Date = Date()) -> TimeInterval {
         guard isPlaying else { return min(elapsedTime, songDuration) }
 
-        let timeDifference = date.timeIntervalSince(timestampDate)
+        let timeDifference = max(0, date.timeIntervalSince(timestampDate))
         let estimated = elapsedTime + (timeDifference * playbackRate)
         return min(max(0, estimated), songDuration)
     }
@@ -665,18 +659,24 @@ class MusicManager: ObservableObject {
         }
     }
 
+    @MainActor
     func seek(to position: TimeInterval) {
-        let clamped = min(max(0, position), songDuration)
-        DispatchQueue.main.async {
-            self.elapsedTime = clamped
-            self.timestampDate = Date()
-        }
-
+        guard !isDestroyed, let controller = activeController else { return }
+        let clamped = songDuration > 0 ? min(max(0, position), songDuration) : max(0, position)
+        let now = Date()
+        seekState.begin(at: clamped, now: now)
+        elapsedTime = clamped
+        timestampDate = now
         seekTask?.cancel()
-        seekTask = Task {
-            await activeController?.seek(to: clamped)
+        seekTask = Task { @MainActor [weak self] in
+            guard !Task.isCancelled else { return }
+            await controller.seek(to: clamped)
+            guard !Task.isCancelled, let self, self.activeController === controller else { return }
+            self.forceUpdate()
         }
     }
+
+    @MainActor
     func skip(seconds: TimeInterval) {
         let newPos = min(max(0, elapsedTime + seconds), songDuration)
         seek(to: newPos)

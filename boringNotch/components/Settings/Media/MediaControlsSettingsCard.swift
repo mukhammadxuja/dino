@@ -24,8 +24,8 @@ struct MediaControlsSettingsCard: View {
                 MediaSettingsRow(
                     icon: "quote.bubble.fill",
                     iconColor: .purple,
-                    title: "Show lyrics below artist name",
-                    subtitle: "Display real-time lyrics under the track artist when available",
+                    title: "Lyrics",
+                    subtitle: "Show an L badge beside the song title to open lyrics",
                     badge: "Beta"
                 ) {
                     Toggle("", isOn: $enableLyrics)

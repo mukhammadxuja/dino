@@ -89,6 +89,14 @@ struct MusicControlsView: View {
     @State private var lastDragged: Date = .distantPast
     @Default(.musicControlSlots) private var slotConfig
     @Default(.musicControlSlotLimit) private var slotLimit
+    @Default(.enableLyrics) private var enableLyrics
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showingLyrics = false
+
+    private var hasLyrics: Bool {
+        enableLyrics && !musicManager.isFetchingLyrics
+            && LyricsTimeline(synced: musicManager.syncedLyrics, plain: musicManager.currentLyrics).hasText
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -98,6 +106,33 @@ struct MusicControlsView: View {
         }
         .frame(maxWidth: .infinity)
         .buttonStyle(PlainButtonStyle())
+        .opacity(showingLyrics ? 0 : 1)
+        .blur(radius: showingLyrics && !reduceMotion ? 8 : 0)
+        .scaleEffect(showingLyrics && !reduceMotion ? 0.97 : 1)
+        .allowsHitTesting(!showingLyrics)
+        .accessibilityHidden(showingLyrics)
+        .overlay {
+            if showingLyrics {
+                MusicLyricsView(onClose: toggleLyrics)
+                    .compositingGroup()
+                    .transition(reduceMotion ? .opacity : .modifier(
+                        active: MusicLyricsTransition(progress: 0),
+                        identity: MusicLyricsTransition(progress: 1)
+                    ))
+            }
+        }
+        .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.46, dampingFraction: 0.86), value: showingLyrics)
+        .preference(key: MusicLyricsPresentationKey.self, value: showingLyrics)
+        .onChange(of: enableLyrics) { _, enabled in
+            if !enabled { showingLyrics = false }
+        }
+        .onChange(of: vm.notchState) { _, state in
+            if state == .closed { showingLyrics = false }
+        }
+    }
+
+    private func toggleLyrics() {
+        showingLyrics.toggle()
     }
 
     private var topInfoRow: some View {
@@ -192,21 +227,30 @@ struct MusicControlsView: View {
     }
 
     private func songInfo(width: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .center, spacing: 6) {
+        let titleFont = NSFont.systemFont(ofSize: 16, weight: .bold)
+        let titleWidth = MarqueeText.measureWidth(musicManager.songTitle, nsFont: .headline, measurementFont: titleFont)
+        let availableTitleWidth = max(0, width - 26 - (hasLyrics ? 18 : 0))
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .center, spacing: 4) {
                 MarqueeText(
                     $musicManager.songTitle,
                     font: .system(size: 16, weight: .bold, design: .default),
                     nsFont: .headline,
+                    measurementFont: titleFont,
                     textColor: .white,
-                    frameWidth: max(0, width - 30)
+                    frameWidth: min(titleWidth, availableTitleWidth),
+                    fadeMaskWhenScrolling: true
                 )
 
-                Spacer(minLength: 2)
+                if hasLyrics {
+                    LyricsBadge(action: toggleLyrics)
+                }
+
+                Spacer(minLength: 0)
 
                 visualizerView
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             MarqueeText(
                 $musicManager.artistName,
@@ -215,39 +259,8 @@ struct MusicControlsView: View {
                 textColor: Color.white.opacity(0.65),
                 frameWidth: width
             )
-            if Defaults[.enableLyrics] {
-                TimelineView(.animation(minimumInterval: 0.25, paused: !musicManager.isPlaying || musicManager.isPlayerIdle)) { timeline in
-                    let currentElapsed: Double = {
-                        guard musicManager.isPlaying else { return musicManager.elapsedTime }
-                        let delta = timeline.date.timeIntervalSince(musicManager.timestampDate)
-                        let progressed = musicManager.elapsedTime + (delta * musicManager.playbackRate)
-                        return min(max(progressed, 0), musicManager.songDuration)
-                    }()
-                    let line: String = {
-                        if musicManager.isFetchingLyrics { return "Loading lyrics…" }
-                        if !musicManager.syncedLyrics.isEmpty {
-                            return musicManager.lyricLine(at: currentElapsed)
-                        }
-                        let trimmed = musicManager.currentLyrics.trimmingCharacters(in: .whitespacesAndNewlines)
-                        return trimmed.isEmpty ? "" : trimmed.replacingOccurrences(of: "\n", with: " ")
-                    }()
-                    if !line.isEmpty {
-                        let isPersian = line.unicodeScalars.contains { scalar in
-                            let v = scalar.value
-                            return v >= 0x0600 && v <= 0x06FF
-                        }
-                        MarqueeText(
-                            .constant(line),
-                            font: isPersian ? .custom("Vazirmatn-Regular", size: 11.5) : .system(size: 11.5, weight: .regular),
-                            nsFont: .caption1,
-                            textColor: Color.white.opacity(0.5),
-                            frameWidth: width
-                        )
-                        .lineLimit(1)
-                        .opacity(musicManager.isPlaying ? 1 : 0)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                }
+            if enableLyrics {
+                InlineMusicLyricsView(width: width)
             }
         }
         
