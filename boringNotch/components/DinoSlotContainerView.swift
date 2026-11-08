@@ -245,9 +245,8 @@ public struct DinoSlotContainerView: View {
             .padding(.horizontal, 10)
         case .airPods(let name, let battery):
             HStack(spacing: 8) {
-                Image(systemName: "airpodspro")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.white)
+                AirPodsVideoView()
+                    .frame(width: 24, height: 24)
                 if let b = battery {
                     Spacer()
                     AirPodsBatteryRingView(battery: b)

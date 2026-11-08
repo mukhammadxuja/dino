@@ -9,6 +9,7 @@ import SwiftUI
 import Defaults
 import AVKit
 import AVFoundation
+import CoreImage
 
 struct InlineHUD: View {
     @EnvironmentObject var vm: BoringViewModel
@@ -145,7 +146,6 @@ struct InlineHUD: View {
                     case .airPods:
                         AirPodsVideoView()
                             .frame(width: 24, height: 24)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
                     case .charging:
                         ZStack(alignment: .bottomTrailing) {
                             Image(systemName: "battery.100percent")
@@ -333,7 +333,7 @@ struct InlineHUD: View {
             rightStatusView
         }
         .padding(.leading, 1)
-        .padding(.trailing, 4)
+        .padding(.trailing, type == .airPods ? 10 : 4)
         .frame(width: islandHUDWidth, height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
     }
 
@@ -414,37 +414,20 @@ struct InlineHUD: View {
 // MARK: - AirPods Video Asset Cache & Background Resolver
 final class AirPodsVideoCache {
     static let shared = AirPodsVideoCache()
-    private(set) var cachedURL: URL?
+    private var cachedURL: URL?
     private let queue = DispatchQueue(label: "com.boringnotch.airpodsVideoCache", qos: .userInitiated)
-    private var isResolving = false
 
-    private init() {
-        prewarm()
-    }
+    private init() {}
 
     func prewarm() {
-        queue.async { [weak self] in
-            guard let self = self, self.cachedURL == nil, !self.isResolving else { return }
-            self.isResolving = true
-            let resolved = self.resolveVideoURLSync()
-            DispatchQueue.main.async {
-                self.cachedURL = resolved
-                self.isResolving = false
-            }
-        }
+        resolveVideoURL { _ in }
     }
 
     func resolveVideoURL(completion: @escaping (URL?) -> Void) {
-        if let cached = cachedURL, FileManager.default.fileExists(atPath: cached.path) {
-            completion(cached)
-            return
-        }
-
-        queue.async { [weak self] in
-            guard let self = self else { return }
+        queue.async {
             let resolved = self.resolveVideoURLSync()
+            self.cachedURL = resolved
             DispatchQueue.main.async {
-                self.cachedURL = resolved
                 completion(resolved)
             }
         }
@@ -455,45 +438,50 @@ final class AirPodsVideoCache {
             return cached
         }
 
-        // 1. Check if resource is directly inside main bundle
-        if let bundleURL = Bundle.main.url(forResource: "airpods-pro", withExtension: "mp4") {
-            return bundleURL
-        }
-
-        let tempDir = URL(fileURLWithPath: NSTemporaryDirectory())
-        let fileURL = tempDir.appendingPathComponent("boringnotch-airpods-pro.mp4")
-
-        // 2. Fast check: file already extracted in temp directory without reading entire file into RAM
-        if FileManager.default.fileExists(atPath: fileURL.path),
-           let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
-           let size = attrs[.size] as? UInt64, size > 1000 {
-            return fileURL
-        }
-
-        // 3. Extract from NSDataAsset in background thread
-        if let asset = NSDataAsset(name: "airpods-pro") {
-            do {
+        guard let asset = NSDataAsset(name: "airpods-pro-transparent") else { return nil }
+        let fileURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("boringnotch-airpods-pro-alpha.mov")
+        do {
+            // Do not reuse an old extracted video after the bundled asset changes.
+            if (try? Data(contentsOf: fileURL)) != asset.data {
                 try asset.data.write(to: fileURL, options: .atomic)
-                return fileURL
-            } catch {
-                print("⚠️ [AirPodsVideoCache] Failed to write temp video: \(error.localizedDescription)")
             }
+            return fileURL
+        } catch {
+            print("⚠️ [AirPodsVideoCache] Failed to write temp video: \(error.localizedDescription)")
+            return nil
         }
-
-        // 4. Fallback file path if available
-        let fallbackPath = "/Users/macbookair/Desktop/Projects/My Projects/Dino/boringNotch/Assets.xcassets/airpods-pro.mp4"
-        if FileManager.default.fileExists(atPath: fallbackPath) {
-            return URL(fileURLWithPath: fallbackPath)
-        }
-
-        return nil
     }
 }
 
 // MARK: - AirPods Video Animation Player
 struct AirPodsVideoView: View {
+    var isActive = true
     @State private var player: AVQueuePlayer?
     @State private var looper: AVPlayerLooper?
+    @State private var isVisible = false
+    @State private var playbackGeneration = 0
+
+    // The supplied movie advertises an alpha channel but its background is opaque.
+    // Key out near-black pixels so the HUD surface remains visible behind it.
+    private static let blackBackgroundCube: Data = {
+        let dimension = 32
+        var values: [Float] = []
+        values.reserveCapacity(dimension * dimension * dimension * 4)
+        for blue in 0..<dimension {
+            for green in 0..<dimension {
+                for red in 0..<dimension {
+                    let r = Float(red) / Float(dimension - 1)
+                    let g = Float(green) / Float(dimension - 1)
+                    let b = Float(blue) / Float(dimension - 1)
+                    let t = min(1, max(0, (max(r, g, b) - 0.025) / 0.12))
+                    let alpha = t * t * (3 - 2 * t)
+                    values.append(contentsOf: [r * alpha, g * alpha, b * alpha, alpha])
+                }
+            }
+        }
+        return values.withUnsafeBufferPointer { Data(buffer: $0) }
+    }()
 
     var body: some View {
         Group {
@@ -505,54 +493,89 @@ struct AirPodsVideoView: View {
                     .foregroundStyle(.white)
             }
         }
-        .onAppear {
-            setupPlayer()
-        }
-        .onDisappear {
-            player?.pause()
-            player = nil
-            looper = nil
+        .onAppear { isVisible = true; updatePlayback() }
+        .onChange(of: isActive) { _, _ in updatePlayback() }
+        .onDisappear { isVisible = false; stopPlayback() }
+    }
+
+    private func updatePlayback() {
+        guard isVisible && isActive else { stopPlayback(); return }
+        guard player == nil else { return }
+        playbackGeneration += 1
+        let generation = playbackGeneration
+        AirPodsVideoCache.shared.resolveVideoURL { url in
+            guard let url, self.isVisible, self.isActive,
+                  self.playbackGeneration == generation, self.player == nil else { return }
+            let asset = AVURLAsset(url: url)
+            let item = AVPlayerItem(asset: asset)
+            item.videoComposition = AVVideoComposition(asset: asset) { request in
+                guard let filter = CIFilter(name: "CIColorCube") else {
+                    request.finish(with: request.sourceImage, context: nil)
+                    return
+                }
+                filter.setValue(request.sourceImage.clampedToExtent(), forKey: kCIInputImageKey)
+                filter.setValue(32, forKey: "inputCubeDimension")
+                filter.setValue(Self.blackBackgroundCube, forKey: "inputCubeData")
+                let image = (filter.outputImage ?? request.sourceImage).cropped(to: request.sourceImage.extent)
+                request.finish(with: image, context: nil)
+            }
+            let videoPlayer = AVQueuePlayer()
+            videoPlayer.isMuted = true
+            let videoLooper = AVPlayerLooper(player: videoPlayer, templateItem: item)
+            self.player = videoPlayer
+            self.looper = videoLooper
+            videoPlayer.play()
         }
     }
 
-    private func setupPlayer() {
-        guard player == nil else { return }
-
-        AirPodsVideoCache.shared.resolveVideoURL { url in
-            guard let url = url, self.player == nil else { return }
-
-            let item = AVPlayerItem(url: url)
-            let queuePlayer = AVQueuePlayer(playerItem: item)
-            queuePlayer.isMuted = true
-            queuePlayer.actionAtItemEnd = .none
-            let playerLooper = AVPlayerLooper(player: queuePlayer, templateItem: item)
-
-            self.player = queuePlayer
-            self.looper = playerLooper
-            queuePlayer.play()
-        }
+    private func stopPlayback() {
+        playbackGeneration += 1
+        player?.pause()
+        looper?.disableLooping()
+        player?.removeAllItems()
+        looper = nil
+        player = nil
     }
 }
 
 struct AirPodsVideoPlayerRepresentable: NSViewRepresentable {
-    let player: AVQueuePlayer
+    let player: AVPlayer
 
-    func makeNSView(context: Context) -> AVPlayerView {
-        let view = AVPlayerView()
-        view.controlsStyle = .none
-        view.showsFullScreenToggleButton = false
-        view.showsSharingServiceButton = false
+    func makeNSView(context: Context) -> TransparentAirPodsPlayerView {
+        let view = TransparentAirPodsPlayerView()
         view.player = player
-        view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.clear.cgColor
         return view
     }
 
-    func updateNSView(_ nsView: AVPlayerView, context: Context) {
+    func updateNSView(_ nsView: TransparentAirPodsPlayerView, context: Context) {
         if nsView.player !== player {
             nsView.player = player
         }
     }
+
+    static func dismantleNSView(_ nsView: TransparentAirPodsPlayerView, coordinator: ()) {
+        nsView.player = nil
+    }
+}
+
+final class TransparentAirPodsPlayerView: NSView {
+    override var isOpaque: Bool { false }
+    override func makeBackingLayer() -> CALayer { AVPlayerLayer() }
+
+    var player: AVPlayer? {
+        get { (layer as? AVPlayerLayer)?.player }
+        set { (layer as? AVPlayerLayer)?.player = newValue }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.isOpaque = false
+        layer?.backgroundColor = NSColor.clear.cgColor
+        (layer as? AVPlayerLayer)?.videoGravity = .resizeAspect
+    }
+
+    required init?(coder: NSCoder) { super.init(coder: coder) }
 }
 
 // MARK: - AirPods Battery Circular Progress Ring
@@ -570,15 +593,15 @@ struct AirPodsBatteryRingView: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(ringColor.opacity(0.25), lineWidth: 2.6)
+                .stroke(ringColor.opacity(0.25), lineWidth: 2.3)
             Circle()
                 .trim(from: 0, to: batteryFraction)
                 .stroke(
                     ringColor,
-                    style: StrokeStyle(lineWidth: 2.6, lineCap: .round)
+                    style: StrokeStyle(lineWidth: 2.3, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
         }
-        .frame(width: 17, height: 17)
+        .frame(width: 15, height: 15)
     }
 }

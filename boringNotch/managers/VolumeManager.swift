@@ -1379,7 +1379,7 @@ final class BluetoothHUDManager: NSObject, ObservableObject, CBCentralManagerDel
             BoringViewCoordinator.shared.toggleSneakPeek(
                 status: true,
                 type: .airPods,
-                duration: 3.8,
+                duration: 5.2,
                 value: CGFloat(battery),
                 icon: deviceName
             )

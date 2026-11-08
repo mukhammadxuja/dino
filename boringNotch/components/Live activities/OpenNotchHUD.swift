@@ -120,9 +120,8 @@ struct OpenNotchHUD: View {
                     }
                     .contentTransition(.interpolate)
                 case .airPods:
-                    Image(systemName: "airpodspro")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
+                    AirPodsVideoView()
+                        .frame(width: 24, height: 24)
                 case .charging:
                     ZStack(alignment: .bottomTrailing) {
                         Image(systemName: "battery.100percent")

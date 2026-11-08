@@ -200,7 +200,7 @@ private struct HUDIndicatorSettingsRow: View {
                     }
                     HStack {
                         Spacer()
-                        HUDSettingsPreview(indicator: indicator)
+                        HUDSettingsPreview(indicator: indicator, isActive: isExpanded)
                         Spacer()
                     }
                     .padding(.vertical, 10)
@@ -238,7 +238,7 @@ private struct HUDIndicatorSettingsRow: View {
         case .backlight:
             coordinator.toggleSneakPeek(status: true, type: .backlight, value: 0.5, force: true)
         case .airpods:
-            coordinator.toggleSneakPeek(status: true, type: .airPods, duration: 2.5, value: 94, icon: "AirPods Pro", force: true)
+            coordinator.toggleSneakPeek(status: true, type: .airPods, duration: 5.2, value: 94, icon: "AirPods Pro", force: true)
         case .capslock:
             coordinator.toggleSneakPeek(status: true, type: .capsLock, value: 1, force: true)
         case .location:

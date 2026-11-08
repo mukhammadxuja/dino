@@ -3,6 +3,7 @@ import SwiftUI
 // Pure settings previews: no hardware managers, permissions or audio.
 struct HUDSettingsPreview: View {
     let indicator: HUDIndicator
+    var isActive = true
 
     @ViewBuilder var body: some View {
         Group {
@@ -80,9 +81,8 @@ struct HUDSettingsPreview: View {
 
     private var previewAirPodsHUD: some View {
         HStack(spacing: 24) {
-            Image(systemName: "airpodspro")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.white)
+            AirPodsVideoView(isActive: isActive)
+                .frame(width: 24, height: 24)
             AirPodsBatteryRingView(battery: 94)
         }
         .padding(.horizontal, 12)

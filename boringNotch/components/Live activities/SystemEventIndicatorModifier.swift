@@ -141,10 +141,8 @@ struct SystemEventIndicatorModifier: View {
                     .contentTransition(.interpolate)
                     .frame(width: 24, height: 16)
                 case .airPods:
-                    Image(systemName: "airpodspro")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.white)
-                        .frame(width: 24, height: 16)
+                    AirPodsVideoView()
+                        .frame(width: 24, height: 24)
                 case .charging:
                     ZStack(alignment: .bottomTrailing) {
                         Image(systemName: "battery.100percent")
