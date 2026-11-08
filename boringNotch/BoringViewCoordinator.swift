@@ -27,6 +27,15 @@ enum SneakContentType {
     case capsLock
     case location
     case airPods
+
+    var isInteractiveHUD: Bool {
+        switch self {
+        case .volume, .brightness, .backlight, .mic, .capsLock:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 struct sneakPeek {
@@ -241,7 +250,7 @@ class BoringViewCoordinator: ObservableObject {
         }
     }
 
-    // MARK: - SneakPeek Sequential Queue (Variant B)
+    // MARK: - SneakPeek presentation and notification queue
     struct SneakPeekQueueItem: Equatable {
         let type: SneakContentType
         let duration: TimeInterval
@@ -258,21 +267,19 @@ class BoringViewCoordinator: ObservableObject {
         icon: String = "", force: Bool = false
     ) {
         if !status {
-            Task { @MainActor in
-                self.sneakPeekQueue.removeAll { $0.type == type }
-                if self.activeSneakPeekType == type {
-                    if !self.sneakPeekQueue.isEmpty {
-                        let nextItem = self.sneakPeekQueue.removeFirst()
-                        self.presentSneakPeek(
-                            type: nextItem.type,
-                            duration: nextItem.duration,
-                            value: nextItem.value,
-                            icon: nextItem.icon
-                        )
-                    } else {
-                        self.activeSneakPeekType = nil
-                        self.dismissSneakPeek()
-                    }
+            sneakPeekQueue.removeAll { $0.type == type }
+            if activeSneakPeekType == type {
+                if !sneakPeekQueue.isEmpty {
+                    let nextItem = sneakPeekQueue.removeFirst()
+                    presentSneakPeek(
+                        type: nextItem.type,
+                        duration: nextItem.duration,
+                        value: nextItem.value,
+                        icon: nextItem.icon
+                    )
+                } else {
+                    activeSneakPeekType = nil
+                    dismissSneakPeek()
                 }
             }
             return
@@ -285,9 +292,7 @@ class BoringViewCoordinator: ObservableObject {
         }
 
         guard !force else {
-            Task { @MainActor in
-                self.presentSneakPeek(type: type, duration: duration, value: value, icon: icon)
-            }
+            presentSneakPeek(type: type, duration: duration, value: value, icon: icon)
             return
         }
 
@@ -318,28 +323,28 @@ class BoringViewCoordinator: ObservableObject {
             break
         }
 
-        Task { @MainActor in
-            let isCurrentlyShowing = self.sneakPeek.show
-            let isDifferentType = (self.activeSneakPeekType != nil && self.activeSneakPeekType != type)
-            let elapsedSinceStart = Date().timeIntervalSince(self.activeSneakPeekStartTime)
+        let isCurrentlyShowing = sneakPeek.show
+        let isDifferentType = (activeSneakPeekType != nil && activeSneakPeekType != type)
+        let elapsedSinceStart = Date().timeIntervalSince(activeSneakPeekStartTime)
 
-            if type == .music && isCurrentlyShowing && self.activeSneakPeekType == .music {
-                self.activeSneakPeekStartTime = Date()
-                self.sneakPeekDuration = duration
-                self.scheduleSneakPeekHide(after: duration)
-                return
-            }
-
-            if isCurrentlyShowing && isDifferentType && elapsedSinceStart < 1.2 {
-                // Queue the incoming HUD item sequentially so both get full visibility
-                let item = SneakPeekQueueItem(type: type, duration: duration, value: value, icon: icon)
-                self.sneakPeekQueue.removeAll { $0.type == type }
-                self.sneakPeekQueue.append(item)
-                return
-            }
-
-            self.presentSneakPeek(type: type, duration: duration, value: value, icon: icon)
+        if type == .music && isCurrentlyShowing && activeSneakPeekType == .music {
+            activeSneakPeekStartTime = Date()
+            sneakPeekDuration = duration
+            scheduleSneakPeekHide(after: duration)
+            return
         }
+
+        if type.isInteractiveHUD {
+            // A keypress takes effect now; never replay an older control value later.
+            sneakPeekQueue.removeAll { $0.type.isInteractiveHUD }
+        } else if isCurrentlyShowing && isDifferentType && elapsedSinceStart < 1.2 {
+            let item = SneakPeekQueueItem(type: type, duration: duration, value: value, icon: icon)
+            sneakPeekQueue.removeAll { $0.type == type }
+            sneakPeekQueue.append(item)
+            return
+        }
+
+        presentSneakPeek(type: type, duration: duration, value: value, icon: icon)
 
         if type == .mic {
             currentMicStatus = !value.isZero
@@ -348,6 +353,7 @@ class BoringViewCoordinator: ObservableObject {
 
     @MainActor
     private func presentSneakPeek(type: SneakContentType, duration: TimeInterval, value: CGFloat, icon: String) {
+        let isUpdatingVisibleHUD = sneakPeek.show && activeSneakPeekType == type
         activeSneakPeekType = type
         activeSneakPeekStartTime = Date()
         sneakPeekDuration = duration
@@ -371,12 +377,16 @@ class BoringViewCoordinator: ObservableObject {
             }
         }()
 
-        // Unify BoringViewCoordinator & DinoCoordinator state updates in a single interactiveSpring transaction
-        withAnimation(.interactiveSpring(response: 0.42, dampingFraction: 0.88, blendDuration: 0)) {
-            self.sneakPeek.show = true
-            self.sneakPeek.type = type
-            self.sneakPeek.value = value
-            self.sneakPeek.icon = icon
+        // Repeated keys update the visible value without restarting the opening spring.
+        let animation: Animation? = isUpdatingVisibleHUD ? nil
+            : .interactiveSpring(response: type.isInteractiveHUD ? 0.22 : 0.42, dampingFraction: 0.88)
+        withAnimation(animation) {
+            var presentation = self.sneakPeek
+            presentation.show = true
+            presentation.type = type
+            presentation.value = value
+            presentation.icon = icon
+            self.sneakPeek = presentation
 
             if let slot = hudSlot {
                 DinoCoordinator.shared.triggerToast(slot, duration: duration, animated: false)

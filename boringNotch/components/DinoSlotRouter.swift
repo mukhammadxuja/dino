@@ -28,7 +28,6 @@ struct DinoSlotRouter: View {
     let computedChinWidth: CGFloat
     let isShowingMusicSneakPeek: Bool
     let isShowingSystemToastHUD: Bool
-    let isSystemToastHUDPendingExpansion: Bool
     let inlinePlaybackPeekOverride: Bool?
     let isDualActivityActive: Bool
     let isAntigravityActive: Bool
@@ -88,17 +87,23 @@ struct DinoSlotRouter: View {
 
     @ObservedObject private var dinoCoordinator = DinoCoordinator.shared
 
-    private var closedDisplaySlot: DinoSlot {
-        isSystemToastHUDPendingExpansion ? dinoCoordinator.backgroundSlot : dinoCoordinator.activeSlot
-    }
-
     // MARK: - Closed Slot View Routing
 
     @ViewBuilder
     private var closedSlotView: some View {
-        if coordinator.expandingView.show && vm.notchState == .closed
-            && (coordinator.expandingView.type == .charging || coordinator.expandingView.type == .unplugged)
-            && !isSystemToastHUDPendingExpansion {
+        if isShowingSystemToastHUD {
+            InlineHUD(
+                isIsland: isCurrentDisplayIsland,
+                isScreenBuiltin: isCurrentScreenBuiltin,
+                type: $coordinator.sneakPeek.type,
+                value: $coordinator.sneakPeek.value,
+                icon: $coordinator.sneakPeek.icon,
+                hoverAnimation: $isHovering,
+                gestureProgress: .constant(0)
+            )
+            .transition(.opacity)
+        } else if coordinator.expandingView.show && vm.notchState == .closed
+            && (coordinator.expandingView.type == .charging || coordinator.expandingView.type == .unplugged) {
             PowerStatusInlineHUD(
                 isCharging: coordinator.expandingView.type == .charging,
                 isCurrentDisplayIsland: isCurrentDisplayIsland,
@@ -121,17 +126,6 @@ struct DinoSlotRouter: View {
                 .frame(width: computedChinWidth, height: vm.effectiveClosedNotchHeight, alignment: .center)
                 .clipped()
                 .transition(.opacity)
-        } else if isShowingSystemToastHUD {
-            InlineHUD(
-                isIsland: isCurrentDisplayIsland,
-                isScreenBuiltin: isCurrentScreenBuiltin,
-                type: $coordinator.sneakPeek.type,
-                value: $coordinator.sneakPeek.value,
-                icon: $coordinator.sneakPeek.icon,
-                hoverAnimation: $isHovering,
-                gestureProgress: .constant(0)
-            )
-            .transition(.opacity)
         } else if isDualActivityActive || dinoCoordinator.isDualActivityActive {
             MusicLiveActivityView(
                 isCurrentDisplayIsland: isCurrentDisplayIsland,
@@ -152,7 +146,7 @@ struct DinoSlotRouter: View {
             .frame(alignment: .center)
             .transition(.opacity)
         } else {
-            switch closedDisplaySlot {
+            switch dinoCoordinator.activeSlot {
             case .music:
                 MusicLiveActivityView(
                     isCurrentDisplayIsland: isCurrentDisplayIsland,
@@ -212,7 +206,6 @@ struct DinoSlotRouter: View {
             if (coordinator.sneakPeek.type != .music)
                 && (coordinator.sneakPeek.type != .battery)
                 && !isShowingSystemToastHUD
-                && !isSystemToastHUDPendingExpansion
                 && vm.notchState == .closed {
                 SystemEventIndicatorModifier(
                     eventType: $coordinator.sneakPeek.type,

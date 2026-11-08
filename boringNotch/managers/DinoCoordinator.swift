@@ -253,8 +253,8 @@ public final class DinoCoordinator: ObservableObject {
         }
         
         let updateState = {
-            self.activeSlot = slot
-            self.currentPriority = .p1Toast
+            if self.activeSlot != slot { self.activeSlot = slot }
+            if self.currentPriority != .p1Toast { self.currentPriority = .p1Toast }
         }
         
         if animated {

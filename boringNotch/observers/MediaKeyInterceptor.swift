@@ -122,6 +122,10 @@ final class MediaKeyInterceptor: ObservableObject {
         eventTap = tap
         runLoopSource = source
         activationState = .active
+        // Load hardware state before the first keypress instead of on its UI path.
+        _ = VolumeManager.shared
+        _ = BrightnessManager.shared
+        _ = KeyboardBacklightManager.shared
         if audioPlayer == nil { prewarmAudio() }
     }
     
@@ -309,13 +313,13 @@ final class MediaKeyInterceptor: ObservableObject {
         switch keyType {
         case .soundUp:
             DispatchQueue.main.async { [weak self] in
-                self?.playFeedbackSound()
                 VolumeManager.shared.increase(stepDivisor: stepDivisor)
+                self?.playFeedbackSound()
             }
         case .soundDown:
             DispatchQueue.main.async { [weak self] in
-                self?.playFeedbackSound()
                 VolumeManager.shared.decrease(stepDivisor: stepDivisor)
+                self?.playFeedbackSound()
             }
         case .mute:
             DispatchQueue.main.async {

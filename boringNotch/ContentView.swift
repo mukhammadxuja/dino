@@ -157,6 +157,7 @@ private struct ClosedIslandPresentation: Equatable {
 private struct ClosedIslandRevealView<Content: View>: View {
     let isActive: Bool
     let isVisible: Bool
+    let isShowingHUD: Bool
     let isMusicPeekDescending: Bool
     let musicPeekGeneration: Int
     let hiddenOffsetY: CGFloat
@@ -199,7 +200,7 @@ private struct ClosedIslandRevealView<Content: View>: View {
             let startsMusicPeek = isMusicPeekDescending
                 && previous?.musicPeekGeneration != generation
             guard previous?.isVisible != true || previous?.isActive != true || startsMusicPeek else { return }
-            withAnimation(.interactiveSpring(response: 0.34, dampingFraction: 0.82),
+            withAnimation(.interactiveSpring(response: isShowingHUD ? 0.22 : 0.34, dampingFraction: 0.82),
                           completionCriteria: .logicallyComplete) {
                 revealProgress = 1
             } completion: {
@@ -306,8 +307,6 @@ struct ContentView: View {
     // Hover states for closed notch music areas
     @State private var showCoverHoverMusicDetails: Bool = false
     @State private var coverHoverDismissTask: Task<Void, Never>?
-    @State private var islandHUDExpansionTask: Task<Void, Never>?
-    @State private var isIslandHUDExpanded: Bool = false
     @StateObject private var islandMusicPeek = IslandMusicPeekPresentation()
     @State private var coverRotationY: Double = 0
 
@@ -431,7 +430,8 @@ struct ContentView: View {
     }
 
     private var isBatteryInlineAlertVisible: Bool {
-        guard vm.notchState == .closed && coordinator.expandingView.show else { return false }
+        guard vm.notchState == .closed && coordinator.expandingView.show,
+              !isShowingSystemToastHUD else { return false }
         if coordinator.expandingView.type == .charging || coordinator.expandingView.type == .unplugged {
             return true
         }
@@ -481,7 +481,7 @@ struct ContentView: View {
                 : .interactiveSpring(response: 0.46, dampingFraction: 0.9, blendDuration: 0)
         }
         if isShowingSystemToastHUD {
-            return .interactiveSpring(response: 0.46, dampingFraction: 0.9, blendDuration: 0)
+            return .interactiveSpring(response: 0.22, dampingFraction: 0.88, blendDuration: 0)
         }
         return animationSpring
     }
@@ -562,9 +562,6 @@ struct ContentView: View {
             } else if isBatteryInlineAlertVisible {
                 return 236
             } else if isShowingSystemToastHUD {
-                if !isIslandHUDExpanded {
-                    return defaultIslandWidth(for: DinoCoordinator.shared.backgroundSlot)
-                }
                 let type = coordinator.sneakPeek.type
                 switch type {
                 case .airPods:
@@ -613,6 +610,7 @@ struct ContentView: View {
         }
 
         let showsBatteryStatusPill = coordinator.expandingView.show
+            && !isShowingSystemToastHUD
             && vm.notchState == .closed
             && (coordinator.expandingView.type == .charging
                 || coordinator.expandingView.type == .unplugged
@@ -636,7 +634,7 @@ struct ContentView: View {
                 percentage: percentage
             )
         } else if coordinator.expandingView.type == .battery && coordinator.expandingView.show
-            && vm.notchState == .closed {
+            && vm.notchState == .closed && !isShowingSystemToastHUD {
             chinWidth = 640
         } else if isShowingSystemToastHUD {
             let type = coordinator.sneakPeek.type
@@ -712,18 +710,6 @@ struct ContentView: View {
         }
 
         return chinWidth
-    }
-
-    private func defaultIslandWidth(for slot: DinoSlot) -> CGFloat {
-        switch slot {
-        case .music: return isCurrentScreenBuiltin ? 150 : 130
-        case .pomodoro: return isCurrentScreenBuiltin ? 172 : 144
-        case .weather: return isCurrentScreenBuiltin ? 120 : 105
-        case .calendar: return isCurrentScreenBuiltin ? 140 : 115
-        case .battery: return 236
-        case .idle, .shelf, .download, .webcam, .coding, .hud:
-            return isCurrentScreenBuiltin ? 88 : 70
-        }
     }
 
     private var isAntigravityActive: Bool {
@@ -884,27 +870,6 @@ struct ContentView: View {
         }
     }
 
-    private func handleSystemToastVisibilityChange(_ isShowing: Bool) {
-        islandHUDExpansionTask?.cancel()
-        guard isCurrentDisplayIsland && isShowing else {
-            isIslandHUDExpanded = false
-            return
-        }
-
-        isIslandHUDExpanded = false
-        islandHUDExpansionTask = Task { @MainActor in
-            // Drop the default-width island first, then reveal the HUD.
-            try? await Task.sleep(for: .milliseconds(400))
-            guard !Task.isCancelled,
-                  self.isShowingSystemToastHUD,
-                  self.isCurrentDisplayIsland,
-                  self.vm.notchState == .closed else { return }
-            withAnimation(.interactiveSpring(response: 0.46, dampingFraction: 0.86)) {
-                self.isIslandHUDExpanded = true
-            }
-        }
-    }
-
     private func presentIslandMusicPeek(trackID: String) {
         hoverTask?.cancel()
         islandRetractTask?.cancel()
@@ -951,6 +916,7 @@ struct ContentView: View {
                 ClosedIslandRevealView(
                     isActive: isCurrentDisplayIsland && vm.notchState == .closed,
                     isVisible: isIslandShowing,
+                    isShowingHUD: isShowingSystemToastHUD,
                     isMusicPeekDescending: islandMusicPeek.phase == .descending,
                     musicPeekGeneration: islandMusicPeek.generation,
                     hiddenOffsetY: max(islandYOffset, 0) + max(vm.effectiveClosedNotchHeight, 44) + 72,
@@ -1088,9 +1054,6 @@ struct ContentView: View {
                     .onReceive(MusicManager.shared.$isPlaying) { _ in }
                     .onReceive(MusicManager.shared.$isPlayerIdle) { _ in }
                     .onReceive(PomodoroManager.shared.$state) { _ in }
-                    .onChange(of: isShowingSystemToastHUD) { _, isShowing in
-                        handleSystemToastVisibilityChange(isShowing)
-                    }
                     .modifier(IslandMusicPeekEvents(
                         request: islandMusicPeekRequest,
                         trackID: islandMusicTrackID,
@@ -1223,10 +1186,7 @@ struct ContentView: View {
                 isCurrentScreenBuiltin: isCurrentScreenBuiltin,
                 computedChinWidth: computedChinWidth,
                 isShowingMusicSneakPeek: isShowingMusicSneakPeek,
-                isShowingSystemToastHUD: isShowingSystemToastHUD
-                    && (!isCurrentDisplayIsland || isIslandHUDExpanded),
-                isSystemToastHUDPendingExpansion: isShowingSystemToastHUD
-                    && isCurrentDisplayIsland && !isIslandHUDExpanded,
+                isShowingSystemToastHUD: isShowingSystemToastHUD,
                 inlinePlaybackPeekOverride: isIslandMusicPeekManaged ? isShowingInlineMusicPlaybackPeek : nil,
                 isDualActivityActive: isDualActivityActive,
                 isAntigravityActive: isAntigravityActive,
