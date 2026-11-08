@@ -254,7 +254,7 @@ struct InlineHUD: View {
                     .fixedSize()
             } else {
                 HStack(spacing: 6) {
-                    DraggableProgressBar(value: $value, onChange: { v in
+                    DraggableProgressBar(value: $value, animateValueChanges: true, onChange: { v in
                         if type == .volume {
                             VolumeManager.shared.setAbsolute(Float32(v))
                         } else if type == .brightness {

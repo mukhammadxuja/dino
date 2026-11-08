@@ -200,7 +200,8 @@ private struct ClosedIslandRevealView<Content: View>: View {
             let startsMusicPeek = isMusicPeekDescending
                 && previous?.musicPeekGeneration != generation
             guard previous?.isVisible != true || previous?.isActive != true || startsMusicPeek else { return }
-            withAnimation(.interactiveSpring(response: isShowingHUD ? 0.22 : 0.34, dampingFraction: 0.82),
+            withAnimation(isShowingHUD ? HUDAnimations.presentation
+                          : .interactiveSpring(response: 0.34, dampingFraction: 0.82),
                           completionCriteria: .logicallyComplete) {
                 revealProgress = 1
             } completion: {
@@ -481,7 +482,7 @@ struct ContentView: View {
                 : .interactiveSpring(response: 0.46, dampingFraction: 0.9, blendDuration: 0)
         }
         if isShowingSystemToastHUD {
-            return .interactiveSpring(response: 0.22, dampingFraction: 0.88, blendDuration: 0)
+            return HUDAnimations.presentation
         }
         return animationSpring
     }

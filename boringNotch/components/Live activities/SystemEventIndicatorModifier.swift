@@ -243,6 +243,7 @@ struct SystemEventIndicatorModifier: View {
 struct DraggableProgressBar: View {
     @EnvironmentObject var vm: BoringViewModel
     @Binding var value: CGFloat
+    var animateValueChanges = false
     var onChange: ((CGFloat) -> Void)? = nil
     
     @State private var isDragging = false
@@ -267,6 +268,9 @@ struct DraggableProgressBar: View {
                                 AnyShapeStyle(Defaults[.systemEventIndicatorUseAccent] ? Color.effectiveAccent : Color.white)
                         )
                         .frame(width: max(0, min(geo.size.width * value, geo.size.width)))
+                        .animation(animateValueChanges && !isDragging
+                                   ? .interactiveSpring(response: 0.24, dampingFraction: 0.86) : nil,
+                                   value: value)
                         .shadow(color: Defaults[.systemEventIndicatorShadow] ?
                             (Defaults[.systemEventIndicatorUseAccent] ?
                                 Color.effectiveAccent.ensureMinimumBrightness(factor: 0.7) :

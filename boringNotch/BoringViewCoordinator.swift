@@ -10,6 +10,10 @@ import Combine
 import Defaults
 import SwiftUI
 
+enum HUDAnimations {
+    static let presentation = Animation.interactiveSpring(response: 0.34, dampingFraction: 0.76)
+}
+
 enum SneakContentType {
     case brightness
     case volume
@@ -379,7 +383,7 @@ class BoringViewCoordinator: ObservableObject {
 
         // Repeated keys update the visible value without restarting the opening spring.
         let animation: Animation? = isUpdatingVisibleHUD ? nil
-            : .interactiveSpring(response: type.isInteractiveHUD ? 0.22 : 0.42, dampingFraction: 0.88)
+            : (type == .music ? .interactiveSpring(response: 0.42, dampingFraction: 0.88) : HUDAnimations.presentation)
         withAnimation(animation) {
             var presentation = self.sneakPeek
             presentation.show = true
@@ -398,7 +402,9 @@ class BoringViewCoordinator: ObservableObject {
 
     @MainActor
     private func dismissSneakPeek() {
-        withAnimation(.interactiveSpring(response: 0.42, dampingFraction: 0.88, blendDuration: 0)) {
+        withAnimation(sneakPeek.type == .music
+                      ? .interactiveSpring(response: 0.42, dampingFraction: 0.88)
+                      : HUDAnimations.presentation) {
             self.sneakPeek.show = false
             if DinoCoordinator.shared.currentPriority == .p1Toast {
                 DinoCoordinator.shared.dismissToast(animated: false)
