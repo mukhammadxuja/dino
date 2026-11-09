@@ -258,7 +258,7 @@ class BoringViewModel: NSObject, ObservableObject {
         }
         switch slot.asNotchView {
         case .calendar, .home, .shelf:
-            return CGSize(width: isIsland ? 385 : 435, height: 188)
+            return CGSize(width: isIsland ? 375 : 435, height: 188)
         }
     }
 
@@ -315,6 +315,7 @@ class BoringViewModel: NSObject, ObservableObject {
         self.notchSize = getClosedNotchSize(screenUUID: self.screenUUID)
         self.closedNotchSize = self.notchSize
         self.notchState = .closed
+        self.isHoveringCalendar = false
         DinoCoordinator.shared.isExpanded = false
         self.isBatteryPopoverActive = false
         self.coordinator.sneakPeek.show = false
@@ -326,7 +327,7 @@ class BoringViewModel: NSObject, ObservableObject {
            !ShelfStateViewModel.shared.isEmpty,
            Defaults[.openShelfByDefault] {
             DinoCoordinator.shared.activateSlotDirectly(.shelf)
-        } else if DinoCoordinator.shared.currentPriority == .p2OnDemand {
+        } else if DinoCoordinator.shared.currentPriority == .p2OnDemand || DinoCoordinator.shared.activeSlot == .calendar {
             DinoCoordinator.shared.dismissOnDemand()
         } else if !coordinator.openLastTabByDefault {
             DinoCoordinator.shared.selectView(.home)

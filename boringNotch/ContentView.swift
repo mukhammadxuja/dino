@@ -321,6 +321,7 @@ struct ContentView: View {
     @Default(.showNotHumanFace) var showNotHumanFace
     @Default(.showCalendar) var showCalendar
     @Default(.activeModule) var activeModule
+    @Default(.gestureCycleFeatures) private var gestureCycleFeatures
     
     @State private var emptyClickBounce: Bool = false
     @State private var isScaleHovered: Bool = false
@@ -748,7 +749,6 @@ struct ContentView: View {
             && (musicManager.isPlaying || !musicManager.isPlayerIdle || isShowingMusicSneakPeek)
             && coordinator.musicLiveActivityEnabled
             && !vm.hideOnClosed
-            && (!ReleaseFeatures.calendar || activeModule != .calendar || isShowingMusicSneakPeek)
             && (activeModule != .pomodoro || isShowingMusicSneakPeek || !pomodoroManager.hasActiveSession)
     }
 
@@ -760,6 +760,8 @@ struct ContentView: View {
             && !isShowingMusicSneakPeek
             && !isAntigravityActive
             && !coordinator.expandingView.show
+            && (!musicManager.isPlaying && musicManager.isPlayerIdle)
+            && !pomodoroManager.hasActiveSession
     }
 
     private var shouldShowNonMusicClosedVisual: Bool {
@@ -1001,6 +1003,7 @@ struct ContentView: View {
                             lastOpenedAt = Date()
                             startOpenNotchWatchdog()
                         } else {
+                            vm.isHoveringCalendar = false
                             openFeatureStretch.amount = .zero
                             verticalGestureBeganClosed = nil
                             verticalGestureDirection = nil
@@ -1028,6 +1031,9 @@ struct ContentView: View {
                     }
                     .onReceive(DinoCoordinator.shared.$activeSlot) { slot in
                         // @Published emits before activeSlot's stored value changes.
+                        if slot != .calendar {
+                            vm.isHoveringCalendar = false
+                        }
                         updateOpenNotchWidth(for: slot)
                     }
                     .onChange(of: builtinFormFactor) { _, _ in
@@ -1373,25 +1379,19 @@ struct ContentView: View {
                 }
                 return
             } else {
-                if coordinator.openLastTabByDefault && coordinator.lastExpandedSlot != nil {
-                    doOpen(restoreLastFeature: true)
-                    return
-                }
-                switch DinoCoordinator.shared.activeSlot {
+                switch DinoCoordinator.shared.backgroundSlot {
                 case .pomodoro:
                     openPomodoroWithSpring()
                     return
                 case .music:
                     openMusicWithSpring()
                     return
-                case .calendar:
-                    DinoCoordinator.shared.activateSlotDirectly(.calendar)
-                case .weather:
-                    DinoCoordinator.shared.activateSlotDirectly(.weather)
-                case .shelf:
-                    DinoCoordinator.shared.activateSlotDirectly(.shelf)
                 default:
-                    DinoCoordinator.shared.selectView(.home)
+                    if DinoCoordinator.shared.activeSlot == .shelf {
+                        DinoCoordinator.shared.activateSlotDirectly(.shelf)
+                    } else {
+                        DinoCoordinator.shared.selectView(.home)
+                    }
                 }
             }
             doOpen()
@@ -1420,12 +1420,7 @@ struct ContentView: View {
         }
     }
 
-    private func doOpen(restoreLastFeature: Bool = false) {
-        if restoreLastFeature,
-           coordinator.openLastTabByDefault,
-           let slot = coordinator.lastExpandedSlot {
-            DinoCoordinator.shared.activateSlotDirectly(slot)
-        }
+    private func doOpen() {
         islandRetractTask?.cancel()
         islandRetractTask = nil
         hoverTask?.cancel()
@@ -1561,7 +1556,7 @@ struct ContentView: View {
                           self.hasActiveFeature,
                           !self.coordinator.sneakPeek.show else { return }
                     
-                    self.doOpen(restoreLastFeature: true)
+                    self.handleTap()
                 }
             }
         } else {
@@ -1635,7 +1630,7 @@ struct ContentView: View {
         if direction == .down {
             eligible = beganClosed
                 ? vm.notchState == .closed
-                : (vm.notchState == .open && canCycleOpenSlot)
+                : (vm.notchState == .open && !vm.isHoveringCalendar && canCycleOpenSlot)
         } else {
             eligible = !beganClosed && vm.notchState == .open
                 && !vm.isHoveringCalendar
@@ -1697,21 +1692,21 @@ struct ContentView: View {
     }
 
     private var canCycleOpenSlot: Bool {
-        switch DinoCoordinator.shared.activeSlot {
-        case .idle, .music, .pomodoro, .shelf: return true
-        default: return false
-        }
+        let features = availableGestureFeatures
+        return features.count > 1 || (features.count == 1 && features[0].slot != DinoCoordinator.shared.activeSlot)
+    }
+
+    private var availableGestureFeatures: [GestureCycleFeature] {
+        var seen = Set<GestureCycleFeature>()
+        return gestureCycleFeatures.filter { $0.isAvailable && seen.insert($0).inserted }
     }
 
     private func advanceOpenFeature() {
-        let nextSlot: DinoSlot
-        switch DinoCoordinator.shared.activeSlot {
-        case .music: nextSlot = .pomodoro
-        case .pomodoro: nextSlot = .shelf
-        case .shelf: nextSlot = .music
-        default: nextSlot = .music
-        }
-        DinoCoordinator.shared.activateSlotDirectly(nextSlot)
+        let features = availableGestureFeatures
+        guard !features.isEmpty else { return }
+        let current = features.firstIndex { $0.slot == DinoCoordinator.shared.activeSlot }
+        let next = current.map { ($0 + 1) % features.count } ?? 0
+        DinoCoordinator.shared.activateSlotDirectly(features[next].slot)
     }
 
     private func performGestureHaptic() {

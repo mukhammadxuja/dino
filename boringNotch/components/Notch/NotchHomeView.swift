@@ -627,29 +627,19 @@ struct NotchHomeView: View {
             break
         }
 
-        if activeModule == .pomodoro {
-            return .pomodoro
-        }
-        if ReleaseFeatures.calendar && activeModule == .calendar && Defaults[.showCalendar] {
-            return .calendar
-        }
-        if activeModule == .battery {
-            return .battery
-        }
-        if ReleaseFeatures.code && activeModule == .coding {
-            return .coding
-        }
-        if activeModule == .shelf {
-            return .shelf
-        }
-        if activeModule == .music {
-            return .music
-        }
+        // Active background states take priority over stale stored modules
         if hasMusic {
             return .music
         }
         if hasPomodoro {
             return .pomodoro
+        }
+
+        if activeModule == .pomodoro {
+            return .pomodoro
+        }
+        if ReleaseFeatures.calendar && activeModule == .calendar && Defaults[.showCalendar] {
+            return .calendar
         }
         return .none
     }

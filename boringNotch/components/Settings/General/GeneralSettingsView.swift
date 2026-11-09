@@ -2,6 +2,7 @@ import AppKit
 import Defaults
 import LaunchAtLogin
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct GeneralSettings: View {
     @Default(.idleClickAction) private var idleClickAction
@@ -329,12 +330,15 @@ private struct GeneralGesturesSettingsCard: View {
                                 gestureGuideRow(
                                     icon: "arrow.down",
                                     action: "Swipe Down while Open",
-                                    description: "Release to advance Music → Timer → Shelf → Music"
+                                    description: "Release to advance through your selected features"
                                 )
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
                             .background(Color.primary.opacity(0.02))
+
+                            cardDivider
+                            GestureFeatureOrderSettings()
                         }
                     }
                     .background(Color.white)
@@ -344,6 +348,156 @@ private struct GeneralGesturesSettingsCard: View {
                             .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
                     )
                 }
+    }
+}
+
+private struct GestureFeatureOrderSettings: View {
+    @Default(.gestureCycleFeatures) private var features
+    @State private var draggedFeature: GestureCycleFeature?
+
+    private var availableToAdd: [GestureCycleFeature] {
+        GestureCycleFeature.allCases.filter { $0.isAvailable && !features.contains($0) }
+    }
+
+    private let defaultFeatures: [GestureCycleFeature] = [.music, .pomodoro, .calendar, .shelf]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Swipe down feature order")
+                        .font(.system(size: 13.5, weight: .medium))
+                    Text("Drag to reorder; remove or add features to customize the cycle.")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                HStack(spacing: 8) {
+                    if features != defaultFeatures {
+                        Button("Reset") {
+                            withAnimation { features = defaultFeatures }
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(Color.effectiveAccent)
+                    }
+
+                    if !availableToAdd.isEmpty {
+                        Menu {
+                            ForEach(availableToAdd) { feature in
+                                Button {
+                                    withAnimation { features.append(feature) }
+                                } label: {
+                                    Label(feature.title, systemImage: feature.icon)
+                                }
+                            }
+                        } label: {
+                            Label("Add", systemImage: "plus")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                    }
+                }
+            }
+
+            if features.filter(\.isAvailable).isEmpty {
+                Text("Add a feature to enable switching.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 6)
+            } else {
+                VStack(spacing: 3) {
+                    let activeList = features.filter(\.isAvailable)
+                    ForEach(Array(activeList.enumerated()), id: \.element) { index, feature in
+                        HStack(spacing: 10) {
+                            Image(systemName: "line.3.horizontal")
+                                .foregroundStyle(.secondary)
+                            Image(systemName: feature.icon)
+                                .frame(width: 18)
+                                .foregroundStyle(Color.effectiveAccent)
+                            Text(feature.title)
+                                .font(.system(size: 12.5, weight: .medium))
+                            Spacer()
+
+                            HStack(spacing: 4) {
+                                Button {
+                                    moveFeature(feature, up: true)
+                                } label: {
+                                    Image(systemName: "chevron.up")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(index > 0 ? .secondary : .quaternary)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(index == 0)
+
+                                Button {
+                                    moveFeature(feature, up: false)
+                                } label: {
+                                    Image(systemName: "chevron.down")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(index < activeList.count - 1 ? .secondary : .quaternary)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(index == activeList.count - 1)
+
+                                Button {
+                                    withAnimation { features.removeAll { $0 == feature } }
+                                } label: {
+                                    Image(systemName: "minus.circle.fill")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Remove \(feature.title)")
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 7))
+                        .contentShape(Rectangle())
+                        .onDrag {
+                            draggedFeature = feature
+                            return NSItemProvider(object: feature.rawValue as NSString)
+                        }
+                        .onDrop(of: [UTType.text], delegate: GestureFeatureDropDelegate(
+                            target: feature, dragged: $draggedFeature, features: $features
+                        ))
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private func moveFeature(_ feature: GestureCycleFeature, up: Bool) {
+        guard let index = features.firstIndex(of: feature) else { return }
+        let targetIndex = up ? index - 1 : index + 1
+        guard targetIndex >= 0 && targetIndex < features.count else { return }
+        withAnimation(.easeInOut(duration: 0.15)) {
+            features.swapAt(index, targetIndex)
+        }
+    }
+}
+
+private struct GestureFeatureDropDelegate: DropDelegate {
+    let target: GestureCycleFeature
+    @Binding var dragged: GestureCycleFeature?
+    @Binding var features: [GestureCycleFeature]
+
+    func dropEntered(info: DropInfo) {
+        guard let dragged, dragged != target,
+              let from = features.firstIndex(of: dragged),
+              let to = features.firstIndex(of: target) else { return }
+        withAnimation(.easeInOut(duration: 0.15)) {
+            features.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragged = nil
+        return true
     }
 }
 

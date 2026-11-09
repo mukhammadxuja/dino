@@ -91,6 +91,8 @@ struct ShelfView: View {
                         .foregroundStyle(.gray)
                         .font(.system(.title3, design: .rounded))
                         .fontWeight(.medium)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
             } else {
                 ScrollView(.horizontal) {

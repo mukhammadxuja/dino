@@ -104,7 +104,7 @@ struct IslandContainerLayout<Content: View>: View {
         if isMirrorOpen {
             return isCurrentDisplayIsland ? 12 : (topCornerRadius + 14)
         }
-        return isCurrentDisplayIsland ? 22 : (topCornerRadius + 14)
+        return isCurrentDisplayIsland ? 20 : (topCornerRadius + 14)
     }
 
     private var openTopPadding: CGFloat {

@@ -308,6 +308,43 @@ enum IdleClickAction: String, CaseIterable, Identifiable, Defaults.Serializable 
     }
 }
 
+enum GestureCycleFeature: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case music, pomodoro, calendar, shelf, weather, battery
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .music: return "Music"
+        case .pomodoro: return "Pomodoro"
+        case .calendar: return "Calendar"
+        case .shelf: return "Shelf"
+        case .weather: return "Weather"
+        case .battery: return "Battery"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .music: return "music.note"
+        case .pomodoro: return "timer"
+        case .calendar: return "calendar"
+        case .shelf: return "tray.full"
+        case .weather: return "cloud.sun.fill"
+        case .battery: return "battery.100"
+        }
+    }
+    var slot: DinoSlot {
+        switch self {
+        case .music: return .music
+        case .pomodoro: return .pomodoro
+        case .calendar: return .calendar
+        case .shelf: return .shelf
+        case .weather: return .weather
+        case .battery: return .battery
+        }
+    }
+    var isAvailable: Bool { self != .calendar || ReleaseFeatures.calendar }
+}
+
 enum PomodoroClosedNotchDisplayMode: String, CaseIterable, Identifiable, Defaults.Serializable {
     case off
     // Legacy values kept for compatibility with already-saved defaults
@@ -388,6 +425,9 @@ extension Defaults.Keys {
     static let collapseDelay = Key<TimeInterval>("collapseDelay", default: 0.35)
     static let enableHaptics = Key<Bool>("enableHaptics", default: true)
     static let openNotchOnHover = Key<Bool>("openNotchOnHover", default: true)
+    static let gestureCycleFeatures = Key<[GestureCycleFeature]>(
+        "gestureCycleFeatures", default: [.music, .pomodoro, .calendar, .shelf]
+    )
     static let extendHoverArea = Key<Bool>("extendHoverArea", default: false)
     static let idleClickAction = Key<IdleClickAction>("idleClickAction", default: .music)
     static let notchHeightMode = Key<WindowHeightMode>(

@@ -226,6 +226,9 @@ struct CalendarView: View {
                 await calendarManager.updateCurrentDate(selectedDate)
             }
         }
+        .onDisappear {
+            vm.isHoveringCalendar = false
+        }
         .alert("Could not undo reminder", isPresented: $showUndoError) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -353,6 +356,7 @@ private struct CompactCalendarEventsView: View {
                 }
             }
             .scrollIndicators(.hidden)
+            .contentShape(Rectangle())
             .onHover { vm.isHoveringCalendar = $0 }
             .onDisappear { vm.isHoveringCalendar = false }
             .onAppear { scrollToNextEvent(proxy) }
