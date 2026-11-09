@@ -1,61 +1,81 @@
-//
-//  OnboardingFinishView.swift
-//  boringNotch
-//
-//  Created by Alexander on 2025-06-23.
-//
-
-
 import SwiftUI
 
 struct OnboardingFinishView: View {
+    let displaySelection: DisplaySelection
+    let builtinFormFactor: DisplayFormFactor
+    let externalFormFactor: DisplayFormFactor
+    let musicSource: MediaControllerType?
+    let onBack: () -> Void
     let onFinish: () -> Void
     let onOpenSettings: () -> Void
 
     var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
+        VStack(spacing: 18) {
+            Spacer(minLength: 8)
 
-            Image(systemName: "sparkles")
-                .font(.system(size: 60))
-                .foregroundColor(.effectiveAccent)
-                .padding()
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 56, weight: .light))
+                .foregroundStyle(Color.effectiveAccent)
 
-            Text("You're All Set!")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-
-            Text("You can now enjoy the app. If you want to tweak things further, you can always visit the settings.")
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-            
-            Spacer()
-            Spacer()
+            VStack(spacing: 10) {
+                Text("You're All Set!")
+                    .font(.system(size: 30, weight: .bold))
+                Text("Dino is ready for your Mac. Fine-tune anything in Settings whenever you like.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             VStack(spacing: 12) {
-                Button(action: onOpenSettings) {
-                    Label("Customize in Settings", systemImage: "gear")
-                        .controlSize(.large)
-                }
-                .controlSize(.large)
+                summaryRow("Show on", value: displaySelection.rawValue, icon: "display.2")
+                summaryRow("Built-in display", value: builtinFormFactor.rawValue, icon: "laptopcomputer")
+                summaryRow("External display", value: externalFormFactor.rawValue, icon: "display")
+                summaryRow("Music source", value: musicSource?.rawValue ?? "Set up later", icon: "music.note")
+            }
+            .padding(18)
+            .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 14))
 
+            Spacer(minLength: 8)
+
+            Button(action: onOpenSettings) {
+                Label("Open Settings", systemImage: "gearshape")
+            }
+            .controlSize(.large)
+
+            HStack {
+                Button("Back", action: onBack)
+                Spacer()
                 Button("Finish", action: onFinish)
                     .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
                     .keyboardShortcut(.defaultAction)
             }
-            .padding(24)
+            .controlSize(.large)
+            .padding(.bottom, 24)
         }
+        .padding(.horizontal, 32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-                .ignoresSafeArea()
-        )
+    }
+
+    private func summaryRow(_ title: String, value: String, icon: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            Text(title)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .fontWeight(.medium)
+        }
+        .font(.system(size: 13))
     }
 }
 
 #Preview {
-    OnboardingFinishView(onFinish: { }, onOpenSettings: { })
+    OnboardingFinishView(
+        displaySelection: .both, builtinFormFactor: .notch, externalFormFactor: .island,
+        musicSource: .nowPlaying, onBack: {}, onFinish: {}, onOpenSettings: {}
+    )
+    .frame(width: 520, height: 580)
 }

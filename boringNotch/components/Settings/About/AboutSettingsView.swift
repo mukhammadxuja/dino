@@ -6,7 +6,6 @@ import SwiftUI
 struct About: View {
     @State private var showBuildNumber: Bool = false
     let updaterController: SPUStandardUpdaterController
-    @Environment(\.openWindow) var openWindow
     var body: some View {
         VStack {
             Form {
@@ -37,6 +36,18 @@ struct About: View {
                 }
 
                 UpdaterSettingsView(updater: updaterController.updater)
+
+                Section {
+                    HStack {
+                        Text("Revisit Dino's introduction and setup.")
+                        Spacer()
+                        Button("Show Welcome") {
+                            NotificationCenter.default.post(name: .showWelcomeWindow, object: nil)
+                        }
+                    }
+                } header: {
+                    Text("Welcome")
+                }
 
                 HStack(spacing: 30) {
                     Spacer(minLength: 0)
@@ -70,10 +81,6 @@ struct About: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .toolbar {
-            //            Button("Welcome window") {
-            //                openWindow(id: "onboarding")
-            //            }
-            //            .controlSize(.extraLarge)
             CheckForUpdatesView(updater: updaterController.updater)
         }
         .navigationTitle("About")

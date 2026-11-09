@@ -621,6 +621,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func applicationDidFinishLaunching(_ notification: Notification) {
         NotificationCenter.default.addObserver(
             self,
+            selector: #selector(showWelcomeWindow),
+            name: .showWelcomeWindow,
+            object: nil
+        )
+
+        NotificationCenter.default.addObserver(
+            self,
             selector: #selector(screenConfigurationDidChange),
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
@@ -819,7 +826,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             DispatchQueue.main.async { self.showOnboardingWindow() }
             playWelcomeSound()
         } else if MusicManager.shared.isNowPlayingDeprecated && Defaults[.mediaController] == .nowPlaying {
-            DispatchQueue.main.async { self.showOnboardingWindow(step: .musicPermission) }
+            DispatchQueue.main.async { self.showOnboardingWindow(step: .musicSource) }
         }
 
         Task { @MainActor in
@@ -933,10 +940,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         NSApplication.shared.terminate(self)
     }
 
+    @objc private func showWelcomeWindow() {
+        showOnboardingWindow()
+    }
+
     private func showOnboardingWindow(step: OnboardingStep = .welcome) {
         if onboardingWindowController == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 400, height: 600),
+                contentRect: NSRect(origin: .zero, size: OnboardingView.windowSize),
                 styleMask: [.titled, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
@@ -945,23 +956,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             window.title = "Onboarding"
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
-            window.contentView = NSHostingView(
-                rootView: OnboardingView(
-                    step: step,
-                    onFinish: {
-                        window.orderOut(nil)
-                        window.close()
-                        NSApp.deactivate()
-                    },
-                    onOpenSettings: {
-                        window.close()
-                        SettingsWindowController.shared.showWindow()
-                    }
-                ))
+            window.isReleasedWhenClosed = false
             window.isRestorable = false
             window.identifier = NSUserInterfaceItemIdentifier("OnboardingWindow")
             onboardingWindowController = NSWindowController(window: window)
         }
+
+        guard let window = onboardingWindowController?.window else { return }
+        // Give each presentation fresh SwiftUI state so reopening starts at the requested step.
+        window.contentView = NSHostingView(
+            rootView: OnboardingView(
+                step: step,
+                onFinish: { [weak window] in
+                    window?.orderOut(nil)
+                    window?.close()
+                    NSApp.deactivate()
+                },
+                onOpenSettings: { [weak window] in
+                    window?.close()
+                    SettingsWindowController.shared.showWindow()
+                }
+            ).id(UUID()))
 
         NSApp.activate(ignoringOtherApps: true)
         onboardingWindowController?.window?.makeKeyAndOrderFront(nil)
@@ -970,6 +985,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 }
 
 extension Notification.Name {
+    static let showWelcomeWindow = Notification.Name("ShowWelcomeWindow")
     static let selectedScreenChanged = Notification.Name("SelectedScreenChanged")
     static let notchHeightChanged = Notification.Name("NotchHeightChanged")
     static let showOnAllDisplaysChanged = Notification.Name("showOnAllDisplaysChanged")

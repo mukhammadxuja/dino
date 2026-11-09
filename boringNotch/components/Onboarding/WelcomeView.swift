@@ -1,85 +1,65 @@
-//
-//  WelcomeView.swift
-//  boringNotch
-//
-//  Created by Richard Kunkli on 2024. 09. 26..
-//
-
+import AppKit
 import SwiftUI
-import SwiftUIIntrospect
 
 struct WelcomeView: View {
     var onGetStarted: (() -> Void)? = nil
+
     var body: some View {
-        ZStack(alignment: .top) {
-            ZStack {
-                Image("spotlight")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .padding(.bottom)
-                    .blur(radius: 3)
-                    .offset(y: -5)
-                    .background(SparkleView().opacity(0.6))
-                VStack(spacing: 8) {
-                    Image("logo2")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 100, height: 100)
-                        .padding(.bottom, 8)
-                    Text("Dino")
-                        .font(.system(.largeTitle, design: .default))
-                        .fontWeight(.semibold)
-                    Text("Welcome")
-                        .font(.title)
-                        .foregroundStyle(.secondary)
-                        .padding(.bottom, 30)
-                    if false {
-                        Text("PRO")
-                            .font(.system(size: 18, design: .rounded))
-                            .fontWeight(.bold)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 3)
-                            .background(
-                                Capsule()
-                                    .fill(LinearGradient(colors: [.white.opacity(0.7), .white.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                    .strokeBorder(LinearGradient(stops: [.init(color: .white.opacity(0.7), location: 0.3), .init(color: .clear, location: 0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                    .blendMode(.overlay)
-                            )
-                            .padding(.bottom, 30)
-                    }
+        VStack(spacing: 24) {
+            Spacer(minLength: 8)
 
-
-                    Button {
-                        onGetStarted?()
-                    } label: {
-                        Text("Get started")
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 6)
-                    }
-                    .buttonStyle(BorderedProminentButtonStyle())
-                }
-                .padding(.top)
-            }
-            
-            Image("theboringteam")
+            Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
                 .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(height: 22)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding()
-                .padding(.bottom, 36)
-                .blendMode(.overlay)
+                .scaledToFit()
+                .frame(width: 100, height: 100)
+                .accessibilityHidden(true)
+
+            VStack(spacing: 10) {
+                Text("Welcome to Dino")
+                    .font(.system(size: 30, weight: .bold))
+                Text("Your everyday Mac companion.")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                Text("Music, focus, files, and useful updates — together on your Mac.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 28) {
+                feature("Music", icon: "music.note")
+                feature("Focus", icon: "timer")
+                feature("Files", icon: "tray.fill")
+                feature("HUDs", icon: "slider.horizontal.3")
+            }
+            .padding(.vertical, 12)
+
+            Spacer(minLength: 8)
+
+            Button("Get Started") { onGetStarted?() }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
+                .padding(.bottom, 24)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .ignoresSafeArea()
-        .background {
-            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
-                .ignoresSafeArea()
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func feature(_ title: String, icon: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 21))
+                .foregroundStyle(Color.effectiveAccent)
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }
 
 #Preview {
     WelcomeView()
+        .frame(width: 520, height: 580)
 }
