@@ -72,6 +72,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var windowScreenDidChangeObservers: [String: Any] = [:]
     private var dragDetectors: [String: DragDetector] = [:] // UUID -> DragDetector
     private var lockScreenPlayerWindows: [String: NSWindow] = [:] // UUID -> NSWindow
+    private var lockScreenArtworkRefreshTask: Task<Void, Never>?
     private var strictModeWindows: [String: NSWindow] = [:] // UUID -> NSWindow
     private var strictModeObservers: Set<AnyCancellable> = []
     private var screenGlowWindows: [String: NSWindow] = [:]
@@ -162,12 +163,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             return
         }
 
-        let screens = DinoScreenObserver.shared.targetLockScreenScreens(preferredScreenUUID: coordinator.preferredScreenUUID)
+        let manager = DinoWindowManager.shared
+        manager.onLockScreenArtworkModeChange = { [weak self] mode in
+            guard let self, self.isScreenLocked else { return }
+            self.lockScreenArtworkRefreshTask?.cancel()
+            if mode.isExpanded {
+                self.presentLockScreenPlayerWindows()
+            } else {
+                self.lockScreenArtworkRefreshTask = Task { @MainActor [weak self] in
+                    do { try await Task.sleep(for: .milliseconds(750)) } catch { return }
+                    guard let self, self.isScreenLocked else { return }
+                    self.presentLockScreenPlayerWindows()
+                }
+            }
+        }
+        // Expanded media is one shared lock-screen mode on every attached display.
+        let screens = manager.lockScreenMediaSession.mode.isExpanded ? NSScreen.screens
+            : DinoScreenObserver.shared.targetLockScreenScreens(preferredScreenUUID: coordinator.preferredScreenUUID)
         let targetUUIDs = Set(screens.compactMap { $0.displayUUID })
 
         for uuid in lockScreenPlayerWindows.keys where !targetUUIDs.contains(uuid) {
             if let staleWindow = lockScreenPlayerWindows[uuid] {
-                staleWindow.close()
+                DinoWindowManager.shared.closeLockScreenPlayerWindow(staleWindow)
                 lockScreenPlayerWindows.removeValue(forKey: uuid)
             }
         }
@@ -180,18 +197,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             }
 
             if let window = lockScreenPlayerWindows[uuid] {
-                DinoWindowManager.shared.positionLockScreenPlayerWindow(window, on: screen)
-                window.orderFrontRegardless()
+                DinoWindowManager.shared.showLockScreenPlayerWindow(window, on: screen)
             }
         }
     }
 
     @MainActor
     private func cleanupLockScreenPlayerWindows() {
+        lockScreenArtworkRefreshTask?.cancel()
+        lockScreenArtworkRefreshTask = nil
+        DinoWindowManager.shared.onLockScreenArtworkModeChange = nil
         lockScreenPlayerWindows.values.forEach { window in
-            window.close()
+            DinoWindowManager.shared.closeLockScreenPlayerWindow(window)
         }
         lockScreenPlayerWindows.removeAll()
+        DinoWindowManager.shared.resetLockScreenArtworkSession()
     }
 
     // MARK: - Strict Mode & Screen Glow

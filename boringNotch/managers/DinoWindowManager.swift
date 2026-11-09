@@ -12,8 +12,16 @@ final class DinoWindowManager {
     static let shared = DinoWindowManager()
 
     let lockScreenPlayerSize = NSSize(width: 355, height: 176)
+    private var lockScreenArtworkPresentations: [ObjectIdentifier: LockScreenArtworkPresentation] = [:]
 
-    private init() {}
+    let lockScreenMediaSession = LockScreenMediaSession()
+    var onLockScreenArtworkModeChange: ((LockScreenMediaMode) -> Void)?
+
+    private init() {
+        lockScreenMediaSession.onModeChange = { [weak self] mode in
+            self?.onLockScreenArtworkModeChange?(mode)
+        }
+    }
 
     // MARK: - Main Notch Window Creation
 
@@ -79,7 +87,13 @@ final class DinoWindowManager {
         let styleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel]
         let window = BoringNotchSkyLightWindow(contentRect: rect, styleMask: styleMask, backing: .buffered, defer: false)
 
-        let hostingView = NSHostingView(rootView: LockScreenPasscodePlayerView())
+        let artworkPresentation = LockScreenArtworkPresentation(screenFrame: screen.frame, playerBottomOffset: lockScreenPlayerBottomOffset, session: lockScreenMediaSession)
+        let identity = ObjectIdentifier(window)
+        lockScreenArtworkPresentations[identity] = artworkPresentation
+        artworkPresentation.attach(to: window) { [weak self] in
+            self?.lockScreenArtworkPresentations.removeValue(forKey: identity)
+        }
+        let hostingView = NSHostingView(rootView: LockScreenPasscodePlayerView(artworkPresentation: artworkPresentation))
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = CGColor.clear
         window.contentView = hostingView
@@ -103,6 +117,22 @@ final class DinoWindowManager {
         let x = screenFrame.origin.x + (screenFrame.width - lockScreenPlayerSize.width) / 2
         let y = screenFrame.origin.y + lockScreenPlayerBottomOffset
         window.setFrameOrigin(NSPoint(x: x, y: y))
+        lockScreenArtworkPresentations[ObjectIdentifier(window)]?.update(screenFrame: screenFrame, playerBottomOffset: lockScreenPlayerBottomOffset)
+    }
+
+    func showLockScreenPlayerWindow(_ window: NSWindow, on screen: NSScreen) {
+        positionLockScreenPlayerWindow(window, on: screen)
+        window.orderFrontRegardless()
+        lockScreenArtworkPresentations[ObjectIdentifier(window)]?.synchronizeWindows()
+    }
+
+    func resetLockScreenArtworkSession() {
+        lockScreenMediaSession.setMode(.compact)
+    }
+
+    func closeLockScreenPlayerWindow(_ window: NSWindow) {
+        lockScreenArtworkPresentations.removeValue(forKey: ObjectIdentifier(window))?.dispose()
+        window.close()
     }
 
     var lockScreenPlayerBottomOffset: CGFloat {

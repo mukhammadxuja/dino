@@ -7,6 +7,7 @@ import SwiftUI
 import Defaults
 
 struct LockScreenPasscodePlayerView: View {
+    @ObservedObject var artworkPresentation: LockScreenArtworkPresentation
     @ObservedObject private var musicManager = MusicManager.shared
     @Default(.coloredSpectrogram) private var coloredSpectrogram
     @Default(.lockScreenPlayerBackgroundStyle) private var lockScreenPlayerBackgroundStyle
@@ -107,7 +108,7 @@ struct LockScreenPasscodePlayerView: View {
     private var albumArtView: some View {
         ZStack {
             Button {
-                musicManager.openMusicApp()
+                artworkPresentation.toggle()
             } label: {
                 Image(nsImage: musicManager.albumArt)
                     .resizable()
@@ -118,8 +119,10 @@ struct LockScreenPasscodePlayerView: View {
                         RoundedRectangle(cornerRadius: 15, style: .continuous)
                             .stroke(Color.white.opacity(0.14), lineWidth: 0.8)
                     )
+
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Toggle expanded album artwork")
             .scaleEffect(musicManager.isPlaying ? 1.0 : 0.88)
             .animation(.spring(response: 0.35, dampingFraction: 0.7), value: musicManager.isPlaying)
 
@@ -137,18 +140,26 @@ struct LockScreenPasscodePlayerView: View {
     // MARK: - Track Info
 
     private func songInfo(width: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .center, spacing: 6) {
+        let titleFont = NSFont.systemFont(ofSize: 15.5, weight: .bold)
+        let hasLyrics = enableLyrics && !musicManager.isFetchingLyrics
+            && LyricsTimeline(synced: musicManager.syncedLyrics, plain: musicManager.currentLyrics).hasText
+        let titleWidth = min(MarqueeText.measureWidth(musicManager.songTitle, nsFont: .headline, measurementFont: titleFont), max(0, width - 26 - (hasLyrics ? 18 : 0)))
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .center, spacing: 4) {
                 MarqueeText(
                     $musicManager.songTitle,
                     font: .system(size: 15.5, weight: .bold, design: .default),
                     nsFont: .headline,
+                    measurementFont: titleFont,
                     textColor: .white,
-                    frameWidth: max(0, width - 30)
+                    frameWidth: titleWidth,
+                    fadeMaskWhenScrolling: true
                 )
 
-                Spacer(minLength: 2)
-
+                if hasLyrics {
+                    LyricsBadge(action: artworkPresentation.toggleLyrics)
+                }
+                Spacer(minLength: 0)
                 visualizerView
             }
             .frame(maxWidth: .infinity)

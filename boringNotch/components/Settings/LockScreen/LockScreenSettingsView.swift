@@ -96,7 +96,7 @@ struct LockScreenSettingsView: View {
                             .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
                     )
 
-                    Text("The player appears automatically above the passcode field whenever media is playing.")
+                    Text("The player appears above the passcode field while media is playing. Click its album artwork for a larger cover and a matching backdrop.")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 4)

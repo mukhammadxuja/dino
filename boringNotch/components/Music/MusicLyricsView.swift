@@ -55,15 +55,23 @@ struct MusicLyricsView: View {
     @ObservedObject private var musicManager = MusicManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var scrollFollow = LyricsScrollFollowState()
+    var showsHeader = true
+    var showsPreviousLine = false
     let onClose: () -> Void
+
+    private func scrollTarget(for active: Int?) -> Int {
+        guard let active else { return -1 }
+        guard showsPreviousLine else { return active }
+        return active == 0 ? -2 : active - 1
+    }
 
     private var lyrics: LyricsTimeline {
         LyricsTimeline(synced: musicManager.syncedLyrics, plain: musicManager.currentLyrics)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            header
+        VStack(alignment: .leading, spacing: showsHeader ? 8 : 0) {
+            if showsHeader { header }
             pageContent
         }
         .onChange(of: trackIdentity) { _, _ in scrollFollow.resume() }
@@ -134,7 +142,8 @@ struct MusicLyricsView: View {
 
     private var lyricsContent: some View {
         let lyrics = lyrics
-        return TimelineView(.animation(minimumInterval: 0.1, paused: !musicManager.isPlaying || !lyrics.isSynced)) { context in
+        // Animation timelines can stop when the lock screen's non-key panel is inactive.
+        return TimelineView(.periodic(from: .now, by: 0.25)) { context in
             let position = musicManager.estimatedPlaybackPosition(at: context.date)
             let active = lyrics.activeLine(at: position)
             ScrollViewReader { proxy in
@@ -149,6 +158,18 @@ struct MusicLyricsView: View {
                                     .padding(.top, 4)
                                     .id(-1)
                             }
+                            if showsPreviousLine && lyrics.isSynced {
+                                Color.clear
+                                    .frame(height: 28)
+                                    .background {
+                                        if active == 0 {
+                                            GeometryReader { geometry in
+                                                Color.clear.preference(key: LyricsActiveLineFrameKey.self, value: geometry.frame(in: .named("lyricsViewport")))
+                                            }
+                                        }
+                                    }
+                                    .id(-2)
+                            }
                             ForEach(lyrics.lines) { line in
                                 lyricRow(line, active: active, isSynced: lyrics.isSynced) {
                                     guard let start = line.start else { return }
@@ -156,7 +177,7 @@ struct MusicLyricsView: View {
                                     withAnimation(reduceMotion ? nil : .spring(response: 0.65, dampingFraction: 0.92)) {
                                         scrollFollow.resume()
                                         musicManager.seek(to: start)
-                                        proxy.scrollTo(lyrics.activeLine(at: start) ?? line.id, anchor: .top)
+                                        proxy.scrollTo(scrollTarget(for: lyrics.activeLine(at: start) ?? line.id), anchor: .top)
                                     }
                                 }
                                     .padding(.top, 4)
@@ -179,20 +200,23 @@ struct MusicLyricsView: View {
                     .onPreferenceChange(LyricsActiveLineFrameKey.self) { frame in
                         if let frame {
                             scrollFollow.updateActiveLine(distanceFromAnchor: frame.minY - 4)
+                        } else if active != nil && !scrollFollow.isFollowingPlayback {
+                            scrollFollow.updateActiveLine(distanceFromAnchor: .infinity)
                         }
                     }
                     .mask {
                         LinearGradient(stops: [
-                            .init(color: .black, location: 0),
+                            .init(color: showsPreviousLine ? .clear : .black, location: 0),
+                            .init(color: .black, location: showsPreviousLine ? 0.08 : 0),
                             .init(color: .black, location: 0.82),
                             .init(color: .clear, location: 1)
                         ], startPoint: .top, endPoint: .bottom)
                     }
-                    .onAppear { proxy.scrollTo(active ?? -1, anchor: .top) }
+                    .onAppear { proxy.scrollTo(scrollTarget(for: active), anchor: .top) }
                     .onChange(of: active) { _, next in
                         guard scrollFollow.isFollowingPlayback else { return }
                         withAnimation(reduceMotion ? nil : .spring(response: 0.65, dampingFraction: 0.92)) {
-                            proxy.scrollTo(next ?? -1, anchor: .top)
+                            proxy.scrollTo(scrollTarget(for: next), anchor: .top)
                         }
                     }
                     .overlay(alignment: .bottom) {
@@ -200,7 +224,7 @@ struct MusicLyricsView: View {
                             Button {
                                 withAnimation(reduceMotion ? nil : .spring(response: 0.65, dampingFraction: 0.92)) {
                                     scrollFollow.resume()
-                                    proxy.scrollTo(active, anchor: .top)
+                                    proxy.scrollTo(scrollTarget(for: active), anchor: .top)
                                 }
                             } label: {
                                 Label("Sync", systemImage: "arrow.triangle.2.circlepath")
@@ -227,7 +251,7 @@ struct MusicLyricsView: View {
     private func lyricRow(_ line: LyricsTimeline.Line, active: Int?, isSynced: Bool, onSelect: @escaping () -> Void) -> some View {
         let isCurrent = active == line.id
         let isPast = isSynced && line.id < (active ?? 0)
-        let hidePast = isPast && scrollFollow.isFollowingPlayback
+        let hidePast = isPast && scrollFollow.isFollowingPlayback && !showsPreviousLine
         return Button(action: onSelect) {
             Group {
                 if line.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -240,11 +264,11 @@ struct MusicLyricsView: View {
             .multilineTextAlignment(.leading)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .opacity(hidePast ? 0 : (!isSynced || isCurrent ? 1 : (isPast ? 0.45 : 0.28)))
+            .opacity(hidePast ? 0 : (!isSynced || isCurrent ? 1 : (isPast && !showsPreviousLine ? 0.45 : 0.28)))
             .blur(radius: isSynced && !isCurrent && !reduceMotion ? 0.8 : 0)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.55), value: active)
             .background {
-                if isCurrent {
+                if active != nil && line.id == scrollTarget(for: active) {
                     GeometryReader { geometry in
                         Color.clear.preference(key: LyricsActiveLineFrameKey.self, value: geometry.frame(in: .named("lyricsViewport")))
                     }
