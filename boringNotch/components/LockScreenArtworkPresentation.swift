@@ -288,6 +288,8 @@ struct LockScreenLargeArtwork: View {
                 .shadow(color: .black.opacity(0.35), radius: 22, y: 12)
         }
         .buttonStyle(.plain)
+        .scaleEffect(musicManager.isPlaying ? 1 : 0.96)
+        .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85), value: musicManager.isPlaying)
         .rotation3DEffect(.degrees(reduceMotion ? 0 : -hoverOffset.height * 5), axis: (x: 1, y: 0, z: 0), perspective: 0.7)
         .rotation3DEffect(.degrees(reduceMotion ? 0 : hoverOffset.width * 5), axis: (x: 0, y: 1, z: 0), perspective: 0.7)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: hoverOffset)
@@ -322,9 +324,14 @@ struct LockScreenArtworkBackdrop: View {
             ZStack(alignment: .top) {
                 ZStack {
                     Color.black
-                    LinearGradient(colors: presentation.backgroundColors.map { Color(nsColor: $0) }, startPoint: .topLeading, endPoint: .bottomTrailing)
-                        .saturation(0.75)
-                        .opacity(0.8)
+                    ZStack {
+                        LinearGradient(colors: presentation.backgroundColors.map { Color(nsColor: $0) }, startPoint: .topLeading, endPoint: .bottomTrailing)
+                            .saturation(0.75)
+                            .opacity(0.8)
+                            .id(presentation.backgroundColors)
+                            .transition(.asymmetric(insertion: .opacity, removal: .identity))
+                    }
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.7), value: presentation.backgroundColors)
                     LinearGradient(colors: [.black.opacity(0.48), .black.opacity(0.55)], startPoint: .top, endPoint: .bottom)
                 }
                 clock(size: geometry.size)
