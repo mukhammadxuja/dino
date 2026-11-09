@@ -20,7 +20,7 @@ struct MediaLiveActivitySettingsCard: View {
                     Text("Show music live activity")
                         .font(.system(size: 13.5, weight: .semibold))
                         .foregroundColor(.primary)
-                    Text("Display current track info and playback controls in BoringNotch")
+                    Text("Display current track info and playback controls in Dino")
                         .font(.system(size: 11.5))
                         .foregroundColor(.secondary)
                 }

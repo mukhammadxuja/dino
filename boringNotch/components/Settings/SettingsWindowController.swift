@@ -55,7 +55,7 @@ class SettingsWindowController: NSWindowController {
         
         // Configure window to be a standard document-style window
         window.isRestorable = true
-        window.identifier = NSUserInterfaceItemIdentifier("BoringNotchSettingsWindow")
+        window.identifier = NSUserInterfaceItemIdentifier("DinoSettingsWindow")
         
         // Create the SwiftUI content
         let settingsView = SettingsView(updaterController: updaterController)

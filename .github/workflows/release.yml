@@ -8,7 +8,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  projname: boringNotch
+  projname: Dino
   beta-channel-name: "beta"
   EXPORT_METHOD: "development"
 permissions:

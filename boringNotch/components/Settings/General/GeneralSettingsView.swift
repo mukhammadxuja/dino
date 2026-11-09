@@ -51,7 +51,7 @@ private struct GeneralSystemSettingsCard: View {
                             icon: "power.circle.fill",
                             iconColor: Color.blue,
                             title: "Launch at login",
-                            subtitle: "Open BoringNotch automatically when you log in to your Mac",
+                            subtitle: "Open Dino automatically when you log in to your Mac",
                             isOn: Binding(
                                 get: { LaunchAtLogin.isEnabled },
                                 set: { LaunchAtLogin.isEnabled = $0 }
@@ -65,7 +65,7 @@ private struct GeneralSystemSettingsCard: View {
                             icon: "menubar.rectangle",
                             iconColor: Color.purple,
                             title: "Show menu bar icon",
-                            subtitle: "Display BoringNotch icon in the macOS menu bar for quick access",
+                            subtitle: "Display Dino icon in the macOS menu bar for quick access",
                             isOn: $menubarIcon
                         )
 
@@ -101,7 +101,7 @@ private struct GeneralSystemSettingsCard: View {
                             icon: "camera.viewfinder",
                             iconColor: Color.green,
                             title: "Display in screen capture",
-                            subtitle: "Include BoringNotch in screen recordings and screenshots",
+                            subtitle: "Include Dino in screen recordings and screenshots",
                             isOn: Binding(
                                 get: { !hideFromScreenRecording },
                                 set: { hideFromScreenRecording = !$0 }

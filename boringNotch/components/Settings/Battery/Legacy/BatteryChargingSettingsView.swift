@@ -153,8 +153,8 @@ struct BatteryChargingSettingsView: View {
                         .popover(isPresented: $showChargeLimitPopover, arrowEdge: .trailing) {
                             ChargingInfoPopoverView(
                                 title: "Charge Limit",
-                                description: "Sets a ceiling on how far your battery charges. Staying in the 50–80% band can roughly double the number of healthy cycles your battery sees. When you hit the limit, BoringNotch tells the hardware to stop accepting power so the adapter runs the Mac directly.",
-                                example: "You set the limit to 80%. The battery climbs from 60% → 80%, at which point BoringNotch pauses charging. The Mac keeps running off the adapter, and the battery sits flat at 80% until you unplug or lower the limit."
+                                description: "Sets a ceiling on how far your battery charges. Staying in the 50–80% band can roughly double the number of healthy cycles your battery sees. When you hit the limit, Dino tells the hardware to stop accepting power so the adapter runs the Mac directly.",
+                                example: "You set the limit to 80%. The battery climbs from 60% → 80%, at which point Dino pauses charging. The Mac keeps running off the adapter, and the battery sits flat at 80% until you unplug or lower the limit."
                             )
                         }
 
@@ -239,8 +239,8 @@ struct BatteryChargingSettingsView: View {
                             .popover(isPresented: $showCablePopover, arrowEdge: .trailing) {
                                 ChargingInfoPopoverView(
                                     title: "Cable Status Light",
-                                    description: "Turns your MagSafe cable into a charge-status indicator. While the battery charges toward your limit the ring glows amber; the moment BoringNotch holds it at your limit it switches to green, so the cable tells the truth about *your* healthy charge level, not Apple's 100%.\n\nThis only changes the light, never the charging itself. (LED control is hardware-specific; on some Mac models the color may differ.)",
-                                    example: "Limit set to 80%. You plug in at 60% and the cable glows amber. At 80% BoringNotch pauses charging and the cable turns green, even though the battery isn't 'full' by Apple's definition."
+                                    description: "Turns your MagSafe cable into a charge-status indicator. While the battery charges toward your limit the ring glows amber; the moment Dino holds it at your limit it switches to green, so the cable tells the truth about *your* healthy charge level, not Apple's 100%.\n\nThis only changes the light, never the charging itself. (LED control is hardware-specific; on some Mac models the color may differ.)",
+                                    example: "Limit set to 80%. You plug in at 60% and the cable glows amber. At 80% Dino pauses charging and the cable turns green, even though the battery isn't 'full' by Apple's definition."
                                 )
                             }
 
@@ -261,7 +261,7 @@ struct BatteryChargingSettingsView: View {
                                 Text("Active, charging normally")
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(.primary)
-                                Text("BoringNotch will pause charging when you hit \(chargeLimitValue)%.")
+                                Text("Dino will pause charging when you hit \(chargeLimitValue)%.")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
@@ -315,8 +315,8 @@ struct BatteryChargingSettingsView: View {
                         .popover(isPresented: $showSailingPopover, arrowEdge: .trailing) {
                             ChargingInfoPopoverView(
                                 title: "Sailing Mode",
-                                description: "Without Sailing Mode, BoringNotch would toggle charging on and off every time the battery drifts even a single percent below the limit. A tiny power spike drops you from 80% to 79%, charging kicks back on, and the cycle repeats. That constant churn is real wear.\n\nSailing Mode introduces a comfort zone: once you hit the limit, BoringNotch keeps charging paused and lets the battery quietly drift down by the configured amount before resuming. You choose how much drift is OK (1–20%).",
-                                example: "Limit is 80%, sailing threshold is 5%. You hit 80%, charging pauses. Over a few hours the battery drifts to 77%, still within the comfort zone, still paused. When it reaches 75%, BoringNotch resumes charging back up to 80%."
+                                description: "Without Sailing Mode, Dino would toggle charging on and off every time the battery drifts even a single percent below the limit. A tiny power spike drops you from 80% to 79%, charging kicks back on, and the cycle repeats. That constant churn is real wear.\n\nSailing Mode introduces a comfort zone: once you hit the limit, Dino keeps charging paused and lets the battery quietly drift down by the configured amount before resuming. You choose how much drift is OK (1–20%).",
+                                example: "Limit is 80%, sailing threshold is 5%. You hit 80%, charging pauses. Over a few hours the battery drifts to 77%, still within the comfort zone, still paused. When it reaches 75%, Dino resumes charging back up to 80%."
                             )
                         }
 
@@ -398,7 +398,7 @@ struct BatteryChargingSettingsView: View {
                         ChargingInfoPopoverView(
                             title: "Heat Protection",
                             description: "Charging a hot battery accelerates long-term degradation. Heat Protection watches the battery's internal temperature and pauses charging whenever it crosses your threshold, regardless of how full the battery is. Charging resumes automatically once the battery cools.\n\nApple recommends avoiding ambient temperatures above 35°C. A battery-side limit of 35–40°C is a reasonable starting point; lower is more conservative.",
-                            example: "Your Mac is at 60% charging toward 80%. You kick off a demanding video export and the battery climbs to 42°C. With Heat Protection set to 40°C, BoringNotch pauses charging. The Mac keeps running off the adapter, and once the battery cools below 40°C, charging resumes automatically."
+                            example: "Your Mac is at 60% charging toward 80%. You kick off a demanding video export and the battery climbs to 42°C. With Heat Protection set to 40°C, Dino pauses charging. The Mac keeps running off the adapter, and once the battery cools below 40°C, charging resumes automatically."
                         )
                     }
 
@@ -448,7 +448,7 @@ struct BatteryChargingSettingsView: View {
                     .popover(isPresented: $showSleepPopover, arrowEdge: .trailing) {
                         ChargingInfoPopoverView(
                             title: "Sleep Prevention",
-                            description: "By default, macOS puts your Mac to sleep when you close the lid. While asleep, BoringNotch can't manage charging, so the battery may end up at 100% before you open it again.\n\nSleep Prevention holds an IOKit power assertion that keeps the Mac awake (display off) until the charge limit is reached. Once you hit the limit, or unplug, the assertion releases and the Mac sleeps normally.",
+                            description: "By default, macOS puts your Mac to sleep when you close the lid. While asleep, Dino can't manage charging, so the battery may end up at 100% before you open it again.\n\nSleep Prevention holds an IOKit power assertion that keeps the Mac awake (display off) until the charge limit is reached. Once you hit the limit, or unplug, the assertion releases and the Mac sleeps normally.",
                             example: "You plug in at 60% with a limit of 80% and close the lid for the night. Normally the Mac would sleep and wake at 100%. With Sleep Prevention on, it stays lightly awake until 80%, hits the limit, releases the assertion, and sleeps at exactly 80%, where it stays until morning."
                         )
                     }

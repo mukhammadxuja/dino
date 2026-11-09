@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
 
 env:
-  projname: boringNotch
+  projname: Dino
   EXPORT_METHOD: "development"
 
 jobs:

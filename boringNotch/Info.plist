@@ -18,9 +18,9 @@
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Dino uses Bluetooth to show AirPods and wireless headphone connection alerts.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>boringNotch displays a privacy indicator when Location Services are active.</string>
+	<string>Dino displays a privacy indicator when Location Services are active.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>boringNotch displays a privacy indicator when Location Services are active.</string>
+	<string>Dino displays a privacy indicator when Location Services are active.</string>
 	<key>SUPublicEDKey</key>
 	<string>B1Y47t8C/v8ImurYA+9arEsuCrpxwJSviekiflMElbI=</string>
 	<key>UTImportedTypeDeclarations</key>
