@@ -137,12 +137,6 @@ struct CalendarSettings: View {
                 }
             }
         }
-        .onAppear {
-            Task {
-                await calendarManager.checkCalendarAuthorization()
-                await calendarManager.checkReminderAuthorization()
-            }
-        }
     }
 }
 

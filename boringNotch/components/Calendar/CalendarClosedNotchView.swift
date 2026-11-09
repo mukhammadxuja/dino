@@ -28,7 +28,7 @@ public struct CalendarClosedNotchView: View {
         HStack(spacing: 0) {
             Image(systemName: "calendar")
                 .font(.system(size: isCurrentScreenBuiltin ? 14 : 13, weight: .semibold))
-                .foregroundStyle(Color.effectiveAccent)
+                .foregroundStyle(calendarAccent)
                 .frame(width: itemSize, height: itemSize)
 
             Rectangle()
@@ -41,7 +41,7 @@ public struct CalendarClosedNotchView: View {
             Text("\(Calendar.current.component(.day, from: Date()))")
                 .font(.system(size: isCurrentScreenBuiltin ? 14 : 13, weight: .semibold, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(Color.effectiveAccent)
+                .foregroundStyle(calendarAccent)
                 .frame(width: itemSize, height: itemSize)
         }
         .contentShape(Rectangle())

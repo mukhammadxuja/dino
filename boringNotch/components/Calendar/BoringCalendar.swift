@@ -178,7 +178,7 @@ struct WheelPicker: View {
     }
 }
 
-private let calendarAccent = Color(red: 1, green: 69 / 255, blue: 58 / 255)
+let calendarAccent = Color(red: 1, green: 69 / 255, blue: 58 / 255)
 
 struct CalendarView: View {
     @EnvironmentObject var vm: BoringViewModel
@@ -186,6 +186,9 @@ struct CalendarView: View {
     @Default(.hideCompletedReminders) private var hideCompletedReminders
     @Default(.hideAllDayEvents) private var hideAllDayEvents
     @State private var selectedDate = Date()
+    @State private var hiddenReminderIDs: Set<String> = []
+    @State private var undoInProgress = false
+    @State private var showUndoError = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -204,6 +207,11 @@ struct CalendarView: View {
                 await calendarManager.updateCurrentDate(selectedDate)
             }
         }
+        .onChange(of: calendarManager.reminderUndo?.id) { previous, current in
+            if let previous, previous != current {
+                hiddenReminderIDs.remove(previous)
+            }
+        }
         .onChange(of: vm.notchState) { _, state in
             guard state == .open else { return }
             selectedDate = Date.now
@@ -217,6 +225,11 @@ struct CalendarView: View {
                 await calendarManager.checkReminderAuthorization()
                 await calendarManager.updateCurrentDate(selectedDate)
             }
+        }
+        .alert("Could not undo reminder", isPresented: $showUndoError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Please check your Reminders access and try again.")
         }
     }
 
@@ -256,7 +269,7 @@ struct CalendarView: View {
                 .padding(.top, -4)
 
             let events = EventListView.filteredEvents(events: calendarManager.events)
-            if events.isEmpty {
+            if events.isEmpty && calendarManager.reminderUndo == nil {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(Calendar.current.isDateInToday(selectedDate) ? "No events today" : "No events this day")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -271,13 +284,48 @@ struct CalendarView: View {
                 }
                 .padding(.top, 14)
             } else {
-                CompactCalendarEventsView(events: events)
-                    .frame(height: 68)
-                    .padding(.top, 6)
-                    .transition(.opacity)
+                VStack(alignment: .leading, spacing: 3) {
+                    if !events.isEmpty {
+                        CompactCalendarEventsView(hiddenReminderIDs: $hiddenReminderIDs, events: events)
+                            .frame(height: calendarManager.reminderUndo == nil ? 68 : 47)
+                            .transition(.opacity)
+                    }
+                    if let undo = calendarManager.reminderUndo {
+                        HStack(spacing: 4) {
+                            Text("Completed")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.65))
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            Button("Undo") {
+                                undoInProgress = true
+                                Task {
+                                    let saved = await calendarManager.undoReminderCompletion()
+                                    undoInProgress = false
+                                    if saved {
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            _ = hiddenReminderIDs.remove(undo.id)
+                                        }
+                                    } else {
+                                        showUndoError = true
+                                    }
+                                }
+                            }
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(calendarAccent)
+                            .buttonStyle(.plain)
+                            .disabled(undoInProgress)
+                            .accessibilityLabel("Undo completion of \(undo.title)")
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+                .padding(.top, 6)
+                .transition(.opacity)
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: calendarManager.events)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: calendarManager.reminderUndo?.id)
     }
 }
 
@@ -286,7 +334,7 @@ private struct CompactCalendarEventsView: View {
     @EnvironmentObject private var vm: BoringViewModel
     @ObservedObject private var calendarManager = CalendarManager.shared
     @Default(.autoScrollToNextEvent) private var autoScrollToNextEvent
-    @State private var hiddenReminderIDs: Set<String> = []
+    @Binding var hiddenReminderIDs: Set<String>
     @State private var showSaveError = false
     let events: [EventModel]
 

@@ -15,6 +15,11 @@ import SwiftUI
 class CalendarManager: ObservableObject {
     static let shared = CalendarManager()
 
+    struct ReminderUndo: Identifiable {
+        let id: String
+        let title: String
+    }
+
     @Published var currentWeekStartDate: Date
     @Published var events: [EventModel] = []
     @Published var monthEvents: [EventModel] = []
@@ -24,15 +29,21 @@ class CalendarManager: ObservableObject {
     @Published var selectedCalendarIDs: Set<String> = []
     @Published var calendarAuthorizationStatus: EKAuthorizationStatus = .notDetermined
     @Published var reminderAuthorizationStatus: EKAuthorizationStatus = .notDetermined
+    @Published private(set) var reminderUndo: ReminderUndo?
     private var selectedCalendars: [CalendarModel] = []
     private let calendarService = CalendarService()
-    private var eventsRequestGeneration = 0
-    private var loadedMonthStart: Date?
+    private var cacheGeneration = 0
+    private var monthCache: [Date: [EventModel]] = [:]
+    private var pendingMonthRequests: [Date: Task<[EventModel], Never>] = [:]
+    private var eventStoreRefreshTask: Task<Void, Never>?
+    private var undoExpiryTask: Task<Void, Never>?
 
     private var eventStoreChangedObserver: NSObjectProtocol?
 
     private init() {
         self.currentWeekStartDate = CalendarManager.startOfDay(Date())
+        self.calendarAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
+        self.reminderAuthorizationStatus = EKEventStore.authorizationStatus(for: .reminder)
         setupEventStoreChangedObserver()
         Task {
             await reloadCalendarAndReminderLists()
@@ -44,6 +55,8 @@ class CalendarManager: ObservableObject {
         if let observer = eventStoreChangedObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        eventStoreRefreshTask?.cancel()
+        undoExpiryTask?.cancel()
     }
 
     private func setupEventStoreChangedObserver() {
@@ -53,9 +66,28 @@ class CalendarManager: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task {
-                await self?.reloadCalendarAndReminderLists()
-                await self?.updateEvents()
+                self?.scheduleEventStoreRefresh()
             }
+        }
+    }
+
+    private func invalidateMonthCache() {
+        cacheGeneration += 1
+        monthCache.removeAll()
+        for task in pendingMonthRequests.values { task.cancel() }
+        pendingMonthRequests.removeAll()
+    }
+
+    private func scheduleEventStoreRefresh() {
+        invalidateMonthCache()
+        eventStoreRefreshTask?.cancel()
+        eventStoreRefreshTask = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+            guard let self else { return }
+            self.eventStoreRefreshTask = nil
+            await self.reloadCalendarAndReminderLists()
+            guard !Task.isCancelled else { return }
+            await self.updateEvents()
         }
     }
 
@@ -69,65 +101,26 @@ class CalendarManager: ObservableObject {
     }
 
     func checkCalendarAuthorization() async {
-        let status = EKEventStore.authorizationStatus(for: .event)
-        DispatchQueue.main.async {
-            print("📅 Current calendar authorization status: \(status)")
-            self.calendarAuthorizationStatus = status
-        }
-
-        switch status {
-        case .notDetermined:
-            guard let granted = try? await calendarService.requestAccess(to: .event) else {
-                self.calendarAuthorizationStatus = .notDetermined
-                return
-            }
-            self.calendarAuthorizationStatus = granted ? .fullAccess : .denied
-            if granted {
-                await reloadCalendarAndReminderLists()
-                await updateEvents()
-            }
-        case .restricted, .denied:
-            NSLog("Calendar access denied or restricted")
-        case .fullAccess:
-            NSLog("Full access")
-            await reloadCalendarAndReminderLists()
-            await updateEvents()
-        case .writeOnly:
-            NSLog("Write only")
-        @unknown default:
-            print("Unknown authorization status")
-        }
+        await checkAuthorization(for: .event)
     }
     
     func checkReminderAuthorization() async {
-        let status = EKEventStore.authorizationStatus(for: .reminder)
-        DispatchQueue.main.async {
-            print("📅 Current reminder authorization status: \(status)")
-            self.reminderAuthorizationStatus = status
-        }
+        await checkAuthorization(for: .reminder)
+    }
 
-        switch status {
-        case .notDetermined:
-            guard let granted = try? await calendarService.requestAccess(to: .reminder) else {
-                self.reminderAuthorizationStatus = .notDetermined
-                return
-            }
-            self.reminderAuthorizationStatus = granted ? .fullAccess : .denied
-            if granted {
-                await reloadCalendarAndReminderLists()
-                await updateEvents()
-            }
-        case .restricted, .denied:
-            NSLog("Reminder access denied or restricted")
-        case .fullAccess:
-            NSLog("Full access")
-            await reloadCalendarAndReminderLists()
-            await updateEvents()
-        case .writeOnly:
-            NSLog("Write only")
-        @unknown default:
-            print("Unknown authorization status")
+    private func checkAuthorization(for type: EKEntityType) async {
+        let previous = type == .event ? calendarAuthorizationStatus : reminderAuthorizationStatus
+        var status = EKEventStore.authorizationStatus(for: type)
+        if status == .notDetermined {
+            guard let granted = try? await calendarService.requestAccess(to: type) else { return }
+            status = granted ? .fullAccess : .denied
         }
+        if type == .event { calendarAuthorizationStatus = status }
+        else { reminderAuthorizationStatus = status }
+        guard previous != status else { return }
+        invalidateMonthCache()
+        await reloadCalendarAndReminderLists()
+        await updateEvents()
     }
         
 
@@ -172,6 +165,7 @@ class CalendarManager: ObservableObject {
 
         Defaults[.calendarSelectionState] = selectionState
         updateSelectedCalendars()
+        invalidateMonthCache()
         await updateEvents()
     }
 
@@ -180,30 +174,47 @@ class CalendarManager: ObservableObject {
     }
 
     func updateCurrentDate(_ date: Date) async {
+        let previousMonth = Calendar.current.dateInterval(of: .month, for: currentWeekStartDate)?.start
         currentWeekStartDate = Calendar.current.startOfDay(for: date)
-        if Calendar.current.dateInterval(of: .month, for: date)?.start == loadedMonthStart {
+        if let monthStart = Calendar.current.dateInterval(of: .month, for: date)?.start,
+           let cached = monthCache[monthStart] {
+            monthEvents = cached
+            events = eventsForDay(currentWeekStartDate, in: cached)
+        } else if Calendar.current.dateInterval(of: .month, for: date)?.start == previousMonth {
             events = eventsForDay(currentWeekStartDate, in: monthEvents)
         } else {
             events = []
+            monthEvents = []
         }
         await updateEvents()
     }
 
     private func updateEvents() async {
-        eventsRequestGeneration += 1
-        let generation = eventsRequestGeneration
-        let start = currentWeekStartDate
-        guard let month = Calendar.current.dateInterval(of: .month, for: start) else { return }
-        let calendarIDs = selectedCalendars.map { $0.id }
-        let eventsResult = await calendarService.events(
-            from: month.start,
-            to: month.end,
-            calendars: calendarIDs
-        )
-        guard generation == eventsRequestGeneration else { return }
-        self.loadedMonthStart = month.start
-        self.monthEvents = eventsResult
-        self.events = eventsForDay(start, in: eventsResult)
+        guard eventStoreRefreshTask == nil else { return }
+        guard let month = Calendar.current.dateInterval(of: .month, for: currentWeekStartDate) else { return }
+        if let cached = monthCache[month.start] {
+            monthEvents = cached
+            events = eventsForDay(currentWeekStartDate, in: cached)
+            return
+        }
+        let generation = cacheGeneration
+        let request: Task<[EventModel], Never>
+        if let pending = pendingMonthRequests[month.start] {
+            request = pending
+        } else {
+            let calendarIDs = selectedCalendars.map { $0.id }
+            request = Task { [calendarService] in
+                await calendarService.events(from: month.start, to: month.end, calendars: calendarIDs)
+            }
+            pendingMonthRequests[month.start] = request
+        }
+        let result = await request.value
+        guard generation == cacheGeneration else { return }
+        pendingMonthRequests[month.start] = nil
+        monthCache[month.start] = result
+        guard Calendar.current.dateInterval(of: .month, for: currentWeekStartDate)?.start == month.start else { return }
+        monthEvents = result
+        events = eventsForDay(currentWeekStartDate, in: result)
     }
 
     private func eventsForDay(_ start: Date, in events: [EventModel]) -> [EventModel] {
@@ -218,8 +229,32 @@ class CalendarManager: ObservableObject {
     
     @discardableResult
     func setReminderCompleted(reminderID: String, completed: Bool) async -> Bool {
+        let title = monthEvents.first(where: { $0.id == reminderID })?.title ?? "Reminder"
         let saved = await calendarService.setReminderCompleted(reminderID: reminderID, completed: completed)
+        if saved && completed {
+            undoExpiryTask?.cancel()
+            reminderUndo = ReminderUndo(id: reminderID, title: title)
+            undoExpiryTask = Task { [weak self] in
+                do { try await Task.sleep(for: .seconds(5)) } catch { return }
+                guard self?.reminderUndo?.id == reminderID else { return }
+                self?.reminderUndo = nil
+            }
+        }
+        if saved { invalidateMonthCache() }
         await updateEvents()
+        return saved
+    }
+
+    @discardableResult
+    func undoReminderCompletion() async -> Bool {
+        guard let undo = reminderUndo else { return false }
+        undoExpiryTask?.cancel()
+        let saved = await calendarService.setReminderCompleted(reminderID: undo.id, completed: false)
+        if saved {
+            if reminderUndo?.id == undo.id { reminderUndo = nil }
+            invalidateMonthCache()
+            await updateEvents()
+        }
         return saved
     }
 }
