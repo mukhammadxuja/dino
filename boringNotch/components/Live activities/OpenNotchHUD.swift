@@ -200,6 +200,8 @@ struct OpenNotchHUD: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.gray)
                     .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(Int(value * 100))))
+                    .animation(.snappy(duration: 0.2), value: Int(value * 100))
                     .frame(width: 35, alignment: .trailing)
             }
         }

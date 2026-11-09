@@ -1951,6 +1951,8 @@ struct BatteryInlineAlertContent: View {
             Text("\(min(100, max(0, percentage)))%")
                 .font(.system(size: compact ? 9 : 12, weight: .semibold, design: .rounded))
                 .monospacedDigit()
+                .contentTransition(.numericText(value: Double(percentage)))
+                .animation(.snappy(duration: 0.25), value: percentage)
                 .foregroundStyle(color)
             HStack(spacing: 1) {
                 GeometryReader { geometry in

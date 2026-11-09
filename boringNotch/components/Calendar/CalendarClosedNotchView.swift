@@ -41,6 +41,8 @@ public struct CalendarClosedNotchView: View {
             Text("\(Calendar.current.component(.day, from: Date()))")
                 .font(.system(size: isCurrentScreenBuiltin ? 14 : 13, weight: .semibold, design: .rounded))
                 .monospacedDigit()
+                .contentTransition(.numericText(value: Double(Calendar.current.component(.day, from: Date()))))
+                .animation(.snappy(duration: 0.3), value: Calendar.current.component(.day, from: Date()))
                 .foregroundStyle(calendarAccent)
                 .frame(width: itemSize, height: itemSize)
         }

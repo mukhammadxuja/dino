@@ -28,6 +28,9 @@ public struct WeatherClosedPillView: View {
             
             Text(temperature)
                 .font(.system(size: 13, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(.snappy(duration: 0.25), value: temperature)
                 .foregroundColor(.white)
         }
         .padding(.horizontal, 8)
@@ -69,6 +72,9 @@ public struct WeatherExpandedCardView: View {
                     
                     Text(currentTemp)
                         .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .animation(.snappy(duration: 0.25), value: currentTemp)
                         .foregroundColor(.white)
                 }
                 

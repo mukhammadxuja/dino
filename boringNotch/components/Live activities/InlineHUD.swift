@@ -273,6 +273,8 @@ struct InlineHUD: View {
                         Text("\(Int(value * 100))%")
                             .font(.system(size: 11, weight: .medium, design: .rounded))
                             .monospacedDigit()
+                            .contentTransition(.numericText(value: Double(Int(value * 100))))
+                            .animation(.snappy(duration: 0.2), value: Int(value * 100))
                             .foregroundStyle(.gray)
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)

@@ -358,6 +358,8 @@ public struct PomodoroOpenNotchView: View {
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(PomodoroTheme.orange)
                     .monospacedDigit()
+                    .contentTransition(.numericText(countsDown: true))
+                    .animation(.snappy(duration: 0.25), value: pomodoro.formattedRemainingTime)
                     .lineLimit(1)
 
                 Spacer(minLength: 12)
@@ -366,6 +368,8 @@ public struct PomodoroOpenNotchView: View {
                 Text(sessionTitleText)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(PomodoroTheme.orange)
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.25), value: sessionTitleText)
                     .lineLimit(1)
             }
             .padding(.horizontal, 2)
