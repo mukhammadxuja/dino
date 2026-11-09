@@ -381,7 +381,7 @@ extension Defaults.Keys {
     static let menubarIcon = Key<Bool>("menubarIcon", default: true)
     static let showOnAllDisplays = Key<Bool>("showOnAllDisplays", default: false)
     static let automaticallySwitchDisplay = Key<Bool>("automaticallySwitchDisplay", default: true)
-    static let releaseName = Key<String>("releaseName", default: "Flying Rabbit 🐇🪽")
+    static let releaseName = Key<String>("releaseName", default: "Dino")
     
     // MARK: Behavior
     static let minimumHoverDuration = Key<TimeInterval>("minimumHoverDuration", default: 0.3)
@@ -389,7 +389,7 @@ extension Defaults.Keys {
     static let enableHaptics = Key<Bool>("enableHaptics", default: true)
     static let openNotchOnHover = Key<Bool>("openNotchOnHover", default: true)
     static let extendHoverArea = Key<Bool>("extendHoverArea", default: false)
-    static let idleClickAction = Key<IdleClickAction>("idleClickAction", default: .none)
+    static let idleClickAction = Key<IdleClickAction>("idleClickAction", default: .music)
     static let notchHeightMode = Key<WindowHeightMode>(
         "notchHeightMode",
         default: WindowHeightMode.matchRealNotchSize
@@ -406,7 +406,7 @@ extension Defaults.Keys {
     static let showOnLockScreen = Key<Bool>("showOnLockScreen", default: false)
     static let lockScreenPlayerEnabled = Key<Bool>("lockScreenPlayerEnabled", default: true)
     static let lockScreenSoundEnabled = Key<Bool>("lockScreenSoundEnabled", default: true)
-    static let lockScreenSoundVolume = Key<Float>("lockScreenSoundVolume", default: 0.5)
+    static let lockScreenSoundVolume = Key<Float>("lockScreenSoundVolume", default: 0.3)
     static let lockScreenPlayerBackgroundStyle = Key<LockScreenPlayerBackgroundStyle>(
         "lockScreenPlayerBackgroundStyle",
         default: .glass
@@ -427,7 +427,7 @@ extension Defaults.Keys {
     static let showNotHumanFace = Key<Bool>("showNotHumanFace", default: false)
     static let tileShowLabels = Key<Bool>("tileShowLabels", default: false)
     static let showCalendar = Key<Bool>("showCalendar", default: false)
-    static let pomodoroEnabled = Key<Bool>("pomodoroEnabled", default: false)
+    static let pomodoroEnabled = Key<Bool>("pomodoroEnabled", default: true)
     static let hideCompletedReminders = Key<Bool>("hideCompletedReminders", default: true)
     static let sliderColor = Key<SliderColorEnum>(
         "sliderUseAlbumArtColor",
@@ -441,7 +441,7 @@ extension Defaults.Keys {
     // MARK: Clipboard History
     static let clipboardHistoryEnabled = Key<Bool>("clipboardHistoryEnabled", default: false)
     static let clipboardHistoryPersist = Key<Bool>("clipboardHistoryPersist", default: false)
-    static let clipboardHistoryAutoPaste = Key<Bool>("clipboardHistoryAutoPaste", default: true)
+    static let clipboardHistoryAutoPaste = Key<Bool>("clipboardHistoryAutoPaste", default: false)
     static let clipboardHistoryMaxItems = Key<Int>("clipboardHistoryMaxItems", default: 50)
 
     // MARK: Mirror HUD
@@ -459,9 +459,9 @@ extension Defaults.Keys {
     
     // MARK: Media playback
     static let coloredSpectrogram = Key<Bool>("coloredSpectrogram", default: true)
-    static let enableSneakPeek = Key<Bool>("enableSneakPeek", default: false)
+    static let enableSneakPeek = Key<Bool>("enableSneakPeek", default: true)
     static let sneakPeekStyles = Key<SneakPeekStyle>("sneakPeekStyles", default: .standard)
-    static let waitInterval = Key<Double>("waitInterval", default: 3)
+    static let waitInterval = Key<Double>("waitInterval", default: 5)
     static let showShuffleAndRepeat = Key<Bool>("showShuffleAndRepeat", default: false)
     static let enableLyrics = Key<Bool>("enableLyrics", default: false)
     static let musicControlSlots = Key<[MusicControlButton]>(
@@ -484,14 +484,14 @@ extension Defaults.Keys {
     static let batteryGlowEnabled = Key<Bool>("batteryGlowEnabled", default: true)
     static let batteryGlowColorMode = Key<BatteryGlowColorMode>("batteryGlowColorMode", default: .dynamic)
     static let batteryToastEnabled = Key<Bool>("batteryToastEnabled", default: true)
-    static let batteryToastType = Key<BatteryToastType>("batteryToastType", default: .dynamicNotch)
+    static let batteryToastType = Key<BatteryToastType>("batteryToastType", default: .customToast)
     static let batteryToastSize = Key<BatteryToastSize>("batteryToastSize", default: .medium)
     static let batteryGlowIntensity = Key<BatteryGlowIntensity>("batteryGlowIntensity", default: .default)
     static let batteryShowGlowInPreview = Key<Bool>("batteryShowGlowInPreview", default: true)
     static let batterySoundEnabled = Key<Bool>("batterySoundEnabled", default: true)
     static let batterySoundName = Key<BatterySoundChoice>("batterySoundName", default: .glass)
     static let lowBatteryAlerts = Key<[BatteryAlertItem]>("lowBatteryAlerts", default: [
-        BatteryAlertItem(percentage: 20, isEnabled: true, soundName: "Glass", borderGlow: true, colorHex: "#FF453A", isPersistent: false, position: "Top")
+        BatteryAlertItem(percentage: 20, isEnabled: true, soundName: "Basso", borderGlow: true, colorHex: "#FF453A", isPersistent: false, position: "Top")
     ])
     static let chargedAlertThreshold = Key<Int>("chargedAlertThreshold", default: 80)
     static let chargedAlertGlowEnabled = Key<Bool>("chargedAlertGlowEnabled", default: true)
@@ -534,7 +534,7 @@ extension Defaults.Keys {
     static let hudBacklightEnabled = Key<Bool>("hudBacklightEnabled", default: true)
     static let hudAirPodsEnabled = Key<Bool>("hudAirPodsEnabled", default: false)
     static let hudCapsLockEnabled = Key<Bool>("hudCapsLockEnabled", default: true)
-    static let hudLocationEnabled = Key<Bool>("hudLocationEnabled", default: false)
+    static let hudLocationEnabled = Key<Bool>("hudLocationEnabled", default: true)
     static let hudCameraEnabled = Key<Bool>("hudCameraEnabled", default: true)
     static let hudMicEnabled = Key<Bool>("hudMicEnabled", default: true)
     static let hudScreenRecordEnabled = Key<Bool>("hudScreenRecordEnabled", default: true)
@@ -572,7 +572,7 @@ extension Defaults.Keys {
     static let pomodoroStrictModeEyeExercisesEnabled = Key<Bool>("pomodoroStrictModeEyeExercisesEnabled", default: false)
     static let pomodoroClosedNotchDisplayMode = Key<PomodoroClosedNotchDisplayMode>(
         "pomodoroClosedNotchDisplayMode",
-        default: .off
+        default: .replaceMusicVisual
     )
     static let pomodoroPersistedSession = Key<Data?>("pomodoroPersistedSession", default: nil)
     

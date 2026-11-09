@@ -68,7 +68,10 @@ struct OnboardingView: View {
             Group {
                 switch step {
                 case .welcome:
-                    WelcomeView { go(to: .displayStyle) }
+                    WelcomeView(
+                        onGetStarted: { go(to: .displayStyle) },
+                        onSkip: skipSetup
+                    )
                 case .displayStyle:
                     OnboardingDisplayStyleView(
                         displaySelection: $displaySelection,
@@ -123,6 +126,17 @@ struct OnboardingView: View {
         if musicManager.isNowPlayingDeprecated && selectedMediaController == .nowPlaying {
             selectedMediaController = .appleMusic
         }
+    }
+
+    private func skipSetup() {
+        // Discard unfinished edits; new installs use Notch / Island, repeat visits keep saved choices.
+        displaySelection = Self.initialDisplaySelection
+        builtinFormFactor = Defaults[.builtinFormFactor]
+        externalFormFactor = Defaults[.externalFormFactor]
+        selectedMediaController = Defaults[.mediaController]
+        musicSetupSkipped = true
+        validateMusicSource()
+        go(to: .finished)
     }
 
     private func complete(_ action: () -> Void) {

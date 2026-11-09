@@ -3,6 +3,7 @@ import SwiftUI
 
 struct WelcomeView: View {
     var onGetStarted: (() -> Void)? = nil
+    var onSkip: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 24) {
@@ -37,11 +38,19 @@ struct WelcomeView: View {
 
             Spacer(minLength: 8)
 
-            Button("Get Started") { onGetStarted?() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .keyboardShortcut(.defaultAction)
-                .padding(.bottom, 24)
+            VStack(spacing: 10) {
+                Button("Get Started") { onGetStarted?() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .keyboardShortcut(.defaultAction)
+
+                if let onSkip {
+                    Button("Set up later", action: onSkip)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.bottom, 24)
         }
         .padding(.horizontal, 32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

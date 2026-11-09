@@ -146,7 +146,7 @@ extension Defaults.Keys {
     // Island appearance & behavior
     static let islandStyle = Key<IslandStyle>("islandStyle", default: .dark)
     static let islandVisibility = Key<IslandVisibility>("islandVisibility", default: .onHover)
-    static let displayShowOn = Key<DisplayShowOn>("displayShowOn", default: .allDisplays)
+    static let displayShowOn = Key<DisplayShowOn>("displayShowOn", default: .automatic)
 }
 
 // MARK: - 7. Notification Names

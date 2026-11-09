@@ -388,7 +388,7 @@ struct BatteryNotificationSettingsView: View {
         let newAlert = BatteryAlertItem(
             percentage: nextPct,
             isEnabled: true,
-            soundName: "Glass",
+            soundName: Defaults.Keys.lowBatteryAlerts.defaultValue.first?.soundName ?? "Basso",
             borderGlow: true,
             colorHex: nextPct <= 10 ? "#FF453A" : "#FF9F0A",
             isPersistent: false,
@@ -401,16 +401,15 @@ struct BatteryNotificationSettingsView: View {
     }
 
     private func resetAlerts() {
-        lowBatteryAlerts = [
-            BatteryAlertItem(percentage: 20, isEnabled: true, soundName: "Glass", borderGlow: true, colorHex: "#FF453A", isPersistent: false, position: "Top")
-        ]
-        chargedAlertThreshold = 80
-        chargedAlertGlowEnabled = true
-        chargedAlertSoundEnabled = true
-        chargedAlertPosition = "Top"
-        batteryGlowIntensity = .default
-        batteryToastSize = .medium
-        batteryToastType = .dynamicNotch
+        lowBatteryAlerts = Defaults.Keys.lowBatteryAlerts.defaultValue
+        chargedAlertThreshold = Defaults.Keys.chargedAlertThreshold.defaultValue
+        chargedAlertGlowEnabled = Defaults.Keys.chargedAlertGlowEnabled.defaultValue
+        chargedAlertSoundEnabled = Defaults.Keys.chargedAlertSoundEnabled.defaultValue
+        chargedAlertSoundName = Defaults.Keys.chargedAlertSoundName.defaultValue
+        chargedAlertPosition = Defaults.Keys.chargedAlertPosition.defaultValue
+        batteryGlowIntensity = Defaults.Keys.batteryGlowIntensity.defaultValue
+        batteryToastSize = Defaults.Keys.batteryToastSize.defaultValue
+        batteryToastType = Defaults.Keys.batteryToastType.defaultValue
     }
 
     private func binding(for index: Int) -> Binding<BatteryAlertItem> {

@@ -93,7 +93,7 @@ class BoringViewCoordinator: ObservableObject {
         }
     }
 
-    @AppStorage("openLastTabByDefault") var openLastTabByDefault: Bool = false
+    @AppStorage("openLastTabByDefault") var openLastTabByDefault: Bool = true
 
     @AppStorage("lastExpandedFeature") private var lastExpandedFeature = ""
 
