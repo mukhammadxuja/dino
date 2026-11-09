@@ -17,6 +17,10 @@
 	<string>Dino uses Bluetooth to show AirPods and wireless headphone connection alerts.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Dino uses Bluetooth to show AirPods and wireless headphone connection alerts.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Dino shows your calendar events for the selected day.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Dino shows and lets you complete reminders for the selected day.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Dino displays a privacy indicator when Location Services are active.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

@@ -90,11 +90,12 @@ class CalendarService: CalendarServiceProviding {
                 
                 let filteredReminders = (reminders ?? []).filter { reminder in
                     // Check if reminder has a due date within our range
-                    guard let dueDate = reminder.dueDateComponents?.date else {
+                    guard let components = reminder.dueDateComponents,
+                          let dueDate = Calendar.current.date(from: components) else {
                         return false
                     }
                     
-                    return dueDate >= start && dueDate <= end
+                    return dueDate >= start && dueDate < end
                 }
                 
                 // Convert to EventModel
@@ -107,13 +108,15 @@ class CalendarService: CalendarServiceProviding {
         }
     }
     
-    func setReminderCompleted(reminderID: String, completed: Bool) async {
-        guard let reminder = store.calendarItem(withIdentifier: reminderID) as? EKReminder else { return }
+    func setReminderCompleted(reminderID: String, completed: Bool) async -> Bool {
+        guard let reminder = store.calendarItem(withIdentifier: reminderID) as? EKReminder else { return false }
         reminder.isCompleted = completed
         do {
             try store.save(reminder, commit: true)
+            return true
         } catch {
             print("Failed to update reminder completion: \(error)")
+            return false
         }
     }
 }

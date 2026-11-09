@@ -257,9 +257,7 @@ class BoringViewModel: NSObject, ObservableObject {
             return mirrorSlotCardSize(isIsland: isIsland)
         }
         switch slot.asNotchView {
-        case .calendar:
-            return CGSize(width: 560, height: 190)
-        case .home, .shelf:
+        case .calendar, .home, .shelf:
             return CGSize(width: isIsland ? 385 : 435, height: 188)
         }
     }

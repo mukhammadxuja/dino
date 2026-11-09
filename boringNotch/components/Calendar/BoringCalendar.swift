@@ -178,70 +178,365 @@ struct WheelPicker: View {
     }
 }
 
+private let calendarAccent = Color(red: 1, green: 69 / 255, blue: 58 / 255)
+
 struct CalendarView: View {
     @EnvironmentObject var vm: BoringViewModel
     @ObservedObject private var calendarManager = CalendarManager.shared
+    @Default(.hideCompletedReminders) private var hideCompletedReminders
+    @Default(.hideAllDayEvents) private var hideAllDayEvents
     @State private var selectedDate = Date()
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 8) {
-                VStack(alignment: .leading) {
-                    Text(selectedDate.formatted(.dateTime.month(.abbreviated)))
-                        .font(.title3)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                    Text(selectedDate.formatted(.dateTime.year()))
-                        .font(.title3)
-                        .fontWeight(.light)
-                        .foregroundColor(Color(white: 0.65))
-                }
+        GeometryReader { geometry in
+            HStack(alignment: .top, spacing: 12) {
+                daySummary
+                    .frame(width: geometry.size.width * 0.38, alignment: .leading)
 
-                ZStack(alignment: .top) {
-                    WheelPicker(selectedDate: $selectedDate, config: Config())
-                    HStack(alignment: .top) {
-                        LinearGradient(
-                            colors: [Color.black, .clear], startPoint: .leading, endPoint: .trailing
-                        )
-                        .frame(width: 20)
-                        Spacer()
-                        LinearGradient(
-                            colors: [.clear, Color.black], startPoint: .leading, endPoint: .trailing
-                        )
-                        .frame(width: 20)
-                    }
-                }
-            }
-
-            let filteredEvents = EventListView.filteredEvents(
-                events: calendarManager.events
-            )
-            if filteredEvents.isEmpty {
-                EmptyEventsView(selectedDate: selectedDate)
-                Spacer(minLength: 0)
-            } else {
-                EventListView(events: calendarManager.events)
+                MonthGrid(selectedDate: $selectedDate, markedDays: markedDays)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
         .listRowBackground(Color.clear)
-        .frame(height: 120)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: selectedDate) {
             Task {
                 await calendarManager.updateCurrentDate(selectedDate)
             }
         }
-        .onChange(of: vm.notchState) { _, _ in
+        .onChange(of: vm.notchState) { _, state in
+            guard state == .open else { return }
+            selectedDate = Date.now
             Task {
-                await calendarManager.updateCurrentDate(Date.now)
-                selectedDate = Date.now
+                await calendarManager.updateCurrentDate(selectedDate)
             }
         }
         .onAppear {
             Task {
-                await calendarManager.updateCurrentDate(Date.now)
-                selectedDate = Date.now
+                await calendarManager.checkCalendarAuthorization()
+                await calendarManager.checkReminderAuthorization()
+                await calendarManager.updateCurrentDate(selectedDate)
             }
         }
+    }
+
+    private var markedDays: Set<Date> {
+        let calendar = Calendar.current
+        guard let month = calendar.dateInterval(of: .month, for: selectedDate) else { return [] }
+        var days: Set<Date> = []
+        for event in calendarManager.monthEvents {
+            if case .reminder(let completed) = event.type, completed && hideCompletedReminders { continue }
+            if event.isAllDay && !event.type.isReminder && hideAllDayEvents { continue }
+
+            var day = calendar.startOfDay(for: max(event.start, month.start))
+            let end = event.type.isReminder ? event.start : event.end
+            while day < month.end && (day < end || calendar.isDate(day, inSameDayAs: event.start)) {
+                days.insert(day)
+                guard !event.type.isReminder, let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+                day = next
+            }
+        }
+        return days
+    }
+
+    private var daySummary: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(selectedDate.formatted(.dateTime.weekday(.wide)).uppercased())
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(calendarAccent)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .offset(y: -3)
+
+            Text("\(Calendar.current.component(.day, from: selectedDate))")
+                .font(.system(size: 40, weight: .light, design: .rounded))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .contentTransition(.numericText(value: Double(Calendar.current.component(.day, from: selectedDate))))
+                .padding(.top, -4)
+
+            let events = EventListView.filteredEvents(events: calendarManager.events)
+            if events.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(Calendar.current.isDateInToday(selectedDate) ? "No events today" : "No events this day")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.48))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                    Text("Your day is clear")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.28))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+                .padding(.top, 14)
+            } else {
+                CompactCalendarEventsView(events: events)
+                    .frame(height: 68)
+                    .padding(.top, 6)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: calendarManager.events)
+    }
+}
+
+private struct CompactCalendarEventsView: View {
+    @Environment(\.openURL) private var openURL
+    @EnvironmentObject private var vm: BoringViewModel
+    @ObservedObject private var calendarManager = CalendarManager.shared
+    @Default(.autoScrollToNextEvent) private var autoScrollToNextEvent
+    @State private var hiddenReminderIDs: Set<String> = []
+    @State private var showSaveError = false
+    let events: [EventModel]
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.vertical) {
+                LazyVStack(spacing: 2) {
+                    ForEach(events.filter { !hiddenReminderIDs.contains($0.id) }) { event in
+                        eventRow(event)
+                            .id(event.id)
+                            .transition(.asymmetric(
+                                insertion: .opacity,
+                                removal: .scale(scale: 0.8, anchor: .leading).combined(with: .opacity)
+                            ))
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+            .onHover { vm.isHoveringCalendar = $0 }
+            .onDisappear { vm.isHoveringCalendar = false }
+            .onAppear { scrollToNextEvent(proxy) }
+            .onChange(of: events) { _, _ in scrollToNextEvent(proxy) }
+        }
+        .alert("Could not update reminder", isPresented: $showSaveError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Please check your Reminders access and try again.")
+        }
+    }
+
+    private func scrollToNextEvent(_ proxy: ScrollViewProxy) {
+        guard autoScrollToNextEvent,
+              let event = events.first(where: { !$0.isAllDay && $0.end > Date() }) else { return }
+        proxy.scrollTo(event.id, anchor: .top)
+    }
+
+    private func eventRow(_ event: EventModel) -> some View {
+        let color = Color(nsColor: event.calendar.color)
+        let completed: Bool = {
+            if case .reminder(let isCompleted) = event.type { return isCompleted }
+            return false
+        }()
+
+        return Group {
+            if !event.type.isReminder && !event.type.isBirthday && !event.isAllDay {
+                timedEventRow(event, color: color)
+            } else {
+                compactEventRow(event, color: color, completed: completed)
+            }
+        }
+    }
+
+    private func compactEventRow(_ event: EventModel, color: Color, completed: Bool) -> some View {
+        HStack(alignment: .top, spacing: 4) {
+            if event.type.isReminder {
+                Button {
+                    if !completed {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            _ = hiddenReminderIDs.insert(event.id)
+                        }
+                    }
+                    Task {
+                        let saved = await calendarManager.setReminderCompleted(
+                            reminderID: event.id, completed: !completed
+                        )
+                        if !saved {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                _ = hiddenReminderIDs.remove(event.id)
+                            }
+                            showSaveError = true
+                        }
+                    }
+                } label: {
+                    Image(systemName: completed ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(color)
+                        .frame(width: 14, height: 14)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(completed ? "Mark as incomplete" : "Mark as complete")
+            } else {
+                Image(systemName: event.type.isBirthday ? "gift.fill" : "calendar")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(.black.opacity(0.8))
+                    .frame(width: 14, height: 14)
+                    .background(color, in: Circle())
+                    .accessibilityHidden(true)
+            }
+
+            Button {
+                if let url = event.calendarAppURL() { openURL(url) }
+            } label: {
+                VStack(alignment: .leading, spacing: 1) {
+                    eventTitle(event, color: color)
+                    if event.type.isReminder && !event.isAllDay {
+                        Text(event.start, style: .time)
+                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                            .foregroundStyle(color.opacity(0.8))
+                            .lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 2)
+        .padding(.trailing, 6)
+        .padding(.vertical, 0)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(color.opacity(0.16), in: RoundedRectangle(cornerRadius: 9))
+        .opacity(completed ? 0.55 : 1)
+    }
+
+    private func timedEventRow(_ event: EventModel, color: Color) -> some View {
+        Button {
+            if let url = event.calendarAppURL() { openURL(url) }
+        } label: {
+            VStack(alignment: .leading, spacing: 1) {
+                eventTitle(event, color: color)
+                if let provider = event.meetingProvider {
+                    Label(provider, systemImage: "video.fill")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .lineLimit(1)
+                }
+                Text("\(event.start.formatted(date: .omitted, time: .shortened))–\(event.end.formatted(date: .omitted, time: .shortened))")
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(color.opacity(0.85))
+            .padding(.leading, 13)
+            .padding(.trailing, 5)
+            .padding(.vertical, 2)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(color.opacity(0.16), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(color)
+                    .frame(width: 3)
+                    .padding(.leading, 5)
+                    .padding(.vertical, 2)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func eventTitle(_ event: EventModel, color: Color) -> some View {
+        Text(event.title)
+            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct MonthGrid: View {
+    @Binding var selectedDate: Date
+    let markedDays: Set<Date>
+
+    private let weekdaySymbols = ["M", "T", "W", "T", "F", "S", "S"]
+
+    private var mondayFirstCalendar: Calendar {
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2
+        return calendar
+    }
+
+    private var monthDays: [Date?] {
+        let calendar = mondayFirstCalendar
+        guard let interval = calendar.dateInterval(of: .month, for: selectedDate),
+              let dayRange = calendar.range(of: .day, in: .month, for: selectedDate) else {
+            return []
+        }
+
+        let weekdayOffset = (calendar.component(.weekday, from: interval.start) + 5) % 7
+        var days = Array(repeating: Optional<Date>.none, count: weekdayOffset)
+        days += dayRange.compactMap { calendar.date(byAdding: .day, value: $0 - 1, to: interval.start) }
+        while days.count % 7 != 0 { days.append(nil) }
+        return days
+    }
+
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(minimum: 0), spacing: 0), count: 7)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(selectedDate.formatted(.dateTime.month(.wide)).uppercased())
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(calendarAccent)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .offset(y: -3)
+
+            LazyVGrid(columns: columns, spacing: 2) {
+                ForEach(weekdaySymbols.indices, id: \.self) { index in
+                    Text(weekdaySymbols[index])
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundStyle(index >= 5 ? .white.opacity(0.4) : .white)
+                        .frame(height: 14)
+                        .frame(maxWidth: .infinity)
+                }
+
+                ForEach(monthDays.indices, id: \.self) { index in
+                    if let date = monthDays[index] {
+                        dayButton(for: date)
+                    } else {
+                        Color.clear.frame(height: 17)
+                    }
+                }
+            }
+        }
+    }
+
+    private func dayButton(for date: Date) -> some View {
+        let isSelected = mondayFirstCalendar.isDate(date, inSameDayAs: selectedDate)
+        let isToday = mondayFirstCalendar.isDateInToday(date)
+        let weekday = mondayFirstCalendar.component(.weekday, from: date)
+        let isWeekend = weekday == 1 || weekday == 7
+
+        return Button {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                selectedDate = date
+            }
+        } label: {
+            Text(date.formatted(.dateTime.day()))
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(isSelected ? .white : (isToday ? calendarAccent : (isWeekend ? .white.opacity(0.38) : .white)))
+                .frame(width: 17, height: 17)
+                .background {
+                    Circle().fill(isSelected ? calendarAccent : .clear)
+                }
+                .overlay(alignment: .bottom) {
+                    if !isSelected && markedDays.contains(mondayFirstCalendar.startOfDay(for: date)) {
+                        Circle()
+                            .fill(calendarAccent)
+                            .frame(width: 3, height: 3)
+                            .offset(y: 2)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .accessibilityLabel(date.formatted(date: .complete, time: .omitted))
     }
 }
 
@@ -279,7 +574,7 @@ struct EventListView: View {
                 }
             }
             // Filter out all-day events if setting is enabled
-            if event.isAllDay && Defaults[.hideAllDayEvents] {
+            if event.isAllDay && !event.type.isReminder && Defaults[.hideAllDayEvents] {
                 return false
             }
             return true
@@ -474,7 +769,7 @@ struct ReminderToggle: View {
 
 #Preview {
     CalendarView()
-        .frame(width: 215, height: 130)
+        .frame(width: 640, height: 350)
         .background(.black)
         .environmentObject(BoringViewModel())
 }

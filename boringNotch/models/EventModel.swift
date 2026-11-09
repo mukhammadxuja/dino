@@ -82,6 +82,18 @@ extension EventModel {
 
     var isMeeting: Bool { !participants.isEmpty }
 
+    /// Only label a meeting provider when the event actually identifies it.
+    var meetingProvider: String? {
+        let content = [url?.absoluteString, location, notes]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+        if content.contains("meet.google.com") || content.contains("google meet") { return "Google Meet" }
+        if content.contains("zoom.us") || content.contains("zoom.com") { return "Zoom" }
+        if content.contains("teams.microsoft.com") || content.contains("teams.live.com") || content.contains("microsoft teams") { return "Microsoft Teams" }
+        if content.contains("webex.com") { return "Webex" }
+        return nil
+    }
+
     func calendarAppURL() -> URL? {
 
         guard let id = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {

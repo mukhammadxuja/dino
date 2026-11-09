@@ -697,8 +697,7 @@ struct NotchHomeView: View {
         VStack(alignment: .leading, spacing: 0) {
             CalendarView()
         }
-        .padding(.horizontal, 8)
-        .padding(.top, otherPagesTopPadding)
+        .padding(.top, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 

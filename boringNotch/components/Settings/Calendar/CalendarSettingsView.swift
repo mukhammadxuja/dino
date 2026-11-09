@@ -31,7 +31,7 @@ struct CalendarSettings: View {
         HStack(alignment: .center) {
             Text("Show calendar")
             Spacer()
-            KbdShortcutBadge(keys: ["⌘", "⇧", "A"])
+            KbdShortcutBadge(keys: ["⌘", "⇧", "C"])
             Toggle("", isOn: $showCalendar)
                 .labelsHidden()
                 .toggleStyle(.switch)
@@ -56,9 +56,6 @@ struct CalendarSettings: View {
         }
         Defaults.Toggle(key: .autoScrollToNextEvent) {
             Text("Auto-scroll to next event")
-        }
-        Defaults.Toggle(key: .showFullEventTitles) {
-            Text("Always show full event titles")
         }
     }
 

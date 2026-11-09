@@ -782,6 +782,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         }
 
         DinoHotKeyManager.shared.registerAllShortcuts()
+        if ReleaseFeatures.calendar {
+            _ = CalendarManager.shared
+        }
         if Defaults[.clipboardHistoryEnabled] {
             clipboardManager = ClipboardManager.shared
             clipboardManager?.startMonitoring()

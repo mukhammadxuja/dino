@@ -968,7 +968,7 @@ struct ContentView: View {
                     .onPreferenceChange(MusicLyricsPresentationKey.self) { isShowingMusicLyrics = $0 }
                     .conditionalModifier(Defaults[.enableGestures]) { view in
                         view
-                            .verticalSwipeGesture(isEnabled: !isShowingMusicLyrics) { translation, direction, phase, isPrecise in
+                            .verticalSwipeGesture(isEnabled: !isShowingMusicLyrics && !vm.isHoveringCalendar) { translation, direction, phase, isPrecise in
                                 handleVerticalGesture(
                                     translation: translation,
                                     direction: direction,

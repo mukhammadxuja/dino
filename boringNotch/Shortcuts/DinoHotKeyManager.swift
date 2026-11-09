@@ -28,7 +28,7 @@ public final class DinoHotKeyManager {
         KeyboardShortcuts.onKeyDown(for: .optionWeatherShortcut, action: triggerWeather)
         
         if ReleaseFeatures.calendar {
-            // Calendar Module (`Cmd + Shift + A` or `Option + C`)
+            // Calendar Module (`Cmd + Shift + C` or `Option + C`)
             let triggerCalendar: () -> Void = {
                 Task { @MainActor in
                     DinoCoordinator.shared.toggleOrMorphSlot(.calendar)
