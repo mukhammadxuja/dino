@@ -275,6 +275,7 @@ struct LockScreenLargeArtwork: View {
     @ObservedObject var presentation: LockScreenArtworkPresentation
     @ObservedObject private var musicManager = MusicManager.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hoverOffset: CGSize = .zero
 
     var body: some View {
         Button(action: presentation.collapse) {
@@ -287,6 +288,23 @@ struct LockScreenLargeArtwork: View {
                 .shadow(color: .black.opacity(0.35), radius: 22, y: 12)
         }
         .buttonStyle(.plain)
+        .rotation3DEffect(.degrees(reduceMotion ? 0 : -hoverOffset.height * 5), axis: (x: 1, y: 0, z: 0), perspective: 0.7)
+        .rotation3DEffect(.degrees(reduceMotion ? 0 : hoverOffset.width * 5), axis: (x: 0, y: 1, z: 0), perspective: 0.7)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: hoverOffset)
+        .onContinuousHover { phase in
+            switch phase {
+            case .active(let location):
+                let side = presentation.layout.artworkFrame.width
+                guard side > 0, presentation.isExpanded, !reduceMotion else { return }
+                hoverOffset = CGSize(width: min(1, max(-1, location.x / side * 2 - 1)),
+                                     height: min(1, max(-1, location.y / side * 2 - 1)))
+            case .ended:
+                hoverOffset = .zero
+            }
+        }
+        .onChange(of: presentation.isExpanded) { _, expanded in
+            if !expanded { hoverOffset = .zero }
+        }
         .scaleEffect(presentation.isExpanded || reduceMotion ? 1 : 0.88)
         .opacity(presentation.isExpanded ? 1 : 0)
         .padding(LockScreenArtworkLayout.shadowPadding)
