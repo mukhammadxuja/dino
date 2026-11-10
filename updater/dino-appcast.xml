@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    <channel>
+        <title>Dino updates</title>
+        <link>https://github.com/mukhammadxuja/dino/releases</link>
+        <description>Updates for Dino.</description>
+    </channel>
+</rss>

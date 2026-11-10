@@ -12,7 +12,7 @@
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://TheBoredTeam.github.io/boring.notch/appcast.xml</string>
+	<string>https://raw.githubusercontent.com/mukhammadxuja/dino/main/updater/dino-appcast.xml</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Dino uses Bluetooth to show AirPods and wireless headphone connection alerts.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
