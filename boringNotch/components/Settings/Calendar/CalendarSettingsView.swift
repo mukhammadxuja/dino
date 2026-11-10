@@ -11,10 +11,86 @@ struct CalendarSettings: View {
     @Default(.autoScrollToNextEvent) var autoScrollToNextEvent
 
     var body: some View {
-        Form {
-            calendarTogglesSection
-            calendarsSection
-            remindersSection
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                settingsSection("Calendar") {
+                    MediaSettingsRow(
+                        icon: "calendar", iconColor: .red,
+                        title: "Show calendar", subtitle: "Show upcoming events in the notch"
+                    ) {
+                        HStack(spacing: 8) {
+                            KbdShortcutBadge(keys: ["⌘", "⇧", "C"])
+                            Toggle("Show calendar", isOn: $showCalendar)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .controlSize(.small)
+                                .tint(.effectiveAccent)
+                                .onChange(of: showCalendar) { _, enabled in
+                                    handleCalendarVisibilityChange(enabled)
+                                }
+                        }
+                    }
+                    MediaSettingsDivider()
+                    settingsToggleRow(
+                        icon: "checkmark.circle.fill", iconColor: .green,
+                        title: "Hide completed reminders", subtitle: "Keep finished reminders out of the calendar list",
+                        binding: $hideCompletedReminders
+                    )
+                    MediaSettingsDivider()
+                    settingsToggleRow(
+                        icon: "calendar.badge.minus", iconColor: .orange,
+                        title: "Hide all-day events", subtitle: "Only show events with a scheduled time",
+                        binding: $hideAllDayEvents
+                    )
+                    MediaSettingsDivider()
+                    settingsToggleRow(
+                        icon: "arrow.down.to.line.compact", iconColor: .blue,
+                        title: "Auto-scroll to next event", subtitle: "Keep the upcoming event in view",
+                        binding: $autoScrollToNextEvent
+                    )
+                }
+
+                settingsSection("Calendars") {
+                    if calendarManager.calendarAuthorizationStatus != .fullAccess {
+                        permissionRow(
+                            title: "Calendar access is needed",
+                            subtitle: "Allow Calendar access in System Settings to choose which events appear in Dino.",
+                            buttonTitle: "Open Settings",
+                            privacyPath: "Privacy_Calendars"
+                        )
+                    } else if calendarManager.eventCalendars.isEmpty {
+                        emptyRow(title: "No calendars found", subtitle: "Add a calendar in the Calendar app to show it here.")
+                    } else {
+                        ForEach(Array(calendarManager.eventCalendars.enumerated()), id: \.element.id) { index, calendar in
+                            calendarSelectionRow(calendar, isReminderList: false)
+                            if index < calendarManager.eventCalendars.count - 1 {
+                                MediaSettingsDivider()
+                            }
+                        }
+                    }
+                }
+
+                settingsSection("Reminders") {
+                    if calendarManager.reminderAuthorizationStatus != .fullAccess {
+                        permissionRow(
+                            title: "Reminder access is needed",
+                            subtitle: "Allow Reminders access in System Settings to choose which lists appear in Dino.",
+                            buttonTitle: "Open Settings",
+                            privacyPath: "Privacy_Reminders"
+                        )
+                    } else if calendarManager.reminderLists.isEmpty {
+                        emptyRow(title: "No reminder lists found", subtitle: "Add a list in Reminders to show it here.")
+                    } else {
+                        ForEach(Array(calendarManager.reminderLists.enumerated()), id: \.element.id) { index, calendar in
+                            calendarSelectionRow(calendar, isReminderList: true)
+                            if index < calendarManager.reminderLists.count - 1 {
+                                MediaSettingsDivider()
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(20)
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("Calendar")
@@ -26,116 +102,90 @@ struct CalendarSettings: View {
         }
     }
 
-    @ViewBuilder
-    private var calendarTogglesSection: some View {
-        HStack(alignment: .center) {
-            Text("Show calendar")
-            Spacer()
-            KbdShortcutBadge(keys: ["⌘", "⇧", "C"])
-            Toggle("", isOn: $showCalendar)
+    private func handleCalendarVisibilityChange(_ enabled: Bool) {
+        guard !enabled else { return }
+        if Defaults[.activeModule] == .calendar {
+            Defaults[.activeModule] = .none
+        }
+        if DinoCoordinator.shared.activeSlot == .calendar {
+            DinoCoordinator.shared.activateSlotDirectly(DinoCoordinator.shared.backgroundSlot)
+        }
+    }
+
+    private func settingsSection<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.secondary)
+            VStack(spacing: 0, content: content)
+                .hudSettingsCard()
+        }
+    }
+
+    private func settingsToggleRow(
+        icon: String,
+        iconColor: Color,
+        title: String,
+        subtitle: String,
+        binding: Binding<Bool>
+    ) -> some View {
+        MediaSettingsRow(icon: icon, iconColor: iconColor, title: title, subtitle: subtitle) {
+            Toggle(title, isOn: binding)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .tint(.effectiveAccent)
-                .onChange(of: showCalendar) { _, enabled in
-                    if !enabled {
-                        if Defaults[.activeModule] == .calendar {
-                            Defaults[.activeModule] = .none
-                        }
-                        if DinoCoordinator.shared.activeSlot == .calendar {
-                            DinoCoordinator.shared.activateSlotDirectly(DinoCoordinator.shared.backgroundSlot)
-                        }
-                    }
-                }
-        }
-        Defaults.Toggle(key: .hideCompletedReminders) {
-            Text("Hide completed reminders")
-        }
-        Defaults.Toggle(key: .hideAllDayEvents) {
-            Text("Hide all-day events")
-        }
-        Defaults.Toggle(key: .autoScrollToNextEvent) {
-            Text("Auto-scroll to next event")
         }
     }
 
-    @ViewBuilder
-    private var calendarsSection: some View {
-        Section(header: Text("Calendars")) {
-            if calendarManager.calendarAuthorizationStatus != .fullAccess {
-                Text("Calendar access is denied. Please enable it in System Settings.")
-                    .foregroundColor(.red)
-                    .multilineTextAlignment(.center)
-                    .padding()
-                Button("Open Calendar Settings") {
-                    if let settingsURL = URL(
-                        string:
-                            "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
-                    ) {
-                        NSWorkspace.shared.open(settingsURL)
+    private func calendarSelectionRow(_ calendar: CalendarModel, isReminderList: Bool) -> some View {
+        MediaSettingsRow(
+            icon: isReminderList ? "checklist" : "calendar",
+            iconColor: lighterColor(from: calendar.color),
+            title: calendar.title,
+            subtitle: isReminderList ? "Show reminders from this list" : "Show events from this calendar"
+        ) {
+            Toggle(calendar.title, isOn: Binding(
+                get: { calendarManager.getCalendarSelected(calendar) },
+                set: { isSelected in
+                    Task {
+                        await calendarManager.setCalendarSelected(calendar, isSelected: isSelected)
                     }
                 }
-            } else {
-                List {
-                    ForEach(calendarManager.eventCalendars, id: \.id) { calendar in
-                        Toggle(
-                            isOn: Binding(
-                                get: { calendarManager.getCalendarSelected(calendar) },
-                                set: { isSelected in
-                                    Task {
-                                        await calendarManager.setCalendarSelected(
-                                            calendar, isSelected: isSelected)
-                                    }
-                                }
-                            )
-                        ) {
-                            Text(calendar.title)
-                        }
-                        .accentColor(lighterColor(from: calendar.color))
-                        .disabled(!showCalendar)
-                    }
-                }
-            }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .tint(lighterColor(from: calendar.color))
+            .disabled(!showCalendar)
         }
     }
 
-    @ViewBuilder
-    private var remindersSection: some View {
-        Section(header: Text("Reminders")) {
-            if calendarManager.reminderAuthorizationStatus != .fullAccess {
-                Text("Reminder access is denied. Please enable it in System Settings.")
-                    .foregroundColor(.red)
-                    .multilineTextAlignment(.center)
-                    .padding()
-                Button("Open Reminder Settings") {
-                    if let settingsURL = URL(
-                        string:
-                            "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders"
-                    ) {
-                        NSWorkspace.shared.open(settingsURL)
-                    }
-                }
-            } else {
-                List {
-                    ForEach(calendarManager.reminderLists, id: \.id) { calendar in
-                        Toggle(
-                            isOn: Binding(
-                                get: { calendarManager.getCalendarSelected(calendar) },
-                                set: { isSelected in
-                                    Task {
-                                        await calendarManager.setCalendarSelected(
-                                            calendar, isSelected: isSelected)
-                                    }
-                                }
-                            )
-                        ) {
-                            Text(calendar.title)
-                        }
-                        .accentColor(lighterColor(from: calendar.color))
-                        .disabled(!showCalendar)
-                    }
+    private func permissionRow(
+        title: String,
+        subtitle: String,
+        buttonTitle: String,
+        privacyPath: String
+    ) -> some View {
+        MediaSettingsRow(icon: "lock.shield.fill", iconColor: .orange, title: title, subtitle: subtitle) {
+            Button(buttonTitle) {
+                if let settingsURL = URL(
+                    string: "x-apple.systempreferences:com.apple.preference.security?\(privacyPath)"
+                ) {
+                    NSWorkspace.shared.open(settingsURL)
                 }
             }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+    }
+
+    private func emptyRow(title: String, subtitle: String) -> some View {
+        MediaSettingsRow(icon: "calendar.badge.exclamationmark", iconColor: .secondary, title: title, subtitle: subtitle) {
+            EmptyView()
         }
     }
 }
