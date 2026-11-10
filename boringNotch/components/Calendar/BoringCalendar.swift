@@ -189,6 +189,7 @@ struct CalendarView: View {
     @State private var hiddenReminderIDs: Set<String> = []
     @State private var undoInProgress = false
     @State private var showUndoError = false
+    @State private var isCalendarHovered = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -196,12 +197,23 @@ struct CalendarView: View {
                 daySummary
                     .frame(width: geometry.size.width * 0.38, alignment: .leading)
 
-                MonthGrid(selectedDate: $selectedDate, markedDays: markedDays)
+                MonthGrid(
+                    selectedDate: $selectedDate,
+                    markedDays: markedDays,
+                    isControlsHighlighted: isCalendarHovered
+                )
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
         .listRowBackground(Color.clear)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.16)) {
+                isCalendarHovered = hovering
+                vm.isHoveringCalendar = hovering
+            }
+        }
         .onChange(of: selectedDate) {
             Task {
                 await calendarManager.updateCurrentDate(selectedDate)
@@ -330,11 +342,11 @@ struct CalendarView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: calendarManager.events)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: calendarManager.reminderUndo?.id)
     }
+
 }
 
 private struct CompactCalendarEventsView: View {
     @Environment(\.openURL) private var openURL
-    @EnvironmentObject private var vm: BoringViewModel
     @ObservedObject private var calendarManager = CalendarManager.shared
     @Default(.autoScrollToNextEvent) private var autoScrollToNextEvent
     @Binding var hiddenReminderIDs: Set<String>
@@ -357,8 +369,6 @@ private struct CompactCalendarEventsView: View {
             }
             .scrollIndicators(.hidden)
             .contentShape(Rectangle())
-            .onHover { vm.isHoveringCalendar = $0 }
-            .onDisappear { vm.isHoveringCalendar = false }
             .onAppear { scrollToNextEvent(proxy) }
             .onChange(of: events) { _, _ in scrollToNextEvent(proxy) }
         }
@@ -501,23 +511,31 @@ private struct CompactCalendarEventsView: View {
 private struct MonthGrid: View {
     @Binding var selectedDate: Date
     let markedDays: Set<Date>
+    let isControlsHighlighted: Bool
 
-    private let weekdaySymbols = ["M", "T", "W", "T", "F", "S", "S"]
+    private enum MonthNavigationDirection {
+        case forward
+        case backward
+    }
 
-    private var mondayFirstCalendar: Calendar {
+    @State private var navigationDirection: MonthNavigationDirection = .forward
+
+    private let weekdaySymbols = ["S", "M", "T", "W", "T", "F", "S"]
+
+    private var monthCalendar: Calendar {
         var calendar = Calendar.current
-        calendar.firstWeekday = 2
+        calendar.firstWeekday = 1
         return calendar
     }
 
     private var monthDays: [Date?] {
-        let calendar = mondayFirstCalendar
+        let calendar = monthCalendar
         guard let interval = calendar.dateInterval(of: .month, for: selectedDate),
               let dayRange = calendar.range(of: .day, in: .month, for: selectedDate) else {
             return []
         }
 
-        let weekdayOffset = (calendar.component(.weekday, from: interval.start) + 5) % 7
+        let weekdayOffset = calendar.component(.weekday, from: interval.start) - 1
         var days = Array(repeating: Optional<Date>.none, count: weekdayOffset)
         days += dayRange.compactMap { calendar.date(byAdding: .day, value: $0 - 1, to: interval.start) }
         while days.count % 7 != 0 { days.append(nil) }
@@ -528,40 +546,72 @@ private struct MonthGrid: View {
         Array(repeating: GridItem(.flexible(minimum: 0), spacing: 0), count: 7)
     }
 
+    private var monthKey: Date {
+        monthCalendar.dateInterval(of: .month, for: selectedDate)?.start ?? selectedDate
+    }
+
+    private var gridTransition: AnyTransition {
+        switch navigationDirection {
+        case .forward:
+            return .asymmetric(
+                insertion: .move(edge: .bottom).combined(with: .opacity),
+                removal: .move(edge: .top).combined(with: .opacity)
+            )
+        case .backward:
+            return .asymmetric(
+                insertion: .move(edge: .top).combined(with: .opacity),
+                removal: .move(edge: .bottom).combined(with: .opacity)
+            )
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(selectedDate.formatted(.dateTime.month(.wide)).uppercased())
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(calendarAccent)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .offset(y: -3)
-
-            LazyVGrid(columns: columns, spacing: 2) {
-                ForEach(weekdaySymbols.indices, id: \.self) { index in
-                    Text(weekdaySymbols[index])
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundStyle(index >= 5 ? .white.opacity(0.4) : .white)
-                        .frame(height: 14)
-                        .frame(maxWidth: .infinity)
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                monthNavigationButton(icon: "chevron.left", label: "Previous month") {
+                    changeMonth(by: -1)
                 }
+                monthNavigationButton(icon: "chevron.right", label: "Next month") {
+                    changeMonth(by: 1)
+                }
+                Text(selectedDate.formatted(.dateTime.month(.abbreviated)).uppercased())
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(calendarAccent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .offset(y: -3)
 
-                ForEach(monthDays.indices, id: \.self) { index in
-                    if let date = monthDays[index] {
-                        dayButton(for: date)
-                    } else {
-                        Color.clear.frame(height: 17)
+            ZStack {
+                LazyVGrid(columns: columns, spacing: 2) {
+                    ForEach(weekdaySymbols.indices, id: \.self) { index in
+                        Text(weekdaySymbols[index])
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(index == 0 || index == 6 ? .white.opacity(0.4) : .white)
+                            .frame(height: 14)
+                            .frame(maxWidth: .infinity)
+                    }
+
+                    ForEach(monthDays.indices, id: \.self) { index in
+                        if let date = monthDays[index] {
+                            dayButton(for: date)
+                        } else {
+                            Color.clear.frame(height: 17)
+                        }
                     }
                 }
+                .id(monthKey)
+                .transition(gridTransition)
             }
+            .animation(.spring(response: 0.42, dampingFraction: 0.82), value: monthKey)
         }
     }
 
     private func dayButton(for date: Date) -> some View {
-        let isSelected = mondayFirstCalendar.isDate(date, inSameDayAs: selectedDate)
-        let isToday = mondayFirstCalendar.isDateInToday(date)
-        let weekday = mondayFirstCalendar.component(.weekday, from: date)
+        let isSelected = monthCalendar.isDate(date, inSameDayAs: selectedDate)
+        let isToday = monthCalendar.isDateInToday(date)
+        let weekday = monthCalendar.component(.weekday, from: date)
         let isWeekend = weekday == 1 || weekday == 7
 
         return Button {
@@ -570,7 +620,7 @@ private struct MonthGrid: View {
             }
         } label: {
             Text(date.formatted(.dateTime.day()))
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .font(.system(size: 10.5, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(isSelected ? .white : (isToday ? calendarAccent : (isWeekend ? .white.opacity(0.38) : .white)))
                 .frame(width: 17, height: 17)
@@ -578,7 +628,7 @@ private struct MonthGrid: View {
                     Circle().fill(isSelected ? calendarAccent : .clear)
                 }
                 .overlay(alignment: .bottom) {
-                    if !isSelected && markedDays.contains(mondayFirstCalendar.startOfDay(for: date)) {
+                    if !isSelected && markedDays.contains(monthCalendar.startOfDay(for: date)) {
                         Circle()
                             .fill(calendarAccent)
                             .frame(width: 3, height: 3)
@@ -589,6 +639,28 @@ private struct MonthGrid: View {
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
         .accessibilityLabel(date.formatted(date: .complete, time: .omitted))
+    }
+
+    private func monthNavigationButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.white.opacity(0.72))
+                .frame(width: 20, height: 20)
+                .background(.white.opacity(0.14), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .opacity(isControlsHighlighted ? 1 : 0)
+        .allowsHitTesting(isControlsHighlighted)
+        .accessibilityLabel(label)
+    }
+
+    private func changeMonth(by value: Int) {
+        guard let targetMonth = monthCalendar.date(byAdding: .month, value: value, to: selectedDate) else { return }
+        navigationDirection = value >= 0 ? .forward : .backward
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+            selectedDate = targetMonth
+        }
     }
 }
 

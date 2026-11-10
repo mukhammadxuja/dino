@@ -119,6 +119,7 @@ class CalendarService: CalendarServiceProviding {
             return false
         }
     }
+
 }
 
 // MARK: - Model Extensions
