@@ -438,6 +438,12 @@ struct ContentView: View {
         if coordinator.expandingView.type == .charging || coordinator.expandingView.type == .unplugged {
             return true
         }
+        // Low Power Mode is a transient HUD regardless of the user's regular
+        // battery toast style, so it must participate in Island reveal/drop-down.
+        if coordinator.expandingView.type == .battery,
+           BatteryStatusViewModel.shared.lowPowerModeHUDState != nil {
+            return true
+        }
         return coordinator.expandingView.type == .battery
             && Defaults[.batteryToastType] == .dynamicNotch
     }
@@ -460,6 +466,13 @@ struct ContentView: View {
 
         if vm.notchState == .open {
             return isCurrentScreenBuiltin ? dropDownOffset : 8
+        }
+
+        // Power and system HUDs must always descend below a closed Island. This
+        // keeps transient alerts visible even when the Island is configured to
+        // stay at the menu bar while idle.
+        if isCurrentScreenBuiltin && (isShowingSystemToastHUD || isBatteryInlineAlertVisible) {
+            return dropDownOffset
         }
 
         if effectiveIslandVisibility == .alwaysVisible {
@@ -648,16 +661,10 @@ struct ContentView: View {
                     type: type
                 )
             } else {
-                switch type {
-                case .airPods:
-                    chinWidth = 106
-                case .volume, .brightness, .backlight:
-                    chinWidth = 228
-                case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .charging, .unplugged:
-                    chinWidth = 175
-                default:
-                    chinWidth = 175
-                }
+                chinWidth = InlineHUD.requiredExternalNotchWidth(
+                    cameraWidth: vm.closedNotchSize.width,
+                    type: type
+                )
             }
         } else if isDualActivityActive || DinoCoordinator.shared.isDualActivityActive {
             if isCurrentDisplayIsland {

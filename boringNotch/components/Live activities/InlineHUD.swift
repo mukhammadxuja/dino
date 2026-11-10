@@ -303,6 +303,15 @@ struct InlineHUD: View {
             + (builtInNotchSidePadding * 2)
     }
 
+    /// External notch styling has no physical camera, but it retains the center
+    /// capsule. Its wings still grow to the actual content width so labels never
+    /// need to be truncated just to fit a legacy fixed wing.
+    static func requiredExternalNotchWidth(cameraWidth: CGFloat, type: SneakContentType) -> CGFloat {
+        let wingWidth = builtInWingWidth(for: type)
+        let centerWidth = max(0, cameraWidth - 20)
+        return (wingWidth * 2) + centerWidth + (builtInNotchSidePadding * 2)
+    }
+
     private static func builtInWingWidth(for type: SneakContentType) -> CGFloat {
         max(builtInLeftContentWidth(for: type), builtInRightContentWidth(for: type))
     }
@@ -434,19 +443,26 @@ struct InlineHUD: View {
     }
 
     private var externalNotchLayout: some View {
-        HStack {
+        let wingWidth = Self.builtInWingWidth(for: type)
+        let centerWidth = max(0, vm.closedNotchSize.width - 20)
+
+        return HStack(spacing: 0) {
             leftIconView
-                .frame(width: leftWingWidth - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.notchSize.height - (hoverAnimation ? 0 : 12), alignment: .leading)
-            
+                .frame(width: wingWidth, alignment: .leading)
+
             Rectangle()
                 .fill(.black)
-                .frame(width: vm.closedNotchSize.width - 20)
-            
+                .frame(width: centerWidth)
+
             rightStatusView
-                .padding(.trailing, 4)
-                .frame(width: rightWingWidth - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.closedNotchSize.height - (hoverAnimation ? 0 : 12), alignment: .trailing)
+                .frame(width: wingWidth, alignment: .trailing)
         }
-        .frame(height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
+        .padding(.horizontal, Self.builtInNotchSidePadding)
+        .frame(
+            width: Self.requiredExternalNotchWidth(cameraWidth: vm.closedNotchSize.width, type: type),
+            height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0),
+            alignment: .center
+        )
     }
 
     private var notchLayout: some View {
