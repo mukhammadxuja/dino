@@ -19,7 +19,7 @@ struct BatterySettingsView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 20)
         }
-        .background(Color.white)
+        .background(Color.settingsWindowBackground)
         .accentColor(.effectiveAccent)
         .navigationTitle("Battery")
         .task(id: controlActiveState) {
@@ -104,10 +104,10 @@ private struct BatteryMetricCard: View {
         }
         .frame(maxWidth: .infinity, minHeight: 66, alignment: .topLeading)
         .padding(14)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 12))
+        .background(Color.settingsCardBackground, in: RoundedRectangle(cornerRadius: 12))
         .overlay {
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                .stroke(Color.settingsCardBorder, lineWidth: 1)
         }
     }
 }

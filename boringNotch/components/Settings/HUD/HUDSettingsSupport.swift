@@ -4,12 +4,34 @@ import SwiftUI
 
 extension View {
     func hudSettingsCard() -> some View {
-        background(Color.white)
+        background(Color.settingsCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                    .stroke(Color.settingsCardBorder, lineWidth: 1)
             }
+    }
+}
+
+extension Color {
+    static var settingsCardBackground: Color {
+        Color(nsColor: .controlBackgroundColor)
+    }
+
+    static var settingsWindowBackground: Color {
+        Color(nsColor: .windowBackgroundColor)
+    }
+
+    static var settingsCardBorder: Color {
+        Color(nsColor: .separatorColor).opacity(0.72)
+    }
+
+    static var settingsSidebarBackground: Color {
+        Color(nsColor: .underPageBackgroundColor)
+    }
+
+    static var settingsDivider: Color {
+        Color(nsColor: .separatorColor).opacity(0.56)
     }
 }
 

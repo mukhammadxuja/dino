@@ -80,11 +80,11 @@ struct BatteryNotificationSettingsView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
+        .background(Color.settingsCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                .stroke(Color.settingsCardBorder, lineWidth: 1)
         )
     }
 
@@ -110,7 +110,7 @@ struct BatteryNotificationSettingsView: View {
             }
 
             Rectangle()
-                .fill(Color(red: 0.93, green: 0.93, blue: 0.95))
+                .fill(Color.settingsDivider)
                 .frame(height: 1)
 
             HStack {
@@ -128,7 +128,7 @@ struct BatteryNotificationSettingsView: View {
 
             if batteryToastType == .customToast {
                 Rectangle()
-                    .fill(Color(red: 0.93, green: 0.93, blue: 0.95))
+                    .fill(Color.settingsDivider)
                     .frame(height: 1)
 
                 HStack {
@@ -146,7 +146,7 @@ struct BatteryNotificationSettingsView: View {
             }
 
             Rectangle()
-                .fill(Color(red: 0.93, green: 0.93, blue: 0.95))
+                .fill(Color.settingsDivider)
                 .frame(height: 1)
 
             HStack {
@@ -165,11 +165,11 @@ struct BatteryNotificationSettingsView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
+        .background(Color.settingsCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                .stroke(Color.settingsCardBorder, lineWidth: 1)
         )
     }
 
@@ -332,11 +332,11 @@ struct BatteryNotificationSettingsView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
+        .background(Color.settingsCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                .stroke(Color.settingsCardBorder, lineWidth: 1)
         )
     }
 
@@ -358,11 +358,11 @@ struct BatteryNotificationSettingsView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
+        .background(Color.settingsCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                .stroke(Color.settingsCardBorder, lineWidth: 1)
         )
     }
 

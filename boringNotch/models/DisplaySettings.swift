@@ -3,6 +3,7 @@
 //  boringNotch
 //
 
+import AppKit
 import SwiftUI
 import Defaults
 
@@ -94,6 +95,34 @@ public enum IslandStyle: String, CaseIterable, Identifiable, Defaults.Serializab
     public var id: String { rawValue }
 }
 
+// MARK: - Application Settings Theme
+public enum AppTheme: String, CaseIterable, Identifiable, Defaults.Serializable {
+    case system = "System"
+    case light = "Light"
+    case dark = "Dark"
+
+    public var id: String { rawValue }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+
+    func applyToApplication() {
+        switch self {
+        case .system:
+            NSApp.appearance = nil
+        case .light:
+            NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark:
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+}
+
 // MARK: - 4. Island Visibility (On Hover vs Always Visible vs On Click)
 public enum IslandVisibility: String, CaseIterable, Identifiable, Defaults.Serializable {
     case onHover = "On Hover"
@@ -147,6 +176,7 @@ extension Defaults.Keys {
     static let islandStyle = Key<IslandStyle>("islandStyle", default: .dark)
     static let islandVisibility = Key<IslandVisibility>("islandVisibility", default: .onHover)
     static let displayShowOn = Key<DisplayShowOn>("displayShowOn", default: .automatic)
+    static let appTheme = Key<AppTheme>("appTheme", default: .system)
 }
 
 // MARK: - 7. Notification Names

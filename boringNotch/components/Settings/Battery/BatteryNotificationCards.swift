@@ -264,11 +264,11 @@ struct LowBatteryAlertCardView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
+        .background(Color.settingsCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                .stroke(Color.settingsCardBorder, lineWidth: 1)
         )
     }
 }
@@ -493,11 +493,11 @@ struct ChargedAlertCardView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
+        .background(Color.settingsCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                .stroke(Color.settingsCardBorder, lineWidth: 1)
         )
     }
 }

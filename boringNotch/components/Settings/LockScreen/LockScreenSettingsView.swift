@@ -48,11 +48,11 @@ struct LockScreenSettingsView: View {
                             isOn: $showOnLockScreen
                         )
                     }
-                    .background(Color.white)
+                    .background(Color.settingsCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                            .stroke(Color.settingsCardBorder, lineWidth: 1)
                     )
                 }
 
@@ -89,11 +89,11 @@ struct LockScreenSettingsView: View {
                             .padding(.vertical, 12)
                         }
                     }
-                    .background(Color.white)
+                    .background(Color.settingsCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                            .stroke(Color.settingsCardBorder, lineWidth: 1)
                     )
 
                     Text("The player appears above the passcode field while media is playing. Click its album artwork for a larger cover and a matching backdrop.")
@@ -172,11 +172,11 @@ struct LockScreenSettingsView: View {
                             .padding(.vertical, 12)
                         }
                     }
-                    .background(Color.white)
+                    .background(Color.settingsCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                            .stroke(Color.settingsCardBorder, lineWidth: 1)
                     )
                 }
             }

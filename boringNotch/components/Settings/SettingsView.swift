@@ -70,6 +70,7 @@ struct SettingsView: View {
     @State private var accentColorUpdateTrigger = UUID()
     @Default(.useCustomAccentColor) private var useCustomAccentColor
     @Default(.customAccentColorData) private var customAccentColorData
+    @Default(.appTheme) private var appTheme
 
     let updaterController: SPUStandardUpdaterController?
 
@@ -125,7 +126,7 @@ struct SettingsView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 12)
             }
-            .background(Color(red: 245/255, green: 245/255, blue: 247/255))
+            .background(Color.settingsSidebarBackground)
             .toolbar(removing: .sidebarToggle)
             .navigationSplitViewColumnWidth(min: 200, ideal: 215, max: 235)
         } detail: {
@@ -170,7 +171,7 @@ struct SettingsView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.white)
+            .background(Color.settingsWindowBackground)
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar(removing: .sidebarToggle)
@@ -183,12 +184,18 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(minWidth: 840, idealWidth: 860, minHeight: 620, idealHeight: 640)
-        .background(Color.white)
-        .preferredColorScheme(.light)
+        .background(Color.settingsWindowBackground)
+        .preferredColorScheme(appTheme.colorScheme)
         .tint(.effectiveAccent)
         .id(accentColorUpdateTrigger)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("AccentColorChanged"))) { _ in
             accentColorUpdateTrigger = UUID()
+        }
+        .onAppear {
+            appTheme.applyToApplication()
+        }
+        .onChange(of: appTheme) { _, theme in
+            theme.applyToApplication()
         }
     }
 }

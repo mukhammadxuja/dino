@@ -13,6 +13,7 @@ struct GeneralSettings: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 GeneralSystemSettingsCard()
+                GeneralThemeSettingsCard()
                 GeneralIdleActivitySection(idleClickAction: $idleClickAction)
                 GeneralClipboardSettingsCard()
                 GeneralMirrorSection()
@@ -29,6 +30,33 @@ struct GeneralSettings: View {
             }
             notchWidthAdjustment = min(5, max(-3, notchWidthAdjustment))
             notchHeightAdjustment = min(3, max(-3, notchHeightAdjustment))
+        }
+    }
+}
+
+private struct GeneralThemeSettingsCard: View {
+    @Default(.appTheme) private var appTheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Theme")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(.secondary)
+
+            MediaSettingsRow(
+                icon: "circle.lefthalf.filled", iconColor: .indigo,
+                title: "App appearance", subtitle: "Choose how Dino Settings follows Light or Dark mode"
+            ) {
+                Picker("App appearance", selection: $appTheme) {
+                    ForEach(AppTheme.allCases) { theme in
+                        Text(theme.rawValue).tag(theme)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 110)
+            }
+            .hudSettingsCard()
         }
     }
 }
@@ -110,11 +138,11 @@ private struct GeneralSystemSettingsCard: View {
                         )
 
                     }
-                    .background(Color.white)
+                    .background(Color.settingsCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                            .stroke(Color.settingsCardBorder, lineWidth: 1)
                     )
                 }
     }
@@ -267,11 +295,11 @@ private struct GeneralClipboardSettingsCard: View {
                             .padding(.vertical, 10)
                         }
                     }
-                    .background(Color.white)
+                    .background(Color.settingsCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                            .stroke(Color.settingsCardBorder, lineWidth: 1)
                     )
                 }
     }
@@ -341,11 +369,11 @@ private struct GeneralGesturesSettingsCard: View {
                             GestureFeatureOrderSettings()
                         }
                     }
-                    .background(Color.white)
+                    .background(Color.settingsCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                            .stroke(Color.settingsCardBorder, lineWidth: 1)
                     )
                 }
     }
@@ -530,10 +558,10 @@ private struct GeneralTuningSettingsCard: View {
                             value: $notchHeightAdjustment
                         )
                     }
-                    .background(Color.white)
+                    .background(Color.settingsCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1))
+                        .stroke(Color.settingsCardBorder, lineWidth: 1))
                 }
     }
 }

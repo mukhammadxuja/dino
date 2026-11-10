@@ -230,11 +230,11 @@ struct PomodoroSettings: View {
                 .foregroundStyle(.secondary)
 
             VStack(spacing: 0, content: content)
-                .background(Color.white)
+                .background(Color.settingsCardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                        .stroke(Color.settingsCardBorder, lineWidth: 1)
                 }
         }
     }
