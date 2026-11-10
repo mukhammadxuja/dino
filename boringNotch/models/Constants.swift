@@ -580,6 +580,7 @@ extension Defaults.Keys {
     static let hudScreenRecordEnabled = Key<Bool>("hudScreenRecordEnabled", default: true)
     static let hudChargingEnabled = Key<Bool>("hudChargingEnabled", default: true)
     static let hudUnpluggedEnabled = Key<Bool>("hudUnpluggedEnabled", default: true)
+    static let hudLowPowerModeEnabled = Key<Bool>("hudLowPowerModeEnabled", default: true)
     
     // MARK: Shelf
     static let boringShelf = Key<Bool>("boringShelf", default: true)

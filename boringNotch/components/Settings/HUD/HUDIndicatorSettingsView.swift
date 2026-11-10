@@ -3,7 +3,7 @@ import Defaults
 import SwiftUI
 
 enum HUDIndicator: String, CaseIterable, Identifiable {
-    case volume, brightness, backlight, airpods, capslock, location, camera, mic, screenrecord, charging, unplugged
+    case volume, brightness, backlight, airpods, capslock, location, camera, mic, screenrecord, charging, unplugged, lowPowerMode
 
     var id: String { rawValue }
 
@@ -20,6 +20,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .screenrecord: return "Screen Recording"
         case .charging: return "Charging"
         case .unplugged: return "Unplugged"
+        case .lowPowerMode: return "Low Power Mode"
         }
     }
 
@@ -36,6 +37,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .screenrecord: return "Privacy alert when screen capture or screen recording is active"
         case .charging: return "Inline HUD when the power adapter is connected"
         case .unplugged: return "Inline HUD when the power adapter is disconnected"
+        case .lowPowerMode: return "Inline HUD when Low Power Mode is turned on or off"
         }
     }
 
@@ -52,6 +54,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .screenrecord: return "record.circle.fill"
         case .charging: return "battery.100percent"
         case .unplugged: return "battery.0percent"
+        case .lowPowerMode: return "bolt.batteryblock.fill"
         }
     }
 
@@ -68,6 +71,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .screenrecord: return .red
         case .charging: return .green
         case .unplugged: return .orange
+        case .lowPowerMode: return .yellow
         }
     }
 
@@ -84,6 +88,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .screenrecord: return .hudScreenRecordEnabled
         case .charging: return .hudChargingEnabled
         case .unplugged: return .hudUnpluggedEnabled
+        case .lowPowerMode: return .hudLowPowerModeEnabled
         }
     }
 
@@ -100,6 +105,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .screenrecord: return "Fires when macOS screencapture, QuickTime, or meeting software records the screen. Displays a red recording capsule."
         case .charging: return "Shows a separate inline charging HUD when the power adapter connects."
         case .unplugged: return "Shows a separate inline unplugged HUD when the power adapter disconnects."
+        case .lowPowerMode: return "Shows a yellow battery HUD when macOS Low Power Mode is turned on or off."
         }
     }
 }
@@ -132,6 +138,7 @@ private struct HUDIndicatorSettingsRow: View {
     let indicator: HUDIndicator
     @Binding var expandedIndicator: HUDIndicator?
     @Default private var isEnabled: Bool
+    @State private var lowPowerModePreviewIsOn = true
 
     init(indicator: HUDIndicator, expandedIndicator: Binding<HUDIndicator?>) {
         self.indicator = indicator
@@ -194,13 +201,26 @@ private struct HUDIndicatorSettingsRow: View {
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.secondary.opacity(0.8))
                         Spacer()
-                        Button("Test") { testHUD(indicator) }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
+                        if indicator == .lowPowerMode {
+                            Button("Test On") { testLowPowerModeHUD(isOn: true) }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            Button("Test Off") { testLowPowerModeHUD(isOn: false) }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                        } else {
+                            Button("Test") { testHUD(indicator) }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                        }
                     }
                     HStack {
                         Spacer()
-                        HUDSettingsPreview(indicator: indicator, isActive: isExpanded)
+                        HUDSettingsPreview(
+                            indicator: indicator,
+                            isActive: isExpanded,
+                            lowPowerModeIsOn: lowPowerModePreviewIsOn
+                        )
                         Spacer()
                     }
                     .padding(.vertical, 10)
@@ -253,7 +273,14 @@ private struct HUDIndicatorSettingsRow: View {
             coordinator.toggleExpandingView(status: true, type: .charging)
         case .unplugged:
             coordinator.toggleExpandingView(status: true, type: .unplugged)
+        case .lowPowerMode:
+            testLowPowerModeHUD(isOn: true)
         }
+    }
+
+    private func testLowPowerModeHUD(isOn: Bool) {
+        lowPowerModePreviewIsOn = isOn
+        BatteryStatusViewModel.shared.testLowPowerModeHUD(isEnabled: isOn)
     }
 }
 

@@ -28,6 +28,7 @@ class BatteryStatusViewModel: ObservableObject {
     @Published private(set) var timeToFullCharge: Int = 0
     @Published private(set) var timeToEmpty: Int = 0
     @Published private(set) var statusText: String = ""
+    @Published private(set) var lowPowerModeHUDState: Bool? = nil
 
     var formattedRemainingTime: String {
         let level = alertPercentage > 0 ? alertPercentage : Int(levelBattery)
@@ -91,6 +92,7 @@ class BatteryStatusViewModel: ObservableObject {
 
     private var glowDismissTask: Task<Void, Never>?
     private var customToastDismissTask: Task<Void, Never>?
+    private var lowPowerModeHUDDismissTask: Task<Void, Never>?
     @Published private(set) var lastAlertTriggered: BatteryAlertType? = nil
 
     private let managerBattery = BatteryActivityManager.shared
@@ -145,11 +147,11 @@ class BatteryStatusViewModel: ObservableObject {
 
         case .lowPowerModeChanged(let isEnabled):
             print("⚡ Low power mode: \(isEnabled ? "Enabled" : "Disabled")")
-            self.notifyImportanChangeStatus()
             withAnimation {
                 self.isInLowPowerMode = isEnabled
                 self.statusText = "Low Power: \(self.isInLowPowerMode ? "On" : "Off")"
             }
+            presentLowPowerModeHUD(isEnabled: isEnabled)
 
         case .isChargingChanged(let isCharging):
             print("🔌 Charging: \(isCharging ? "Yes" : "No")")
@@ -201,6 +203,29 @@ class BatteryStatusViewModel: ObservableObject {
         Task {
             try? await Task.sleep(for: .seconds(delay))
             self.coordinator.toggleExpandingView(status: true, type: .battery)
+        }
+    }
+
+    /// Presents the Low Power Mode HUD without changing the actual macOS power setting.
+    func testLowPowerModeHUD(isEnabled: Bool) {
+        presentLowPowerModeHUD(isEnabled: isEnabled, ignoresPreference: true)
+    }
+
+    private func presentLowPowerModeHUD(isEnabled: Bool, ignoresPreference: Bool = false) {
+        guard ignoresPreference || Defaults[.hudLowPowerModeEnabled] else { return }
+
+        lowPowerModeHUDDismissTask?.cancel()
+        withAnimation {
+            lowPowerModeHUDState = isEnabled
+        }
+        coordinator.toggleExpandingView(status: true, type: .battery)
+
+        lowPowerModeHUDDismissTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            withAnimation {
+                self?.lowPowerModeHUDState = nil
+            }
         }
     }
 

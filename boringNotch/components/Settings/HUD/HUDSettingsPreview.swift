@@ -4,6 +4,7 @@ import SwiftUI
 struct HUDSettingsPreview: View {
     let indicator: HUDIndicator
     var isActive = true
+    var lowPowerModeIsOn = true
 
     @ViewBuilder var body: some View {
         Group {
@@ -19,6 +20,7 @@ struct HUDSettingsPreview: View {
             case .screenrecord: previewScreenRecordHUD
             case .charging: previewChargingHUD
             case .unplugged: previewUnpluggedHUD
+            case .lowPowerMode: previewLowPowerModeHUD
             }
         }
         .padding(.horizontal, 10)
@@ -185,6 +187,16 @@ struct HUDSettingsPreview: View {
             percentage: 99,
             color: .white,
             title: "Unplugged"
+        )
+        .frame(width: 220, height: 27)
+    }
+
+    private var previewLowPowerModeHUD: some View {
+        BatteryInlineAlertContent(
+            isLow: false,
+            percentage: 42,
+            color: .yellow,
+            title: lowPowerModeIsOn ? "Low Power On" : "Low Power Off"
         )
         .frame(width: 220, height: 27)
     }

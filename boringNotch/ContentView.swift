@@ -624,13 +624,14 @@ struct ContentView: View {
             let batteryModel = BatteryStatusViewModel.shared
             let isPowerStatus = coordinator.expandingView.type == .charging || coordinator.expandingView.type == .unplugged
             let isChargingStatus = coordinator.expandingView.type == .charging
+            let lowPowerModeState = batteryModel.lowPowerModeHUDState
             let percentage = isPowerStatus
                 ? Int(batteryModel.levelBattery)
                 : (batteryModel.lastAlertTriggered != nil ? batteryModel.alertPercentage : Int(batteryModel.levelBattery))
-            let title = isPowerStatus
+            let title = lowPowerModeState.map { "Low Power \($0 ? "On" : "Off")" } ?? (isPowerStatus
                 ? (isChargingStatus ? "Charging" : "Unplugged")
                 : (batteryModel.lastAlertTriggered.map { $0 == .lowBattery ? "Low Battery" : "Charged" }
-                    ?? (batteryModel.levelBattery <= 20 ? "Low Battery" : "Charged"))
+                    ?? (batteryModel.levelBattery <= 20 ? "Low Battery" : "Charged")))
             chinWidth = BatteryAlertNotchContent.requiredWidth(
                 cameraWidth: vm.closedNotchSize.width,
                 title: title,
@@ -1880,21 +1881,27 @@ struct BatteryClosedNotchLayoutView: View {
     let isCurrentDisplayIsland: Bool
 
     var body: some View {
+        let lowPowerModeState = batteryModel.lowPowerModeHUDState
+
         if batteryToastType == .dynamicNotch {
-            let tintColor: Color = batteryModel.activeGlowColor ?? (batteryModel.levelBattery <= 20 ? .red : .green)
+            let tintColor: Color = lowPowerModeState == nil
+                ? (batteryModel.activeGlowColor ?? (batteryModel.levelBattery <= 20 ? .red : .green))
+                : .yellow
             let displayPercentage = batteryModel.lastAlertTriggered != nil ? batteryModel.alertPercentage : Int(batteryModel.levelBattery)
+            let title = lowPowerModeState.map { "Low Power \($0 ? "On" : "Off")" }
 
             if isCurrentDisplayIsland {
                 BatteryInlineAlertContent(
                     isLow: batteryModel.lastAlertTriggered.map { $0 == .lowBattery } ?? (batteryModel.levelBattery <= 20),
                     percentage: displayPercentage,
-                    color: tintColor
+                    color: tintColor,
+                    title: title
                 )
                 .frame(width: 220, height: vm.effectiveClosedNotchHeight)
             } else {
                 BatteryAlertNotchContent(
-                    title: batteryModel.lastAlertTriggered.map { $0 == .lowBattery ? "Low Battery" : "Charged" }
-                        ?? (batteryModel.levelBattery <= 20 ? "Low Battery" : "Charged"),
+                    title: title ?? (batteryModel.lastAlertTriggered.map { $0 == .lowBattery ? "Low Battery" : "Charged" }
+                        ?? (batteryModel.levelBattery <= 20 ? "Low Battery" : "Charged")),
                     percentage: displayPercentage,
                     color: tintColor,
                     closedNotchWidth: vm.closedNotchSize.width,
@@ -1905,7 +1912,7 @@ struct BatteryClosedNotchLayoutView: View {
         } else {
             HStack(spacing: 0) {
                 HStack {
-                    Text(batteryModel.alertBannerText ?? batteryModel.statusText)
+                    Text(lowPowerModeState.map { "Low Power \($0 ? "On" : "Off")" } ?? batteryModel.alertBannerText ?? batteryModel.statusText)
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundStyle(.white)
@@ -1919,7 +1926,7 @@ struct BatteryClosedNotchLayoutView: View {
                     BoringBatteryView(
                         batteryWidth: 30,
                         isCharging: batteryModel.isCharging,
-                        isInLowPowerMode: batteryModel.isInLowPowerMode,
+                        isInLowPowerMode: lowPowerModeState ?? batteryModel.isInLowPowerMode,
                         isPluggedIn: batteryModel.isPluggedIn,
                         levelBattery: batteryModel.levelBattery,
                         isForNotification: true
