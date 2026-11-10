@@ -5,6 +5,7 @@
 //  Created by Richard Kunkli on 14/09/2024.
 //
 
+import AppKit
 import SwiftUI
 import Defaults
 import AVKit
@@ -189,7 +190,7 @@ struct InlineHUD: View {
                     .lineLimit(1)
                     .allowsTightening(true)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
+                    .frame(alignment: .trailing)
                     .contentTransition(.interpolate)
             } else if (type == .micActivity) {
                 Text(value > 0 ? "Mic On" : "Mic Off")
@@ -198,7 +199,7 @@ struct InlineHUD: View {
                     .lineLimit(1)
                     .allowsTightening(true)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
+                    .frame(alignment: .trailing)
                     .contentTransition(.interpolate)
             } else if (type == .camera) {
                 Text(value > 0 ? "Camera On" : "Camera Off")
@@ -207,7 +208,7 @@ struct InlineHUD: View {
                     .lineLimit(1)
                     .allowsTightening(true)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
+                    .frame(alignment: .trailing)
                     .contentTransition(.interpolate)
             } else if (type == .screenRecord) {
                 Text(value > 0 ? "Recording" : "Stopped")
@@ -216,7 +217,7 @@ struct InlineHUD: View {
                     .lineLimit(1)
                     .allowsTightening(true)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
+                    .frame(alignment: .trailing)
                     .contentTransition(.interpolate)
             } else if (type == .capsLock) {
                 Text(value > 0 ? "Caps On" : "Caps Off")
@@ -225,7 +226,7 @@ struct InlineHUD: View {
                     .lineLimit(1)
                     .allowsTightening(true)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
+                    .frame(alignment: .trailing)
                     .contentTransition(.interpolate)
             } else if (type == .location) {
                 Text(value > 0 ? "Location In Use" : "Location Off")
@@ -234,12 +235,12 @@ struct InlineHUD: View {
                     .lineLimit(1)
                     .allowsTightening(true)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
+                    .frame(alignment: .trailing)
                     .contentTransition(.interpolate)
             } else if (type == .airPods) {
                 let batteryVal = Int(value > 1 ? value : value * 100)
                 AirPodsBatteryRingView(battery: batteryVal)
-                    .frame(maxWidth: isIsland ? nil : .infinity, alignment: .trailing)
+                    .frame(alignment: .trailing)
             } else if type == .charging {
                 Text("Charging")
                     .foregroundStyle(.green)
@@ -287,6 +288,77 @@ struct InlineHUD: View {
 
     private var isSliderHUD: Bool {
         type == .volume || type == .brightness || type == .backlight
+    }
+
+    private static let builtInNotchCameraClearance: CGFloat = 12
+    private static let builtInNotchSidePadding: CGFloat = 4
+
+    /// The exact width required for a built-in notch HUD. Matching wing widths
+    /// keep the physical camera area centered even when one side has longer text.
+    static func requiredBuiltInNotchWidth(cameraWidth: CGFloat, type: SneakContentType) -> CGFloat {
+        let wingWidth = builtInWingWidth(for: type)
+        return (wingWidth * 2)
+            + cameraWidth
+            + builtInNotchCameraClearance
+            + (builtInNotchSidePadding * 2)
+    }
+
+    private static func builtInWingWidth(for type: SneakContentType) -> CGFloat {
+        max(builtInLeftContentWidth(for: type), builtInRightContentWidth(for: type))
+    }
+
+    private static func builtInLeftContentWidth(for type: SneakContentType) -> CGFloat {
+        switch type {
+        case .volume, .brightness, .backlight:
+            return 20 + 5 + textWidth(Type2Name(for: type), size: 12, weight: .medium)
+        case .airPods:
+            return 24
+        case .mic, .micActivity, .camera, .screenRecord, .capsLock, .location, .charging, .unplugged:
+            return 24
+        default:
+            return 24
+        }
+    }
+
+    private static func builtInRightContentWidth(for type: SneakContentType) -> CGFloat {
+        switch type {
+        case .volume, .brightness, .backlight:
+            return 58 + 6 + 32
+        case .mic:
+            return textWidth("unmuted", size: 11.5, weight: .medium)
+        case .micActivity:
+            return textWidth("Mic Off", size: 11.5, weight: .medium)
+        case .camera:
+            return textWidth("Camera Off", size: 11.5, weight: .medium)
+        case .screenRecord:
+            return textWidth("Recording", size: 11.5, weight: .medium)
+        case .capsLock:
+            return textWidth("Caps Off", size: 11.5, weight: .medium)
+        case .location:
+            return textWidth("Location In Use", size: 11.5, weight: .medium)
+        case .airPods:
+            return 15
+        case .charging:
+            return textWidth("Charging", size: 11.5, weight: .semibold)
+        case .unplugged:
+            return textWidth("Unplugged", size: 11.5, weight: .semibold)
+        default:
+            return 0
+        }
+    }
+
+    private static func textWidth(_ text: String, size: CGFloat, weight: NSFont.Weight) -> CGFloat {
+        ceil((text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: weight)]).width)
+    }
+
+    private static func Type2Name(for type: SneakContentType) -> String {
+        switch type {
+        case .volume: return "Volume"
+        case .brightness: return "Brightness"
+        case .backlight: return "Backlight"
+        case .mic: return "Mic"
+        default: return ""
+        }
     }
 
     private var islandHUDWidth: CGFloat {
@@ -339,7 +411,29 @@ struct InlineHUD: View {
         .frame(width: islandHUDWidth, height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
     }
 
-    private var notchLayout: some View {
+    private var builtInNotchLayout: some View {
+        let wingWidth = Self.builtInWingWidth(for: type)
+
+        return HStack(spacing: 0) {
+            leftIconView
+                .frame(width: wingWidth, alignment: .leading)
+
+            Rectangle()
+                .fill(Color.black)
+                .frame(width: vm.closedNotchSize.width + Self.builtInNotchCameraClearance)
+
+            rightStatusView
+                .frame(width: wingWidth, alignment: .trailing)
+        }
+        .padding(.horizontal, Self.builtInNotchSidePadding)
+        .frame(
+            width: Self.requiredBuiltInNotchWidth(cameraWidth: vm.closedNotchSize.width, type: type),
+            height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0),
+            alignment: .center
+        )
+    }
+
+    private var externalNotchLayout: some View {
         HStack {
             leftIconView
                 .frame(width: leftWingWidth - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.notchSize.height - (hoverAnimation ? 0 : 12), alignment: .leading)
@@ -353,6 +447,16 @@ struct InlineHUD: View {
                 .frame(width: rightWingWidth - (hoverAnimation ? 0 : 12) + gestureProgress / 2, height: vm.closedNotchSize.height - (hoverAnimation ? 0 : 12), alignment: .trailing)
         }
         .frame(height: vm.closedNotchSize.height + (hoverAnimation ? 8 : 0), alignment: .center)
+    }
+
+    private var notchLayout: some View {
+        Group {
+            if isScreenBuiltin {
+                builtInNotchLayout
+            } else {
+                externalNotchLayout
+            }
+        }
     }
 
     var body: some View {
@@ -390,18 +494,7 @@ struct InlineHUD: View {
     }
     
     func Type2Name(_ type: SneakContentType) -> String {
-        switch(type) {
-            case .volume:
-                return "Volume"
-            case .brightness:
-                return "Brightness"
-            case .backlight:
-                return "Backlight"
-            case .mic:
-                return "Mic"
-            default:
-                return ""
-        }
+        Self.Type2Name(for: type)
     }
 }
 

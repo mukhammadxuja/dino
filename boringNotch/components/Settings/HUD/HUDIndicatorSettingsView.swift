@@ -108,6 +108,37 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .lowPowerMode: return "Shows a yellow battery HUD when macOS Low Power Mode is turned on or off."
         }
     }
+
+    var testOptions: [HUDTestOption] {
+        switch self {
+        case .volume:
+            return [.init(title: "Test 75%", value: 0.75), .init(title: "Test Mute", value: 0)]
+        case .brightness:
+            return [.init(title: "Test Bright", value: 0.65), .init(title: "Test Dim", value: 0)]
+        case .backlight:
+            return [.init(title: "Test On", value: 0.5), .init(title: "Test Off", value: 0)]
+        case .airpods:
+            return [.init(title: "Test 94%", value: 94), .init(title: "Test 15%", value: 15)]
+        case .capslock:
+            return [.init(title: "Test On", value: 1), .init(title: "Test Off", value: 0)]
+        case .location:
+            return [.init(title: "Test On", value: 1), .init(title: "Test Off", value: 0)]
+        case .camera:
+            return [.init(title: "Test On", value: 1), .init(title: "Test Off", value: 0)]
+        case .mic:
+            return [.init(title: "Test On", value: 1), .init(title: "Test Off", value: 0)]
+        case .screenrecord:
+            return [.init(title: "Test Start", value: 1), .init(title: "Test Stop", value: 0)]
+        case .charging, .unplugged, .lowPowerMode:
+            return []
+        }
+    }
+}
+
+struct HUDTestOption: Identifiable {
+    let title: String
+    let value: CGFloat
+    var id: String { title }
 }
 
 struct HUDIndicatorSettingsSection: View {
@@ -208,6 +239,12 @@ private struct HUDIndicatorSettingsRow: View {
                             Button("Test Off") { testLowPowerModeHUD(isOn: false) }
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
+                        } else if !indicator.testOptions.isEmpty {
+                            ForEach(indicator.testOptions) { option in
+                                Button(option.title) { testHUD(indicator, value: option.value) }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                            }
                         } else {
                             Button("Test") { testHUD(indicator) }
                                 .buttonStyle(.bordered)
@@ -248,27 +285,27 @@ private struct HUDIndicatorSettingsRow: View {
         }
     }
 
-    private func testHUD(_ indicator: HUDIndicator) {
+    private func testHUD(_ indicator: HUDIndicator, value: CGFloat? = nil) {
         let coordinator = BoringViewCoordinator.shared
         switch indicator {
         case .volume:
-            coordinator.toggleSneakPeek(status: true, type: .volume, value: 0.75, force: true)
+            coordinator.toggleSneakPeek(status: true, type: .volume, value: value ?? 0.75, force: true)
         case .brightness:
-            coordinator.toggleSneakPeek(status: true, type: .brightness, value: 0.65, force: true)
+            coordinator.toggleSneakPeek(status: true, type: .brightness, value: value ?? 0.65, force: true)
         case .backlight:
-            coordinator.toggleSneakPeek(status: true, type: .backlight, value: 0.5, force: true)
+            coordinator.toggleSneakPeek(status: true, type: .backlight, value: value ?? 0.5, force: true)
         case .airpods:
-            coordinator.toggleSneakPeek(status: true, type: .airPods, duration: 5.2, value: 94, icon: "AirPods Pro", force: true)
+            coordinator.toggleSneakPeek(status: true, type: .airPods, duration: 5.2, value: value ?? 94, icon: "AirPods Pro", force: true)
         case .capslock:
-            coordinator.toggleSneakPeek(status: true, type: .capsLock, value: 1, force: true)
+            coordinator.toggleSneakPeek(status: true, type: .capsLock, value: value ?? 1, force: true)
         case .location:
-            coordinator.toggleSneakPeek(status: true, type: .location, value: 1, force: true)
+            coordinator.toggleSneakPeek(status: true, type: .location, value: value ?? 1, force: true)
         case .camera:
-            coordinator.toggleSneakPeek(status: true, type: .camera, value: 1, force: true)
+            coordinator.toggleSneakPeek(status: true, type: .camera, value: value ?? 1, force: true)
         case .mic:
-            coordinator.toggleSneakPeek(status: true, type: .micActivity, value: 1, force: true)
+            coordinator.toggleSneakPeek(status: true, type: .micActivity, value: value ?? 1, force: true)
         case .screenrecord:
-            coordinator.toggleSneakPeek(status: true, type: .screenRecord, value: 1, force: true)
+            coordinator.toggleSneakPeek(status: true, type: .screenRecord, value: value ?? 1, force: true)
         case .charging:
             coordinator.toggleExpandingView(status: true, type: .charging)
         case .unplugged:

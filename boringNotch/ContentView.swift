@@ -643,16 +643,10 @@ struct ContentView: View {
         } else if isShowingSystemToastHUD {
             let type = coordinator.sneakPeek.type
             if isCurrentScreenBuiltin {
-                switch type {
-                case .airPods:
-                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 50)
-                case .volume, .brightness, .backlight:
-                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 110)
-                case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .charging, .unplugged:
-                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 75)
-                default:
-                    chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 65)
-                }
+                chinWidth = InlineHUD.requiredBuiltInNotchWidth(
+                    cameraWidth: vm.closedNotchSize.width,
+                    type: type
+                )
             } else {
                 switch type {
                 case .airPods:
