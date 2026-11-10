@@ -47,20 +47,38 @@ struct UpdaterSettingsView: View {
     }
     
     var body: some View {
-        Section {
-            Toggle("Automatically check for updates", isOn: $automaticallyChecksForUpdates)
-                .onChange(of: automaticallyChecksForUpdates) { _, newValue in
-                    updater.automaticallyChecksForUpdates = newValue
-                }
-            
-            Toggle("Automatically download updates", isOn: $automaticallyDownloadsUpdates)
-                .disabled(!automaticallyChecksForUpdates)
-                .onChange(of: automaticallyDownloadsUpdates) { _, newValue in
-                    updater.automaticallyDownloadsUpdates = newValue
-                }
-        } header: {
-            HStack {
-                Text("Software updates")
+        VStack(spacing: 0) {
+            MediaSettingsRow(
+                icon: "arrow.triangle.2.circlepath", iconColor: .blue,
+                title: "Automatically check for updates",
+                subtitle: "Look for new Dino versions in the background"
+            ) {
+                Toggle("Automatically check for updates", isOn: $automaticallyChecksForUpdates)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .tint(.effectiveAccent)
+                    .onChange(of: automaticallyChecksForUpdates) { _, newValue in
+                        updater.automaticallyChecksForUpdates = newValue
+                    }
+            }
+
+            MediaSettingsDivider()
+
+            MediaSettingsRow(
+                icon: "arrow.down.circle.fill", iconColor: .green,
+                title: "Automatically download updates",
+                subtitle: "Download available updates when they are found"
+            ) {
+                Toggle("Automatically download updates", isOn: $automaticallyDownloadsUpdates)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .tint(.effectiveAccent)
+                    .disabled(!automaticallyChecksForUpdates)
+                    .onChange(of: automaticallyDownloadsUpdates) { _, newValue in
+                        updater.automaticallyDownloadsUpdates = newValue
+                    }
             }
         }
     }

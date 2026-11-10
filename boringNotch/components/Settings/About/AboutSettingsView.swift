@@ -4,86 +4,93 @@ import Sparkle
 import SwiftUI
 
 struct About: View {
-    @State private var showBuildNumber: Bool = false
+    @State private var showBuildNumber = false
     let updaterController: SPUStandardUpdaterController
+
     var body: some View {
-        VStack {
-            Form {
-                Section {
-                    HStack {
-                        Text("Release name")
-                        Spacer()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                settingsSection("Version Info") {
+                    MediaSettingsRow(
+                        icon: "tag.fill", iconColor: .purple,
+                        title: "Release name", subtitle: "Current Dino release"
+                    ) {
                         Text(Defaults[.releaseName])
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.secondary)
                     }
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        if showBuildNumber {
-                            Text("(\(Bundle.main.buildVersionNumber ?? ""))")
-                                .foregroundStyle(.secondary)
-                        }
-                        Text(Bundle.main.releaseVersionNumber ?? "unkown")
+                    MediaSettingsDivider()
+                    MediaSettingsRow(
+                        icon: "info.circle.fill", iconColor: .blue,
+                        title: "Version", subtitle: versionDetail
+                    ) {
+                        Text(Bundle.main.releaseVersionNumber ?? "Unknown")
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.secondary)
                     }
-                    .onTapGesture {
-                        withAnimation {
-                            showBuildNumber.toggle()
-                        }
-                    }
-                } header: {
-                    Text("Version info")
+                    .contentShape(Rectangle())
+                    .onTapGesture { withAnimation { showBuildNumber.toggle() } }
                 }
 
-                UpdaterSettingsView(updater: updaterController.updater)
+                settingsSection("Software Updates") {
+                    UpdaterSettingsView(updater: updaterController.updater)
+                }
 
-                Section {
-                    HStack {
-                        Text("Revisit Dino's introduction and setup.")
-                        Spacer()
+                settingsSection("Welcome") {
+                    MediaSettingsRow(
+                        icon: "hand.wave.fill", iconColor: .orange,
+                        title: "Show Welcome", subtitle: "Revisit Dino’s introduction and setup"
+                    ) {
                         Button("Show Welcome") {
                             NotificationCenter.default.post(name: .showWelcomeWindow, object: nil)
                         }
+                        .buttonStyle(.bordered)
                     }
-                } header: {
-                    Text("Welcome")
                 }
 
-                HStack(spacing: 30) {
-                    Spacer(minLength: 0)
-                    Button {
-                        if let url = URL(string: "https://github.com/mukhammadxuja/dino") {
+                settingsSection("Community") {
+                    MediaSettingsRow(
+                        icon: "chevron.left.forwardslash.chevron.right", iconColor: .primary,
+                        title: "GitHub", subtitle: "View the Dino project and source code"
+                    ) {
+                        Button("Open GitHub") {
+                            guard let url = URL(string: "https://github.com/mukhammadxuja/dino") else { return }
                             NSWorkspace.shared.open(url)
                         }
-                    } label: {
-                        VStack(spacing: 5) {
-                            Image("Github")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 18)
-                            Text("GitHub")
-                        }
-                        .contentShape(Rectangle())
+                        .buttonStyle(.bordered)
                     }
-                    Spacer(minLength: 0)
                 }
-                .buttonStyle(PlainButtonStyle())
-            }
-            VStack(spacing: 0) {
-                Divider()
+
                 Text("Enjoy!")
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-                    .padding(.top, 5)
-                    .padding(.bottom, 7)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 2)
             }
-            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(20)
         }
         .toolbar {
             CheckForUpdatesView(updater: updaterController.updater)
         }
         .navigationTitle("About")
     }
-}
 
+    private func settingsSection<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.secondary)
+            VStack(spacing: 0, content: content)
+                .hudSettingsCard()
+        }
+    }
+
+    private var versionDetail: String {
+        showBuildNumber
+            ? "Build " + (Bundle.main.buildVersionNumber ?? "")
+            : "Click to show the build number"
+    }
+}

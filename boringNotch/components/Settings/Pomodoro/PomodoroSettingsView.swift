@@ -15,171 +15,248 @@ struct PomodoroSettings: View {
     @Default(.pomodoroClosedNotchDisplayMode) private var pomodoroClosedNotchDisplayMode
     @Default(.pomodoroTickSound) private var pomodoroTickSound
     @Default(.pomodoroEndSound) private var pomodoroEndSound
+    @Default(.pomodoroStrictModeEnabled) private var pomodoroStrictModeEnabled
     @Default(.pomodoroStrictModeWallpaperPath) private var pomodoroStrictModeWallpaperPath
     @Default(.pomodoroStrictModeEyeExercisesEnabled) private var pomodoroStrictModeEyeExercisesEnabled
 
+    private let pomodoroColor = Color(red: 0.95, green: 0.35, blue: 0.25)
+
     var body: some View {
-        Form {
-            Section {
-                Defaults.Toggle(key: .pomodoroEnabled) {
-                    Text("Enable Pomodoro")
-                }
-            } header: {
-                Text("Pomodoro Features")
-            } footer: {
-                Text("Enable Pomodoro widgets in the notch.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
-                Stepper(value: clampedBinding(for: $pomodoroFocusMinutes, in: 5...120), step: 1) {
-                    HStack {
-                        Text("Focus")
-                        Spacer()
-                        Text("\(pomodoroFocusMinutes) min")
-                            .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                settingsSection("Pomodoro") {
+                    PomodoroSettingsRow(
+                        icon: "timer", iconColor: pomodoroColor,
+                        title: "Enable Pomodoro",
+                        subtitle: "Show focus sessions and controls in the notch"
+                    ) {
+                        Toggle("Enable Pomodoro", isOn: $pomodoroEnabled)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .tint(.effectiveAccent)
                     }
                 }
-                Stepper(value: clampedBinding(for: $pomodoroShortBreakMinutes, in: 1...30), step: 1) {
-                    HStack {
-                        Text("Short break")
-                        Spacer()
-                        Text("\(pomodoroShortBreakMinutes) min")
-                            .foregroundStyle(.secondary)
+
+                settingsSection("Session") {
+                    PomodoroSettingsRow(
+                        icon: "brain.head.profile", iconColor: .blue,
+                        title: "Focus duration",
+                        subtitle: "Length of each focused work session"
+                    ) {
+                        durationStepper($pomodoroFocusMinutes, range: 5...120)
+                    }
+                    PomodoroSettingsDivider()
+                    PomodoroSettingsRow(
+                        icon: "cup.and.saucer.fill", iconColor: .green,
+                        title: "Short break",
+                        subtitle: "Recovery time between focus sessions"
+                    ) {
+                        durationStepper($pomodoroShortBreakMinutes, range: 1...30)
+                    }
+                    PomodoroSettingsDivider()
+                    PomodoroSettingsRow(
+                        icon: "moon.fill", iconColor: .indigo,
+                        title: "Long break",
+                        subtitle: "A longer break after completing a cycle"
+                    ) {
+                        durationStepper($pomodoroLongBreakMinutes, range: 5...60)
+                    }
+                    PomodoroSettingsDivider()
+                    PomodoroSettingsRow(
+                        icon: "arrow.triangle.2.circlepath", iconColor: .orange,
+                        title: "Cycles before long break",
+                        subtitle: "Number of focus sessions in each cycle"
+                    ) {
+                        cycleStepper
                     }
                 }
-                Stepper(value: clampedBinding(for: $pomodoroLongBreakMinutes, in: 5...60), step: 1) {
-                    HStack {
-                        Text("Long break")
-                        Spacer()
-                        Text("\(pomodoroLongBreakMinutes) min")
-                            .foregroundStyle(.secondary)
+
+                settingsSection("Automation") {
+                    PomodoroSettingsRow(
+                        icon: "play.circle.fill", iconColor: .green,
+                        title: "Auto-start breaks",
+                        subtitle: "Begin each break when a focus session ends"
+                    ) {
+                        Toggle("Auto-start breaks", isOn: $pomodoroAutoStartBreaks)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .tint(.effectiveAccent)
+                    }
+                    PomodoroSettingsDivider()
+                    PomodoroSettingsRow(
+                        icon: "forward.end.fill", iconColor: .blue,
+                        title: "Auto-start next focus",
+                        subtitle: "Start the next focus session after a break"
+                    ) {
+                        Toggle("Auto-start next focus", isOn: $pomodoroAutoStartFocus)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .tint(.effectiveAccent)
+                    }
+                    PomodoroSettingsDivider()
+                    PomodoroSettingsRow(
+                        icon: "bell.badge.fill", iconColor: .orange,
+                        title: "Notifications",
+                        subtitle: "Get a one-minute warning before a session ends"
+                    ) {
+                        Toggle("Notifications", isOn: $pomodoroNotificationsEnabled)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .tint(.effectiveAccent)
                     }
                 }
-                Stepper(value: clampedBinding(for: $pomodoroCycleBeforeLongBreak, in: 2...10), step: 1) {
-                    HStack {
-                        Text("Cycles before long break")
-                        Spacer()
-                        Text("\(pomodoroCycleBeforeLongBreak)")
-                            .foregroundStyle(.secondary)
+
+                settingsSection("Strict Mode") {
+                    PomodoroSettingsRow(
+                        icon: "lock.fill", iconColor: .red,
+                        title: "Enable strict mode",
+                        subtitle: "Show a full-screen break overlay on every monitor"
+                    ) {
+                        Toggle("Enable strict mode", isOn: $pomodoroStrictModeEnabled)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .tint(.effectiveAccent)
                     }
-                }
-                Defaults.Toggle(key: .pomodoroAutoStartBreaks) {
-                    Text("Auto-start breaks")
-                }
-                Defaults.Toggle(key: .pomodoroAutoStartFocus) {
-                    Text("Auto-start next focus")
-                }
-                Defaults.Toggle(key: .pomodoroNotificationsEnabled) {
-                    Text("Notifications")
-                }
-            } header: {
-                Text("Session")
-            } footer: {
-                Text("Shows a 1-minute warning notification before focus ends.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
-                Defaults.Toggle(key: .pomodoroStrictModeEnabled) {
-                    Text("Enable strict mode")
-                }
-
-                Defaults.Toggle(key: .pomodoroStrictModeEyeExercisesEnabled) {
-                    Text("Enable eye exercise mode")
-                }
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Break wallpaper")
-                        Text(strictModeWallpaperLabel)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    PomodoroSettingsDivider()
+                    PomodoroSettingsRow(
+                        icon: "eye.fill", iconColor: .teal,
+                        title: "Eye exercise mode",
+                        subtitle: "Include eye exercises during strict-mode breaks"
+                    ) {
+                        Toggle("Enable eye exercise mode", isOn: $pomodoroStrictModeEyeExercisesEnabled)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .tint(.effectiveAccent)
                     }
-
-                    Spacer(minLength: 12)
-
-                    Button("Upload") {
-                        pickStrictModeWallpaper()
-                    }
-                    .buttonStyle(.bordered)
-
-                    if pomodoroStrictModeWallpaperPath != nil {
-                        Button("Reset") {
-                            pomodoroStrictModeWallpaperPath = nil
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-            } header: {
-                Text("Strict Mode")
-            } footer: {
-                Text("When enabled, break sessions show a full-screen lock overlay on all monitors. Skip always asks for confirmation. You can keep blur as default or set a custom wallpaper.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
-                Picker("Closed notch behavior", selection: $pomodoroClosedNotchDisplayMode) {
-                    ForEach(PomodoroClosedNotchDisplayMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.menu)
-            } header: {
-                Text("Closed Notch")
-            } footer: {
-                Text("Choose whether Pomodoro is hidden or shown inline in the closed notch by replacing the music cover/visualizer area with countdown and controls.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
-                HStack {
-                    Picker("Ticking", selection: $pomodoroTickSound) {
-                        ForEach(PomodoroTickSound.allCases) { sound in
-                            Text(sound.title).tag(sound)
-                        }
-                    }
-
-                    Spacer(minLength: 8)
-
-                    Button("Play") {
-                        guard let fileName = pomodoroTickSound.fileName else { return }
-                        AudioPlayer().play(fileName: fileName, fileExtension: "mp3", subdirectory: "sounds")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(pomodoroTickSound == .off)
-                }
-
-                HStack {
-                    Picker("End", selection: $pomodoroEndSound) {
-                        ForEach(PomodoroEndSound.allCases) { sound in
-                            Text(sound.title).tag(sound)
+                    .disabled(!pomodoroStrictModeEnabled)
+                    .opacity(pomodoroStrictModeEnabled ? 1 : 0.5)
+                    PomodoroSettingsDivider()
+                    PomodoroSettingsRow(
+                        icon: "photo.fill", iconColor: .purple,
+                        title: "Break wallpaper",
+                        subtitle: strictModeWallpaperLabel
+                    ) {
+                        HStack(spacing: 8) {
+                            Button("Choose") { pickStrictModeWallpaper() }
+                                .buttonStyle(.bordered)
+                            if pomodoroStrictModeWallpaperPath != nil {
+                                Button("Reset") { pomodoroStrictModeWallpaperPath = nil }
+                                    .buttonStyle(.bordered)
+                            }
                         }
                     }
-
-                    Spacer(minLength: 8)
-
-                    Button("Play") {
-                        guard let fileName = pomodoroEndSound.fileName else { return }
-                        AudioPlayer().play(fileName: fileName, fileExtension: "mp3", subdirectory: "sounds")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(pomodoroEndSound == .off)
+                    .disabled(!pomodoroStrictModeEnabled)
+                    .opacity(pomodoroStrictModeEnabled ? 1 : 0.5)
                 }
-            } header: {
-                Text("Sounds")
-            } footer: {
-                Text("Ticking plays during the last 5 seconds of focus/break. End sound plays when the phase completes.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+                settingsSection("Closed Notch") {
+                    PomodoroSettingsRow(
+                        icon: "rectangle.topthird.inset.filled", iconColor: pomodoroColor,
+                        title: "Closed notch behavior",
+                        subtitle: "Choose whether the countdown appears while the notch is closed"
+                    ) {
+                        Picker("Closed notch behavior", selection: $pomodoroClosedNotchDisplayMode) {
+                            ForEach(PomodoroClosedNotchDisplayMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .frame(width: 118)
+                    }
+                }
+
+                settingsSection("Sounds") {
+                    PomodoroSettingsRow(
+                        icon: "metronome.fill", iconColor: .orange,
+                        title: "Ticking",
+                        subtitle: "Plays during the last five seconds of each session"
+                    ) {
+                        HStack(spacing: 8) {
+                            Picker("Ticking", selection: $pomodoroTickSound) {
+                                ForEach(PomodoroTickSound.allCases) { sound in
+                                    Text(sound.title).tag(sound)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(width: 112)
+                            Button("Play") { playTickSound() }
+                                .buttonStyle(.bordered)
+                                .disabled(pomodoroTickSound == .off)
+                        }
+                    }
+                    PomodoroSettingsDivider()
+                    PomodoroSettingsRow(
+                        icon: "speaker.wave.2.fill", iconColor: .red,
+                        title: "Session end",
+                        subtitle: "Plays when a focus session or break finishes"
+                    ) {
+                        HStack(spacing: 8) {
+                            Picker("Session end", selection: $pomodoroEndSound) {
+                                ForEach(PomodoroEndSound.allCases) { sound in
+                                    Text(sound.title).tag(sound)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(width: 112)
+                            Button("Play") { playEndSound() }
+                                .buttonStyle(.bordered)
+                                .disabled(pomodoroEndSound == .off)
+                        }
+                    }
+                }
             }
+            .padding(20)
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("Pomodoro")
+    }
+
+    private func settingsSection<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 0, content: content)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color(red: 0.91, green: 0.91, blue: 0.93), lineWidth: 1)
+                }
+        }
+    }
+
+    private func durationStepper(_ value: Binding<Int>, range: ClosedRange<Int>) -> some View {
+        Stepper(value: clampedBinding(for: value, in: range), in: range) {
+            Text("\(value.wrappedValue) min")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 45, alignment: .trailing)
+        }
+        .labelsHidden()
+    }
+
+    private var cycleStepper: some View {
+        Stepper(value: clampedBinding(for: $pomodoroCycleBeforeLongBreak, in: 2...10), in: 2...10) {
+            Text("\(pomodoroCycleBeforeLongBreak)")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 24, alignment: .trailing)
+        }
+        .labelsHidden()
     }
 
     private func clampedBinding(for value: Binding<Int>, in range: ClosedRange<Int>) -> Binding<Int> {
@@ -193,8 +270,17 @@ struct PomodoroSettings: View {
         guard let path = pomodoroStrictModeWallpaperPath, !path.isEmpty else {
             return "Default blur background"
         }
-
         return URL(fileURLWithPath: path).lastPathComponent
+    }
+
+    private func playTickSound() {
+        guard let fileName = pomodoroTickSound.fileName else { return }
+        AudioPlayer().play(fileName: fileName, fileExtension: "mp3", subdirectory: "sounds")
+    }
+
+    private func playEndSound() {
+        guard let fileName = pomodoroEndSound.fileName else { return }
+        AudioPlayer().play(fileName: fileName, fileExtension: "mp3", subdirectory: "sounds")
     }
 
     private func pickStrictModeWallpaper() {
@@ -210,3 +296,43 @@ struct PomodoroSettings: View {
     }
 }
 
+private struct PomodoroSettingsDivider: View {
+    var body: some View {
+        Divider().padding(.leading, 56)
+    }
+}
+
+private struct PomodoroSettingsRow<TrailingContent: View>: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String
+    @ViewBuilder let trailing: () -> TrailingContent
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(iconColor.opacity(0.12))
+                    .frame(width: 28, height: 28)
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(iconColor)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13.5, weight: .medium))
+                Text(subtitle)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 12)
+            trailing()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
