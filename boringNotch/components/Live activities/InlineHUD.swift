@@ -555,6 +555,20 @@ enum BluetoothAnimationAsset: String, CaseIterable {
 
     static let defaultAsset: Self = .airpodsPro
 
+    /// A representative device name used by the HUD settings preview cycle.
+    var testDeviceName: String {
+        switch self {
+        case .airpodsPro: return "AirPods Pro"
+        case .airpodsPro3: return "AirPods Pro 3"
+        case .airpodsGen4: return "AirPods 4"
+        case .airpodsGen3: return "AirPods 3"
+        case .airpods: return "AirPods"
+        case .airpodsMax: return "AirPods Max"
+        case .beatsSolo: return "Beats Solo"
+        case .beatsStudio: return "Beats Studio"
+        }
+    }
+
     static func forDeviceName(_ name: String) -> Self {
         let normalized = name.lowercased()
 

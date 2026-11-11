@@ -124,7 +124,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .backlight:
             return [.init(title: "Test On", value: 0.5), .init(title: "Test Off", value: 0)]
         case .airpods:
-            return [.init(title: "Test 94%", value: 94), .init(title: "Test 15%", value: 15)]
+            return []
         case .updateAvailable:
             return [.init(title: "Test", value: 0)]
         case .capslock:
@@ -178,6 +178,7 @@ private struct HUDIndicatorSettingsRow: View {
     @Binding var expandedIndicator: HUDIndicator?
     @Default private var isEnabled: Bool
     @State private var lowPowerModePreviewIsOn = true
+    @State private var airPodsTestAssetIndex = 0
 
     init(indicator: HUDIndicator, expandedIndicator: Binding<HUDIndicator?>) {
         self.indicator = indicator
@@ -240,7 +241,13 @@ private struct HUDIndicatorSettingsRow: View {
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.secondary.opacity(0.8))
                         Spacer()
-                        if indicator == .lowPowerMode {
+                        if indicator == .airpods {
+                            Button("Test \(nextAirPodsTestAsset.testDeviceName)") {
+                                testNextAirPodsHUD()
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        } else if indicator == .lowPowerMode {
                             Button("Test On") { testLowPowerModeHUD(isOn: true) }
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
@@ -303,7 +310,7 @@ private struct HUDIndicatorSettingsRow: View {
         case .backlight:
             coordinator.toggleSneakPeek(status: true, type: .backlight, value: value ?? 0.5, force: true)
         case .airpods:
-            coordinator.toggleSneakPeek(status: true, type: .airPods, duration: 5.2, value: value ?? 94, icon: "AirPods Pro", force: true)
+            testNextAirPodsHUD()
         case .updateAvailable:
             coordinator.toggleSneakPeek(status: true, type: .updateAvailable, duration: 4, icon: "1.2.3", force: true)
         case .capslock:
@@ -328,6 +335,23 @@ private struct HUDIndicatorSettingsRow: View {
     private func testLowPowerModeHUD(isOn: Bool) {
         lowPowerModePreviewIsOn = isOn
         BatteryStatusViewModel.shared.testLowPowerModeHUD(isEnabled: isOn)
+    }
+
+    private var nextAirPodsTestAsset: BluetoothAnimationAsset {
+        BluetoothAnimationAsset.allCases[airPodsTestAssetIndex % BluetoothAnimationAsset.allCases.count]
+    }
+
+    private func testNextAirPodsHUD() {
+        let asset = nextAirPodsTestAsset
+        airPodsTestAssetIndex = (airPodsTestAssetIndex + 1) % BluetoothAnimationAsset.allCases.count
+        BoringViewCoordinator.shared.toggleSneakPeek(
+            status: true,
+            type: .airPods,
+            duration: 5.2,
+            value: 94,
+            icon: asset.testDeviceName,
+            force: true
+        )
     }
 }
 
