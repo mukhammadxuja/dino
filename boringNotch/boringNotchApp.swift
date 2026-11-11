@@ -33,7 +33,7 @@ struct DynamicNotchApp: App {
     var body: some Scene {
         MenuBarExtra(
             "dino",
-            systemImage: "sparkle",
+            image: "DinoMenuBar",
             isInserted: .constant(showMenuBarIcon)
         ) {
             Button("Settings") {

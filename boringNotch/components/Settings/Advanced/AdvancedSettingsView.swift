@@ -13,8 +13,8 @@ struct Advanced: View {
 
     @State private var customAccentColor: Color = .accentColor
     @State private var selectedPresetColor: PresetAccentColor?
-    @State private var selectedIcon = "logo2"
-    private let icons = ["logo2"]
+    @State private var selectedIcon = "DinoLogo"
+    private let icons = ["DinoLogo"]
 
     enum PresetAccentColor: String, CaseIterable, Identifiable {
         case blue = "Blue", purple = "Purple", pink = "Pink", red = "Red"
