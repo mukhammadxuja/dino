@@ -31,6 +31,7 @@ enum SneakContentType {
     case capsLock
     case location
     case airPods
+    case updateAvailable
 
     var isInteractiveHUD: Bool {
         switch self {
@@ -289,7 +290,7 @@ class BoringViewCoordinator: ObservableObject {
             return
         }
 
-        if type != .music && type != .mic && type != .micActivity && type != .camera && type != .screenRecord && type != .capsLock && type != .location && type != .airPods {
+        if type != .music && type != .mic && type != .micActivity && type != .camera && type != .screenRecord && type != .capsLock && type != .location && type != .airPods && type != .updateAvailable {
             if !Defaults[.hudReplacement] && !force {
                 return
             }
@@ -309,6 +310,8 @@ class BoringViewCoordinator: ObservableObject {
             guard Defaults[.hudBacklightEnabled] else { return }
         case .airPods:
             guard Defaults[.hudAirPodsEnabled] else { return }
+        case .updateAvailable:
+            guard Defaults[.hudUpdateAvailableEnabled] else { return }
         case .capsLock:
             guard Defaults[.hudCapsLockEnabled] else { return }
         case .location:
@@ -375,6 +378,7 @@ class BoringViewCoordinator: ObservableObject {
             case .capsLock: return .hud(.capsLock(isOn: value > 0))
             case .location: return .hud(.location(isInUse: value > 0))
             case .airPods: return .hud(.airPods(name: icon.isEmpty ? "AirPods Pro" : icon, battery: Int(value)))
+            case .updateAvailable: return .hud(.updateAvailable(version: icon))
             case .charging: return .hud(.charging)
             case .unplugged: return .hud(.unplugged)
             default: return .hud(.volume(value: Double(value)))

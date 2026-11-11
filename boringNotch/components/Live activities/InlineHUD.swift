@@ -145,8 +145,18 @@ struct InlineHUD: View {
                         .contentTransition(.interpolate)
                         .frame(width: 24, height: 16, alignment: .center)
                     case .airPods:
-                        AirPodsVideoView()
+                        AirPodsVideoView(animationAsset: .forDeviceName(icon))
                             .frame(width: 24, height: 24)
+                    case .updateAvailable:
+                        ZStack {
+                            Capsule()
+                                .fill(Color.updateHUD)
+                                .frame(width: 24, height: 16)
+                            Image(systemName: "arrow.down.app.fill")
+                                .font(.system(size: 9.5, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .frame(width: 24, height: 16, alignment: .center)
                     case .charging:
                         ZStack(alignment: .bottomTrailing) {
                             Image(systemName: "battery.100percent")
@@ -169,7 +179,7 @@ struct InlineHUD: View {
             .foregroundStyle(.white)
             .symbolVariant(.fill)
             
-            if type != .mic && type != .micActivity && type != .camera && type != .screenRecord && type != .capsLock && type != .location && type != .airPods && type != .charging && type != .unplugged {
+            if type != .mic && type != .micActivity && type != .camera && type != .screenRecord && type != .capsLock && type != .location && type != .airPods && type != .updateAvailable && type != .charging && type != .unplugged {
                 Text(Type2Name(type))
                     .font(.subheadline)
                     .fontWeight(.medium)
@@ -241,6 +251,12 @@ struct InlineHUD: View {
                 let batteryVal = Int(value > 1 ? value : value * 100)
                 AirPodsBatteryRingView(battery: batteryVal)
                     .frame(alignment: .trailing)
+            } else if type == .updateAvailable {
+                Text("Update ready")
+                    .foregroundStyle(Color.updateHUD)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .lineLimit(1)
+                    .fixedSize()
             } else if type == .charging {
                 Text("Charging")
                     .foregroundStyle(.green)
@@ -322,7 +338,7 @@ struct InlineHUD: View {
             return 20 + 5 + textWidth(Type2Name(for: type), size: 12, weight: .medium)
         case .airPods:
             return 24
-        case .mic, .micActivity, .camera, .screenRecord, .capsLock, .location, .charging, .unplugged:
+        case .mic, .micActivity, .camera, .screenRecord, .capsLock, .location, .updateAvailable, .charging, .unplugged:
             return 24
         default:
             return 24
@@ -347,6 +363,8 @@ struct InlineHUD: View {
             return textWidth("Location In Use", size: 11.5, weight: .medium)
         case .airPods:
             return 15
+        case .updateAvailable:
+            return textWidth("Update ready", size: 11.5, weight: .semibold)
         case .charging:
             return textWidth("Charging", size: 11.5, weight: .semibold)
         case .unplugged:
@@ -378,6 +396,8 @@ struct InlineHUD: View {
             return isScreenBuiltin ? 236 : 228
         case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .charging, .unplugged:
             return isScreenBuiltin ? 180 : 175
+        case .updateAvailable:
+            return isScreenBuiltin ? 190 : 185
         default:
             return isScreenBuiltin ? 180 : 175
         }
@@ -389,7 +409,7 @@ struct InlineHUD: View {
             return 52
         case .volume, .brightness, .backlight:
             return 82
-        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .charging, .unplugged:
+        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .updateAvailable, .charging, .unplugged:
             return 52
         default:
             return 60
@@ -402,7 +422,7 @@ struct InlineHUD: View {
             return 52
         case .volume, .brightness, .backlight:
             return 98
-        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .charging, .unplugged:
+        case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .updateAvailable, .charging, .unplugged:
             return 88
         default:
             return 80
@@ -522,40 +542,80 @@ struct InlineHUD: View {
         .environmentObject(BoringViewModel())
 }
 
-// MARK: - AirPods Video Asset Cache & Background Resolver
+// MARK: - Bluetooth device video assets
+enum BluetoothAnimationAsset: String, CaseIterable {
+    case airpodsPro
+    case airpodsPro3
+    case airpodsGen4
+    case airpodsGen3
+    case airpods
+    case airpodsMax
+    case beatsSolo = "beatssolo"
+    case beatsStudio = "beatsstudio"
+
+    static let defaultAsset: Self = .airpodsPro
+
+    static func forDeviceName(_ name: String) -> Self {
+        let normalized = name.lowercased()
+
+        if normalized.contains("beats studio") { return .beatsStudio }
+        if normalized.contains("beats solo") { return .beatsSolo }
+        if normalized.contains("airpods max") { return .airpodsMax }
+        if normalized.contains("airpods pro") {
+            return normalized.contains("pro 3") || normalized.contains("3rd") || normalized.contains("gen 3")
+                ? .airpodsPro3 : .airpodsPro
+        }
+        if normalized.contains("airpods gen 4") || normalized.contains("airpods 4") || normalized.contains("4th") {
+            return .airpodsGen4
+        }
+        if normalized.contains("airpods gen 3") || normalized.contains("airpods 3") || normalized.contains("3rd") {
+            return .airpodsGen3
+        }
+        if normalized.contains("airpods") { return .airpods }
+        return defaultAsset
+    }
+}
+
+// MARK: - Bluetooth video asset cache
 final class AirPodsVideoCache {
     static let shared = AirPodsVideoCache()
-    private var cachedURL: URL?
+    private var cachedURLs: [BluetoothAnimationAsset: URL] = [:]
     private let queue = DispatchQueue(label: "com.boringnotch.airpodsVideoCache", qos: .userInitiated)
 
     private init() {}
 
-    func prewarm() {
-        resolveVideoURL { _ in }
+    func prewarm(_ asset: BluetoothAnimationAsset = .defaultAsset) {
+        resolveVideoURL(for: asset) { _ in }
     }
 
-    func resolveVideoURL(completion: @escaping (URL?) -> Void) {
+    func resolveVideoURL(for asset: BluetoothAnimationAsset, completion: @escaping (URL?) -> Void) {
         queue.async {
-            let resolved = self.resolveVideoURLSync()
-            self.cachedURL = resolved
+            let resolved = self.resolveVideoURLSync(for: asset)
+            self.cachedURLs[asset] = resolved
             DispatchQueue.main.async {
                 completion(resolved)
             }
         }
     }
 
-    private func resolveVideoURLSync() -> URL? {
-        if let cached = cachedURL, FileManager.default.fileExists(atPath: cached.path) {
+    private func resolveVideoURLSync(for asset: BluetoothAnimationAsset) -> URL? {
+        if let cached = cachedURLs[asset], FileManager.default.fileExists(atPath: cached.path) {
             return cached
         }
 
-        guard let asset = NSDataAsset(name: "airpods-pro-transparent") else { return nil }
+        guard let bundledURL = Bundle.main.url(
+            forResource: asset.rawValue,
+            withExtension: "mov",
+            subdirectory: "devices-animation"
+        ) ?? Bundle.main.url(forResource: asset.rawValue, withExtension: "mov") else {
+            return nil
+        }
         let fileURL = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("boringnotch-airpods-pro-alpha.mov")
+            .appendingPathComponent("dino-bluetooth-\(asset.rawValue).mov")
         do {
-            // Do not reuse an old extracted video after the bundled asset changes.
-            if (try? Data(contentsOf: fileURL)) != asset.data {
-                try asset.data.write(to: fileURL, options: .atomic)
+            let bundledData = try Data(contentsOf: bundledURL)
+            if (try? Data(contentsOf: fileURL)) != bundledData {
+                try bundledData.write(to: fileURL, options: .atomic)
             }
             return fileURL
         } catch {
@@ -567,6 +627,7 @@ final class AirPodsVideoCache {
 
 // MARK: - AirPods Video Animation Player
 struct AirPodsVideoView: View {
+    var animationAsset: BluetoothAnimationAsset = .defaultAsset
     var isActive = true
     @State private var players: [AVPlayer] = []
     @State private var timeObservers: [Any] = []
@@ -576,27 +637,6 @@ struct AirPodsVideoView: View {
     @State private var isVisible = false
     @State private var playbackGeneration = 0
     private let crossfadeDuration: TimeInterval = 0.35
-
-    // The supplied movie advertises an alpha channel but its background is opaque.
-    // Key out near-black pixels so the HUD surface remains visible behind it.
-    private static let blackBackgroundCube: Data = {
-        let dimension = 32
-        var values: [Float] = []
-        values.reserveCapacity(dimension * dimension * dimension * 4)
-        for blue in 0..<dimension {
-            for green in 0..<dimension {
-                for red in 0..<dimension {
-                    let r = Float(red) / Float(dimension - 1)
-                    let g = Float(green) / Float(dimension - 1)
-                    let b = Float(blue) / Float(dimension - 1)
-                    let t = min(1, max(0, (max(r, g, b) - 0.025) / 0.12))
-                    let alpha = t * t * (3 - 2 * t)
-                    values.append(contentsOf: [r * alpha, g * alpha, b * alpha, alpha])
-                }
-            }
-        }
-        return values.withUnsafeBufferPointer { Data(buffer: $0) }
-    }()
 
     var body: some View {
         Group {
@@ -615,6 +655,10 @@ struct AirPodsVideoView: View {
         }
         .onAppear { isVisible = true; updatePlayback() }
         .onChange(of: isActive) { _, _ in updatePlayback() }
+        .onChange(of: animationAsset) { _, _ in
+            stopPlayback()
+            updatePlayback()
+        }
         .onDisappear { isVisible = false; stopPlayback() }
     }
 
@@ -623,24 +667,12 @@ struct AirPodsVideoView: View {
         guard players.isEmpty else { return }
         playbackGeneration += 1
         let generation = playbackGeneration
-        AirPodsVideoCache.shared.resolveVideoURL { url in
+        AirPodsVideoCache.shared.resolveVideoURL(for: animationAsset) { url in
             guard let url, self.isVisible, self.isActive,
                   self.playbackGeneration == generation, self.players.isEmpty else { return }
             let asset = AVURLAsset(url: url)
-            let videoComposition = AVVideoComposition(asset: asset) { request in
-                guard let filter = CIFilter(name: "CIColorCube") else {
-                    request.finish(with: request.sourceImage, context: nil)
-                    return
-                }
-                filter.setValue(request.sourceImage.clampedToExtent(), forKey: kCIInputImageKey)
-                filter.setValue(32, forKey: "inputCubeDimension")
-                filter.setValue(Self.blackBackgroundCube, forKey: "inputCubeData")
-                let image = (filter.outputImage ?? request.sourceImage).cropped(to: request.sourceImage.extent)
-                request.finish(with: image, context: nil)
-            }
             let videoPlayers = (0..<2).map { _ in
                 let item = AVPlayerItem(asset: asset)
-                item.videoComposition = videoComposition
                 let player = AVPlayer(playerItem: item)
                 player.isMuted = true
                 return player

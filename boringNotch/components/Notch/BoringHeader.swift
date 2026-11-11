@@ -105,7 +105,7 @@ struct BoringHeader: View {
 
     func isHUDType(_ type: SneakContentType) -> Bool {
         switch type {
-        case .volume, .brightness, .backlight, .mic, .micActivity, .camera, .screenRecord, .capsLock, .location, .airPods, .charging, .unplugged:
+        case .volume, .brightness, .backlight, .mic, .micActivity, .camera, .screenRecord, .capsLock, .location, .airPods, .updateAvailable, .charging, .unplugged:
             return true
         default:
             return false

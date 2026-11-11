@@ -14,6 +14,8 @@ extension View {
 }
 
 extension Color {
+    static let updateHUD = Color(red: 18.0 / 255.0, green: 187.0 / 255.0, blue: 244.0 / 255.0)
+
     static var settingsCardBackground: Color {
         Color(nsColor: .controlBackgroundColor)
     }

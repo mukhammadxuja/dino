@@ -595,6 +595,8 @@ struct ContentView: View {
                     return isCurrentScreenBuiltin ? 236 : 228
                 case .camera, .mic, .micActivity, .screenRecord, .capsLock, .location, .charging, .unplugged:
                     return isCurrentScreenBuiltin ? 180 : 175
+                case .updateAvailable:
+                    return isCurrentScreenBuiltin ? 190 : 185
                 default:
                     return isCurrentScreenBuiltin ? 180 : 175
                 }

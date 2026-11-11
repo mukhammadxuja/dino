@@ -98,7 +98,9 @@ struct DinoSlotRouter: View {
                 type: $coordinator.sneakPeek.type,
                 value: $coordinator.sneakPeek.value,
                 icon: $coordinator.sneakPeek.icon,
-                hoverAnimation: $isHovering,
+                // System HUDs are transient and must retain the closed Island's
+                // baseline height even if the shared notch hover state lingers.
+                hoverAnimation: .constant(false),
                 gestureProgress: .constant(0)
             )
             .transition(.opacity)

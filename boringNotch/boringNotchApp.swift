@@ -24,7 +24,7 @@ struct DynamicNotchApp: App {
 
     init() {
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+            startingUpdater: true, updaterDelegate: UpdateHUDManager.shared, userDriverDelegate: nil)
 
         // Initialize the settings window controller with the updater controller
         SettingsWindowController.shared.setUpdaterController(updaterController)
@@ -49,6 +49,28 @@ struct DynamicNotchApp: App {
                 NSApplication.shared.terminate(self)
             }
             .keyboardShortcut(KeyEquivalent("Q"), modifiers: .command)
+        }
+    }
+}
+
+/// Bridges Sparkle's update discovery callback to Dino's inline HUD system.
+final class UpdateHUDManager: NSObject, SPUUpdaterDelegate {
+    static let shared = UpdateHUDManager()
+
+    private var lastAnnouncedVersion: String?
+
+    func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        let version = item.displayVersionString
+        DispatchQueue.main.async { [weak self] in
+            guard let self, Defaults[.hudUpdateAvailableEnabled],
+                  self.lastAnnouncedVersion != version else { return }
+            self.lastAnnouncedVersion = version
+            BoringViewCoordinator.shared.toggleSneakPeek(
+                status: true,
+                type: .updateAvailable,
+                duration: 4,
+                icon: version
+            )
         }
     }
 }

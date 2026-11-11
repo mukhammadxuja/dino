@@ -245,12 +245,25 @@ public struct DinoSlotContainerView: View {
             .padding(.horizontal, 10)
         case .airPods(let name, let battery):
             HStack(spacing: 8) {
-                AirPodsVideoView()
+                AirPodsVideoView(animationAsset: .forDeviceName(name))
                     .frame(width: 24, height: 24)
                 if let b = battery {
                     Spacer()
                     AirPodsBatteryRingView(battery: b)
                 }
+            }
+            .padding(.horizontal, 10)
+        case .updateAvailable:
+            HStack(spacing: 7) {
+                ZStack {
+                    Capsule().fill(Color.updateHUD).frame(width: 22, height: 15)
+                    Image(systemName: "arrow.down.app.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                Text("Update ready")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color.updateHUD)
             }
             .padding(.horizontal, 10)
         case .charging:

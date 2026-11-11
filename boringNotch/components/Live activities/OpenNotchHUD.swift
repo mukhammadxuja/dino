@@ -120,8 +120,15 @@ struct OpenNotchHUD: View {
                     }
                     .contentTransition(.interpolate)
                 case .airPods:
-                    AirPodsVideoView()
+                    AirPodsVideoView(animationAsset: .forDeviceName(icon))
                         .frame(width: 24, height: 24)
+                case .updateAvailable:
+                    ZStack {
+                        Capsule().fill(Color.updateHUD).frame(width: 26, height: 18)
+                        Image(systemName: "arrow.down.app.fill")
+                            .font(.system(size: 10.5, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
                 case .charging:
                     ZStack(alignment: .bottomTrailing) {
                         Image(systemName: "battery.100percent")
@@ -178,6 +185,11 @@ struct OpenNotchHUD: View {
                 Text("\(icon.isEmpty ? "AirPods Pro" : icon) Connected (\(Int(value))%)")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.white)
+                    .fixedSize()
+            } else if type == .updateAvailable {
+                Text("Update ready")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.updateHUD)
                     .fixedSize()
             } else if type == .charging {
                 Text("Charging")

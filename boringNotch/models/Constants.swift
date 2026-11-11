@@ -573,6 +573,7 @@ extension Defaults.Keys {
     static let hudBrightnessEnabled = Key<Bool>("hudBrightnessEnabled", default: true)
     static let hudBacklightEnabled = Key<Bool>("hudBacklightEnabled", default: true)
     static let hudAirPodsEnabled = Key<Bool>("hudAirPodsEnabled", default: false)
+    static let hudUpdateAvailableEnabled = Key<Bool>("hudUpdateAvailableEnabled", default: true)
     static let hudCapsLockEnabled = Key<Bool>("hudCapsLockEnabled", default: true)
     static let hudLocationEnabled = Key<Bool>("hudLocationEnabled", default: true)
     static let hudCameraEnabled = Key<Bool>("hudCameraEnabled", default: true)

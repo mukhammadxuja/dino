@@ -13,6 +13,7 @@ struct HUDSettingsPreview: View {
             case .brightness: previewBrightnessHUD
             case .backlight: previewBacklightHUD
             case .airpods: previewAirPodsHUD
+            case .updateAvailable: previewUpdateAvailableHUD
             case .capslock: previewCapsLockHUD
             case .location: previewLocationHUD
             case .camera: previewCameraHUD
@@ -86,6 +87,24 @@ struct HUDSettingsPreview: View {
             AirPodsVideoView(isActive: isActive)
                 .frame(width: 24, height: 24)
             AirPodsBatteryRingView(battery: 94)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 28)
+    }
+
+    private var previewUpdateAvailableHUD: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Capsule()
+                    .fill(Color.updateHUD)
+                    .frame(width: 24, height: 16)
+                Image(systemName: "arrow.down.app.fill")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            Text("Update ready")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundColor(Color.updateHUD)
         }
         .padding(.horizontal, 12)
         .frame(height: 28)

@@ -3,7 +3,7 @@ import Defaults
 import SwiftUI
 
 enum HUDIndicator: String, CaseIterable, Identifiable {
-    case volume, brightness, backlight, airpods, capslock, location, camera, mic, screenrecord, charging, unplugged, lowPowerMode
+    case volume, brightness, backlight, airpods, updateAvailable, capslock, location, camera, mic, screenrecord, charging, unplugged, lowPowerMode
 
     var id: String { rawValue }
 
@@ -13,6 +13,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .brightness: return "Display Brightness"
         case .backlight: return "Keyboard Backlight"
         case .airpods: return "AirPods & Bluetooth Audio"
+        case .updateAvailable: return "Update Available"
         case .capslock: return "Caps Lock Indicator"
         case .location: return "Location In-Use"
         case .camera: return "Camera In-Use"
@@ -30,6 +31,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .brightness: return "Screen brightness slider with level percentage"
         case .backlight: return "Keyboard illumination level slider indicator"
         case .airpods: return "iOS Dynamic Island connection animation and circular battery ring"
+        case .updateAvailable: return "Show a HUD when a new Dino version is found"
         case .capslock: return "Instant notch feedback when Caps Lock is engaged or released"
         case .location: return "Privacy indicator when Location Services are requested or active"
         case .camera: return "Privacy indicator when the webcam or Continuity Camera is active"
@@ -47,6 +49,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .brightness: return "sun.max.fill"
         case .backlight: return "keyboard.fill"
         case .airpods: return "airpodspro"
+        case .updateAvailable: return "arrow.down.app.fill"
         case .capslock: return "capslock.fill"
         case .location: return "location.fill"
         case .camera: return "video.fill"
@@ -64,6 +67,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .brightness: return .orange
         case .backlight: return .purple
         case .airpods: return .green
+        case .updateAvailable: return Color.updateHUD
         case .capslock: return .indigo
         case .location: return .cyan
         case .camera: return .green
@@ -81,6 +85,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .brightness: return .hudBrightnessEnabled
         case .backlight: return .hudBacklightEnabled
         case .airpods: return .hudAirPodsEnabled
+        case .updateAvailable: return .hudUpdateAvailableEnabled
         case .capslock: return .hudCapsLockEnabled
         case .location: return .hudLocationEnabled
         case .camera: return .hudCameraEnabled
@@ -98,6 +103,7 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
         case .brightness: return "Fires when adjusting screen brightness using function keys. Shows sun icon with smooth slider and real-time percentage."
         case .backlight: return "Fires when adjusting keyboard illumination level. Shows keyboard glyph, progress bar, and lighting status."
         case .airpods: return "Fires automatically when AirPods or wireless headphones connect. Displays an animated 3D AirPods model on the left and a circular battery progress ring on the right."
+        case .updateAvailable: return "Fires once when Sparkle finds a newer Dino version. It does not interrupt an open notch card."
         case .capslock: return "Fires instantly whenever Caps Lock is pressed. Shows a highlighted badge and 'Caps On' or 'Caps Off' indicator."
         case .location: return "Fires when any application or system service accesses your location. Displays a blue location capsule with 'Location In Use' status."
         case .camera: return "Fires when any app starts using the webcam. Shows a green privacy capsule and 'Camera On' alert."
@@ -119,6 +125,8 @@ enum HUDIndicator: String, CaseIterable, Identifiable {
             return [.init(title: "Test On", value: 0.5), .init(title: "Test Off", value: 0)]
         case .airpods:
             return [.init(title: "Test 94%", value: 94), .init(title: "Test 15%", value: 15)]
+        case .updateAvailable:
+            return [.init(title: "Test", value: 0)]
         case .capslock:
             return [.init(title: "Test On", value: 1), .init(title: "Test Off", value: 0)]
         case .location:
@@ -296,6 +304,8 @@ private struct HUDIndicatorSettingsRow: View {
             coordinator.toggleSneakPeek(status: true, type: .backlight, value: value ?? 0.5, force: true)
         case .airpods:
             coordinator.toggleSneakPeek(status: true, type: .airPods, duration: 5.2, value: value ?? 94, icon: "AirPods Pro", force: true)
+        case .updateAvailable:
+            coordinator.toggleSneakPeek(status: true, type: .updateAvailable, duration: 4, icon: "1.2.3", force: true)
         case .capslock:
             coordinator.toggleSneakPeek(status: true, type: .capsLock, value: value ?? 1, force: true)
         case .location:

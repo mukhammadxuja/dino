@@ -51,6 +51,7 @@ public enum DinoSlot: Equatable, Hashable, Sendable {
         case capsLock(isOn: Bool)
         case location(isInUse: Bool)
         case airPods(name: String, battery: Int?)
+        case updateAvailable(version: String)
         case charging
         case unplugged
     }

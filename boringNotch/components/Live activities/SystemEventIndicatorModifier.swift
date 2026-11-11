@@ -141,8 +141,16 @@ struct SystemEventIndicatorModifier: View {
                     .contentTransition(.interpolate)
                     .frame(width: 24, height: 16)
                 case .airPods:
-                    AirPodsVideoView()
+                    AirPodsVideoView(animationAsset: .forDeviceName(icon))
                         .frame(width: 24, height: 24)
+                case .updateAvailable:
+                    ZStack {
+                        Capsule().fill(Color.updateHUD).frame(width: 24, height: 16)
+                        Image(systemName: "arrow.down.app.fill")
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: 24, height: 16)
                 case .charging:
                     ZStack(alignment: .bottomTrailing) {
                         Image(systemName: "battery.100percent")
@@ -161,7 +169,7 @@ struct SystemEventIndicatorModifier: View {
                 default:
                     EmptyView()
             }
-            if (eventType != .mic && eventType != .micActivity && eventType != .camera && eventType != .screenRecord && eventType != .capsLock && eventType != .location && eventType != .airPods && eventType != .charging && eventType != .unplugged) {
+            if (eventType != .mic && eventType != .micActivity && eventType != .camera && eventType != .screenRecord && eventType != .capsLock && eventType != .location && eventType != .airPods && eventType != .updateAvailable && eventType != .charging && eventType != .unplugged) {
                 DraggableProgressBar(value: $value)
                 if Defaults[.showClosedNotchHUDPercentage] {
                     Text("\(Int(value * 100))%")
@@ -203,6 +211,11 @@ struct SystemEventIndicatorModifier: View {
             } else if eventType == .airPods {
                 Text("\(icon.isEmpty ? "AirPods Pro" : icon) (\(Int(value))%)")
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .allowsTightening(true)
+            } else if eventType == .updateAvailable {
+                Text("Update ready")
+                    .foregroundStyle(Color.updateHUD)
                     .lineLimit(1)
                     .allowsTightening(true)
             } else if eventType == .charging {
