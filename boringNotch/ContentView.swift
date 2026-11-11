@@ -18,6 +18,7 @@ import SwiftUIIntrospect
 private final class OpenFeatureStretchState: ObservableObject {
     @Published var amount: CGFloat = .zero
     @Published var closedScale: CGFloat = 1
+    @Published var isInteracting = false
 }
 
 private struct OpenFeatureStretchView<Content: View>: View {
@@ -31,6 +32,14 @@ private struct OpenFeatureStretchView<Content: View>: View {
                          anchor: .top)
             .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.78), value: stretch.amount)
             .animation(.interactiveSpring(response: 0.18, dampingFraction: 0.78), value: stretch.closedScale)
+            // A trackpad can deliver more than 100 updates per second. During a
+            // gesture, render the value directly instead of continually
+            // retargeting a spring animation.
+            .transaction { transaction in
+                if stretch.isInteracting {
+                    transaction.animation = nil
+                }
+            }
     }
 }
 
@@ -1007,6 +1016,7 @@ struct ContentView: View {
                         } else {
                             vm.isHoveringCalendar = false
                             openFeatureStretch.amount = .zero
+                            openFeatureStretch.isInteracting = false
                             verticalGestureBeganClosed = nil
                             verticalGestureDirection = nil
                             verticalGestureReady = false
@@ -1625,9 +1635,19 @@ struct ContentView: View {
             verticalGestureBeganClosed = vm.notchState == .closed
             verticalGestureDirection = direction
             verticalGestureReady = false
+            openFeatureStretch.isInteracting = isPrecise
         }
 
-        guard isPrecise, let beganClosed = verticalGestureBeganClosed else { return }
+        guard isPrecise else {
+            if phase == .ended || phase == .cancelled {
+                verticalGestureBeganClosed = nil
+                verticalGestureDirection = nil
+                verticalGestureReady = false
+                openFeatureStretch.isInteracting = false
+            }
+            return
+        }
+        guard let beganClosed = verticalGestureBeganClosed else { return }
         let eligible: Bool
         if direction == .down {
             eligible = beganClosed
@@ -1646,6 +1666,7 @@ struct ContentView: View {
             verticalGestureBeganClosed = nil
             verticalGestureDirection = nil
             verticalGestureReady = false
+            openFeatureStretch.isInteracting = false
             withAnimation(.interactiveSpring(response: 0.38, dampingFraction: 0.68)) {
                 if openFeatureStretch.amount != .zero { openFeatureStretch.amount = .zero }
                 if openFeatureStretch.closedScale != 1 { openFeatureStretch.closedScale = 1 }
@@ -1681,16 +1702,20 @@ struct ContentView: View {
             if beganClosed {
                 let progress = min(1, translation / NotchGestureActivation.distance)
                 let isIdleNone = availableIdleClickAction == .none
-                let scale = isIdleNone ? 1 - progress * 0.06 : 1 + progress * 0.04
+                let scale = quantizedGestureValue(isIdleNone ? 1 - progress * 0.06 : 1 + progress * 0.04)
                 if openFeatureStretch.closedScale != scale { openFeatureStretch.closedScale = scale }
             } else {
-                let amount = min(1, translation / 50)
+                let amount = quantizedGestureValue(min(1, translation / 50))
                 if openFeatureStretch.amount != amount { openFeatureStretch.amount = amount }
             }
         } else {
-            let scale = 1 - min(1, translation / NotchGestureActivation.distance) * 0.04
+            let scale = quantizedGestureValue(1 - min(1, translation / NotchGestureActivation.distance) * 0.04)
             if openFeatureStretch.closedScale != scale { openFeatureStretch.closedScale = scale }
         }
+    }
+
+    private func quantizedGestureValue(_ value: CGFloat) -> CGFloat {
+        (value * 120).rounded() / 120
     }
 
     private var canCycleOpenSlot: Bool {

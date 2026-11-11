@@ -233,8 +233,7 @@ struct CalendarView: View {
         }
         .onAppear {
             Task {
-                await calendarManager.checkCalendarAuthorization()
-                await calendarManager.checkReminderAuthorization()
+                await calendarManager.refreshAuthorizationStatuses()
                 await calendarManager.updateCurrentDate(selectedDate)
             }
         }

@@ -100,16 +100,27 @@ class CalendarManager: ObservableObject {
         updateSelectedCalendars()
     }
 
-    func checkCalendarAuthorization() async {
-        await checkAuthorization(for: .event)
-    }
-    
-    func checkReminderAuthorization() async {
-        await checkAuthorization(for: .reminder)
+    /// Refreshes the current permission state without causing a system prompt.
+    func refreshAuthorizationStatuses() async {
+        let previousCalendarStatus = calendarAuthorizationStatus
+        let previousReminderStatus = reminderAuthorizationStatus
+        calendarAuthorizationStatus = EKEventStore.authorizationStatus(for: .event)
+        reminderAuthorizationStatus = EKEventStore.authorizationStatus(for: .reminder)
+
+        guard previousCalendarStatus != calendarAuthorizationStatus
+                || previousReminderStatus != reminderAuthorizationStatus else { return }
+        invalidateMonthCache()
+        await reloadCalendarAndReminderLists()
+        await updateEvents()
     }
 
-    private func checkAuthorization(for type: EKEntityType) async {
-        let previous = type == .event ? calendarAuthorizationStatus : reminderAuthorizationStatus
+    /// Requests access only after the user explicitly enables Calendar in Dino.
+    func requestCalendarAndReminderAccess() async {
+        await requestAuthorization(for: .event)
+        await requestAuthorization(for: .reminder)
+    }
+
+    private func requestAuthorization(for type: EKEntityType) async {
         var status = EKEventStore.authorizationStatus(for: type)
         if status == .notDetermined {
             guard let granted = try? await calendarService.requestAccess(to: type) else { return }
@@ -117,7 +128,6 @@ class CalendarManager: ObservableObject {
         }
         if type == .event { calendarAuthorizationStatus = status }
         else { reminderAuthorizationStatus = status }
-        guard previous != status else { return }
         invalidateMonthCache()
         await reloadCalendarAndReminderLists()
         await updateEvents()

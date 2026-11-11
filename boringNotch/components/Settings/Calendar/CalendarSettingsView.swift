@@ -27,6 +27,10 @@ struct CalendarSettings: View {
                                 .tint(.effectiveAccent)
                                 .onChange(of: showCalendar) { _, enabled in
                                     handleCalendarVisibilityChange(enabled)
+                                    guard enabled else { return }
+                                    Task {
+                                        await calendarManager.requestCalendarAndReminderAccess()
+                                    }
                                 }
                         }
                     }
@@ -96,8 +100,7 @@ struct CalendarSettings: View {
         .navigationTitle("Calendar")
         .onAppear {
             Task {
-                await calendarManager.checkCalendarAuthorization()
-                await calendarManager.checkReminderAuthorization()
+                await calendarManager.refreshAuthorizationStatuses()
             }
         }
     }

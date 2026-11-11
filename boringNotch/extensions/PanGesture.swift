@@ -68,6 +68,8 @@ private struct AxisScrollMonitor: NSViewRepresentable {
         private var lastWasPrecise = false
         private var lastDirection: PanDirection
         private var endTask: Task<Void, Never>?
+        private var staleGestureWatchdogTask: Task<Void, Never>?
+        private var lastEventAt = Date.distantPast
 
         init(
             isHorizontal: Bool,
@@ -96,9 +98,12 @@ private struct AxisScrollMonitor: NSViewRepresentable {
             }
             endTask?.cancel()
             endTask = nil
+            staleGestureWatchdogTask?.cancel()
+            staleGestureWatchdogTask = nil
             active = false
             accumulated = 0
             lastWasPrecise = false
+            lastEventAt = .distantPast
         }
 
         func setEnabled(_ enabled: Bool) {
@@ -110,12 +115,15 @@ private struct AxisScrollMonitor: NSViewRepresentable {
         private func finish(_ phase: NSEvent.Phase) {
             endTask?.cancel()
             endTask = nil
+            staleGestureWatchdogTask?.cancel()
+            staleGestureWatchdogTask = nil
             if active {
                 action(abs(accumulated), lastDirection, phase, lastWasPrecise)
             }
             active = false
             accumulated = 0
             lastWasPrecise = false
+            lastEventAt = .distantPast
         }
 
         private func scheduleEndForPhaseLessDevice() {
@@ -124,6 +132,26 @@ private struct AxisScrollMonitor: NSViewRepresentable {
                 try? await Task.sleep(for: .milliseconds(240))
                 guard !Task.isCancelled else { return }
                 finish(.ended)
+            }
+        }
+
+        private func startStaleGestureWatchdog() {
+            guard staleGestureWatchdogTask == nil else { return }
+            staleGestureWatchdogTask = Task { @MainActor [weak self] in
+                while let self, self.active {
+                    do {
+                        try await Task.sleep(for: .seconds(1))
+                    } catch {
+                        return
+                    }
+                    guard !Task.isCancelled else { return }
+                    // A missing `.ended` event can otherwise leave the notch in
+                    // an interactive state after the pointer leaves its window.
+                    if Date().timeIntervalSince(self.lastEventAt) >= 1 {
+                        self.finish(.ended)
+                        return
+                    }
+                }
             }
         }
 
@@ -144,6 +172,7 @@ private struct AxisScrollMonitor: NSViewRepresentable {
             let scale: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 8
             let delta = axisDelta * scale
             guard abs(delta) > 0.2 else { return }
+            lastEventAt = Date()
 
             // Net movement makes a swipe that returns to its starting point cancel itself.
             accumulated += delta
@@ -160,6 +189,7 @@ private struct AxisScrollMonitor: NSViewRepresentable {
                 active = true
                 lastWasPrecise = event.hasPreciseScrollingDeltas
                 action(magnitude, lastDirection, .began, lastWasPrecise)
+                startStaleGestureWatchdog()
             } else if active {
                 lastWasPrecise = lastWasPrecise || event.hasPreciseScrollingDeltas
                 action(magnitude, lastDirection, .changed, lastWasPrecise)

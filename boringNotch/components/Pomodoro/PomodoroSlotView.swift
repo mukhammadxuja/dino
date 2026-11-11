@@ -187,10 +187,13 @@ public struct PomodoroRulerPickerView: View {
 
                         let delta = Double(value.translation.width / tickSpacing)
                         // Allow scrolling down towards 0 visually, but clamped selection to min 1
-                        let newPos = max(Double(displayMinMinute), min(Double(maxMinute), dragStartScroll - delta))
-                        scrollPosition = newPos
-
-                        let nearest = max(selectableMinMinute, min(maxMinute, Int(round(newPos))))
+                        let rawPosition = max(Double(displayMinMinute), min(Double(maxMinute), dragStartScroll - delta))
+                        // The timer can only be selected in whole minutes. Keeping the
+                        // ruler on the same whole-minute detents prevents labels from
+                        // drifting fractionally under the caret and then snapping back
+                        // when a fast drag finishes.
+                        let nearest = max(selectableMinMinute, min(maxMinute, Int(round(rawPosition))))
+                        updateScrollPosition(Double(nearest))
                         if nearest != activeMinute {
                             activeMinute = nearest
                             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
@@ -206,9 +209,11 @@ public struct PomodoroRulerPickerView: View {
                         activeMinute = nearest
                         pomodoro.setCustomMinutes(nearest)
 
-                        withAnimation(.interactiveSpring(response: 0.3, dampingFraction: 0.8)) {
-                            scrollPosition = target
-                        }
+                        // Do not spring back to the nearest tick. A spring is particularly
+                        // noticeable after a fast drag: labels briefly overshoot and look as
+                        // though they are following the fixed caret. Commit the snap in the
+                        // same, non-animated transaction as the live drag instead.
+                        updateScrollPosition(target)
                         isDragging = false
                     }
             )
@@ -216,9 +221,9 @@ public struct PomodoroRulerPickerView: View {
                 RulerScrollMonitor(onScroll: { deltaX in
                     guard isInteractive else { return }
                     let delta = Double(deltaX / tickSpacing)
-                    let newPos = max(Double(displayMinMinute), min(Double(maxMinute), scrollPosition - delta))
-                    scrollPosition = newPos
-                    let nearest = max(selectableMinMinute, min(maxMinute, Int(round(newPos))))
+                    let rawPosition = max(Double(displayMinMinute), min(Double(maxMinute), scrollPosition - delta))
+                    let nearest = max(selectableMinMinute, min(maxMinute, Int(round(rawPosition))))
+                    updateScrollPosition(Double(nearest))
                     if nearest != activeMinute {
                         activeMinute = nearest
                         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
@@ -258,6 +263,18 @@ public struct PomodoroRulerPickerView: View {
         } else {
             scrollPosition = max(0.0, pomodoro.remainingTime / 60.0)
             activeMinute = max(selectableMinMinute, min(maxMinute, Int(ceil(pomodoro.remainingTime / 60.0))))
+        }
+    }
+
+    /// Keeps ruler labels directly under the pointer while scrubbing. This also
+    /// cancels any previously running snap animation when the user starts a new
+    /// drag before the last one has fully settled.
+    private func updateScrollPosition(_ position: Double) {
+        var transaction = Transaction()
+        transaction.animation = nil
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            scrollPosition = position
         }
     }
 

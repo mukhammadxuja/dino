@@ -101,7 +101,10 @@ class BatteryActivityManager {
     /// Notifies the observers of battery changes
     /// Checks for changes in battery status and notifies observers
     private func notifyBatteryChanges() {
-        let batteryInfo = getBatteryInfo()
+        // IOKit can temporarily have no power-source snapshot while the Mac is
+        // waking. Do not replace the last real state with a fabricated default
+        // value: doing so produces false Low Power Mode off/on events after wake.
+        guard let batteryInfo = getBatteryInfo() else { return }
         
         // Check for changes
         if let previousInfo = previousBatteryInfo {
@@ -197,23 +200,12 @@ class BatteryActivityManager {
     /// - Returns: Current battery information
     func initializeBatteryInfo() -> BatteryInfo {
         previousBatteryInfo = getBatteryInfo()
-        guard let batteryInfo = previousBatteryInfo else {
-            return BatteryInfo(
-                isPluggedIn: false,
-                isCharging: false,
-                currentCapacity: 0,
-                maxCapacity: 0,
-                isInLowPowerMode: false,
-                timeToFullCharge: 0,
-                timeToEmpty: 0
-            )
-        }
-        return batteryInfo
+        return previousBatteryInfo ?? defaultBatteryInfo
     }
 
     /// Get the current battery information
     /// - Returns: The current battery information
-    private func getBatteryInfo() -> BatteryInfo {
+    private func getBatteryInfo() -> BatteryInfo? {
         do {
             // Get power source information
             guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue() else {
@@ -271,16 +263,16 @@ class BatteryActivityManager {
             
         } catch BatteryError.powerSourceUnavailable {
             print("⚠️ Error: Power source information unavailable")
-            return defaultBatteryInfo
+            return nil
         } catch BatteryError.batteryInfoUnavailable(let reason) {
             print("⚠️ Error: Battery information unavailable - \(reason)")
-            return defaultBatteryInfo
+            return nil
         } catch BatteryError.batteryParameterMissing(let parameter) {
             print("⚠️ Error: Battery parameter missing - \(parameter)")
-            return defaultBatteryInfo
+            return nil
         } catch {
             print("⚠️ Error: Unexpected error getting battery info - \(error.localizedDescription)")
-            return defaultBatteryInfo
+            return nil
         }
     }
     
